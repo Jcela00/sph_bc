@@ -1,3 +1,5 @@
 .pvtp
 .vtp
 VTPDATA
+main.o
+sph_dlb
