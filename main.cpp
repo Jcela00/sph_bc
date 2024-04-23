@@ -1,114 +1,10 @@
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break simulation with Dynamic load balacing
- *
- *
- * [TOC]
- *
- *
- * # SPH with Dynamic load Balancing # {#SPH_dlb}
- *
- *
- * This example show the classical SPH Dam break simulation with Load Balancing and Dynamic load balancing. With
- * Load balancing and Dynamic load balancing we indicate the possibility of the system to re-adapt the domain
- * decomposition to keep all the processor load and reduce idle time.
- *
- * \htmlonly
- * <a href="#" onclick="hide_show('vector-video-3')" >Simulation video 1</a><br>
- * <div style="display:none" id="vector-video-3">
- * <video id="vid3" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_speed.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-4')" >Simulation video 2</a><br>
- * <div style="display:none" id="vector-video-4">
- * <video id="vid4" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_speed2.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-15')" >Simulation dynamic load balancing video 1</a><br>
- * <div style="display:none" id="vector-video-15">
- * <video id="vid15" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_dlb.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-16')" >Simulation dynamic load balancing video 2</a><br>
- * <div style="display:none" id="vector-video-16">
- * <video id="vid16" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_dlb2.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-17')" >Simulation countour prospective 1</a><br>
- * <div style="display:none" id="vector-video-17">
- * <video id="vid17" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_zoom.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-18')" >Simulation countour prospective 2</a><br>
- * <div style="display:none" id="vector-video-18">
- * <video id="vid18" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_back.mp4" type="video/mp4"></video>
- * </div>
- * <a href="#" onclick="hide_show('vector-video-19')" >Simulation countour prospective 3</a><br>
- * <div style="display:none" id="vector-video-19">
- * <video id="vid19" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/web/images/examples/7_SPH_dlb/sph_all.mp4" type="video/mp4"></video>
- * </div>
- * \endhtmlonly
- *
- * \htmlonly
- * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/dam_break_all.jpg"/>
- * \endhtmlonly
- *
- * ## Inclusion ## {#e7_sph_inclusion}
- *
- * In order to use distributed vectors in our code we have to include the file Vector/vector_dist.hpp
- * we also include DrawParticles that has nice utilities to draw particles in parallel accordingly
- * to simple shapes
- *
- * \snippet Vector/7_SPH_dlb/main.cpp inclusion
- *
- */
-
 //#define SE_CLASS1
 //#define STOP_ON_ERROR
 
-//! \cond [inclusion] \endcond
 #include "Vector/vector_dist.hpp"
 #include <math.h>
 #include "Draw/DrawParticles.hpp"
-//! \cond [inclusion] \endcond
 
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balacing
- *
- * ## SPH simulation {#e7_sph_parameters}
- *
- * The SPH formulation used in this example code follow these equations
- *
- * \f$\frac{dv_a}{dt} = - \sum_{b = NN(a) } m_b \left(\frac{P_a + P_b}{\rho_a \rho_b} + \Pi_{ab} \right) \nabla_{a} W_{ab} + g  \tag{1} \f$
- *
- * \f$\frac{d\rho_a}{dt} =  \sum_{b = NN(a) } m_b v_{ab} \cdot \nabla_{a} W_{ab} \tag{2} \f$
- *
- * \f$ P_a = b \left[ \left( \frac{\rho_a}{\rho_{0}} \right)^{\gamma} - 1 \right] \tag{3} \f$
- *
- * with
- *
- * \f$ \Pi_{ab} =  \begin{cases} - \frac {\alpha \bar{c_{ab}} \mu_{ab} }{\bar{\rho_{ab}} } & v_{ab} \cdot r_{ab} > 0 \\ 0 & v_{ab} \cdot r_{ab} < 0 \end{cases} \tag{4}\f$
- *
- * and the constants defined as
- *
- * \f$ b = \frac{c_{s}^{2} \rho_0}{\gamma} \tag{5} \f$
- *
- * \f$ c_s = \sqrt{g \cdot h_{swl}} \tag{6} \f$
- *
- * While the particle kernel support is given by
- *
- * \f$ H = \sqrt{3 \cdot dp} \tag{7} \f$
- *
- * Explain the equations is out of the context of this tutorial. An introduction
- * can be found regarding SPH in general in the original Monghagan SPH paper.
- * In this example we use the sligtly modified version
- * used by Dual-SPH (http://www.dual.sphysics.org/). A summary of the equation and constants can be founded in
- * their User Manual and the XML user Manual.
- *
- * ### Parameters {#e7_sph_parameters}
- *
- * Based on the equation
- * reported before several constants must be defined.
- *
- * \snippet Vector/7_SPH_dlb/main.cpp sim parameters
- *
- */
-
-/*! \cond [sim parameters] \endcond */
 
 // A constant to indicate boundary particles
 #define BOUNDARY 0
@@ -148,7 +44,7 @@ const double MassBound = 0.000614125;
 
 // End simulation time
 #ifdef TEST_RUN
-const double t_end = 0.001;
+const double t_end = 1;
 #else
 const double t_end = 1.5;
 #endif
@@ -242,21 +138,6 @@ struct ModelCustom
 	}
 };
 
-/*! \cond [model custom] \endcond */
-
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balacing
- *
- * ### Equation of state {#e7_sph_equation_state}
- *
- * This function implement the formula 3 in the set of equations. It calculate the
- * pressure of each particle based on the local density of each particle.
- *
- * \snippet Vector/7_SPH_dlb/main.cpp eq_state_and_ker
- *
- */
-
-/*! \cond [eq_state_and_ker] \endcond */
 
 
 inline void EqState(particles & vd)
@@ -276,24 +157,6 @@ inline void EqState(particles & vd)
 	}
 }
 
-/*! \cond [eq_state_and_ker] \endcond */
-
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
- *
- * ### Cubic SPH kernel and derivatives {#e7_sph_kernel}
- *
- * This function define the Cubic kernel or \f$ W_{ab} \f$. The cubic kernel is
- * defined as
- *
- * \f$ \begin{cases} 1.0 - \frac{3}{2} q^2 + \frac{3}{4} q^3 & 0 < q < 1 \\ (2 - q)^3 & 1 < q < 2 \\ 0 & q > 2 \end{cases} \f$
- *
- * \snippet Vector/7_SPH_dlb/main.cpp kernel_sph
- *
- */
-
-/*! \cond [kernel_sph] \endcond */
-
 const double a2 = 1.0/M_PI/H/H/H;
 
 inline double Wab(double r)
@@ -307,23 +170,6 @@ inline double Wab(double r)
 	else
 		return 0.0;
 }
-
-/*! \cond [kernel_sph] \endcond */
-
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
- *
- * This function define the gradient of the Cubic kernel function \f$ W_{ab} \f$.
- *
- * \f$ \nabla W_{ab} = \beta (x,y,z)  \f$
- *
- * \f$ \beta = \begin{cases} (c_1 q + d_1 q^2) & 0 < q < 1 \\ c_2 (2 - q)^2  & 1 < q < 2 \end{cases} \f$
- *
- * \snippet Vector/7_SPH_dlb/main.cpp kernel_sph_der
- *
- */
-
-/*! \cond [kernel_sph_der] \endcond */
 
 const double c1 = -3.0/M_PI/H/H/H/H;
 const double d1 = 9.0/4.0/M_PI/H/H/H/H;
@@ -351,25 +197,6 @@ inline void DWab(Point<3,double> & dx, Point<3,double> & DW, double r, bool prin
     DW.get(2) = factor * dx.get(2);
 }
 
-/*! \cond [kernel_sph_der] \endcond */
-
-/*!
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
- *
- * ### Tensile correction {#e7_sph_tensile}
- *
- * This function define the Tensile term. An explanation of the Tensile term is out of the
- * context of this tutorial, but in brief is an additional repulsive term that avoid the particles
- * to get too near. Can be considered at small scale like a repulsive force that avoid
- * particles to get too close like the Lennard-Jhonned potential at atomistic level. A good
- * reference is the Monaghan paper "SPH without a Tensile Instability"
- *
- * \snippet Vector/7_SPH_dlb/main.cpp tensile_term
- *
- *
- */
-
-/*! \cond [tensile_term] \endcond */
 
 // Tensile correction
 inline double Tensile(double r, double rhoa, double rhob, double prs1, double prs2)
@@ -436,23 +263,6 @@ inline double Pi(const Point<3,double> & dr, double rr2, Point<3,double> & dv, d
 	else
 		return 0.0;
 }
-
-/*! \cond [viscous_term] \endcond */
-
-/*!
- *
- * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
- *
- * ### Force calculation {#e7_force_calc}
- *
- * Calculate forces. It calculate equation 1 and 2 in the set of formulas
- *
- * \snippet Vector/7_SPH_dlb/main.cpp calc_forces
- *
- *
- */
-
-/*! \cond [calc_forces] \endcond */
 
 template<typename CellList> inline void calc_forces(particles & vd, CellList & NN, double & max_visc)
 {
@@ -992,22 +802,7 @@ inline void sensor_pressure(Vector & vd,
 
 int main(int argc, char* argv[])
 {
-	/*!
-	 *
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ## Main function {#e7_sph_main}
-	 *
-	 * Here we Initialize the library, we create a Box that define our domain, boundary conditions and ghost. We also create
-	 * a vector that contain two probes to measure pressure
-	 *
-	 * \see \ref e0_s_init
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp Initialization and parameters
-	 *
-	 */
 
-	//! \cond [Initialization and parameters] \endcond
 
     // initialize the library
 	openfpm_init(&argc,&argv);
@@ -1020,100 +815,35 @@ int main(int argc, char* argv[])
 	probes.add({0.754,0.31,0.02});
 
 	// Here we define our domain a 2D box with internals from 0 to 1.0 for x and y
-	Box<3,double> domain({-0.05,-0.05,-0.05},{1.7010,0.7065,0.5025});
-	size_t sz[3] = {207,90,66};
+	// Box<3,double> domain({-0.05,-0.05,-0.05},{1.7010,0.7065,0.5025});
+	size_t Nx,Ny,Nz;
+	Nx = 20;
+	Ny = 20;
+	Nz = 40;
+	size_t sz[3] = {Nx,Ny,Nz};
+  	double channel_length_x = Nx*dp;
+  	double channel_length_y = Ny*dp;
+	double channel_length_z = Nz*dp;
+ 	Box<3,double> domain({-1*dp,-1*dp,-1*dp},{channel_length_x+1*dp,channel_length_y+1*dp,channel_length_z+1*dp});
+
 
 	// Fill W_dap
 	W_dap = 1.0/Wab(H/1.5);
 
 	// Here we define the boundary conditions of our problem
-    size_t bc[3]={NON_PERIODIC,NON_PERIODIC,NON_PERIODIC};
+    size_t bc[3]={NON_PERIODIC,NON_PERIODIC,PERIODIC};
 
 	// extended boundary around the domain, and the processor domain
 	Ghost<3,double> g(2*H);
 	
 	//! \cond [Initialization and parameters] \endcond
 
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ### Vector create {#e7_sph_vcreate}
-	 *
-	 * Here we define a distributed vector in 3D, we use the particles type that we defined previously.
-	 * Each particle contain the following properties
-	 * * **type** Type of the particle
-	 * * **rho** Density of the particle
- 	 * * **rho_prev** Density at previous timestep
-     * * **Pressure** Pressure of the particle
- 	 * * **drho** Derivative of the density over time
-	 * * **force** acceleration of the particles
-	 * * **velocity** velocity of the particles
-	 * * **velocity_prev** velocity of the particles at previous time-step
-	 *
-	 *
-	 * In this case the vector contain 0 particles initially
-	 *
-	 * \see \ref e0_s_vector_inst
-	 *
-	 * The option DEC_GRAN(512) is related to the Load-Balancing decomposition
-	 * granularity. It indicate that the space must be decomposed by at least
-	 *
-	 * \f$ N_{subsub} = 512 \cdot N_p \f$
-	 *
-	 * Where \f$ N_{subsub} \f$ is the number of sub-sub-domain in which the space
-	 * must be decomposed and \f$ N_p \f$ is the number of processors. (The concept
-	 * of sub-sub-domain will be explained leter)
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp vector inst
-	 * \snippet Vector/7_SPH_dlb/main.cpp vector_dist_def
-	 *
-	 */
-
-	//! \cond [vector inst] \endcond
-
 	particles vd(0,domain,bc,g,DEC_GRAN(512));
-
-	//! \cond [vector inst] \endcond
-
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ### Draw particles and initialization ## {#e7_sph_draw_part_init}
-	 *
-	 * In this part we initialize the problem creating particles. In order to do it we use the class DrawParticles. Because some of
-	 * the simulation constants require the maximum height \f$ h_{swl} \f$ of the fluid to be calculated
-	 *  and the maximum fluid height is determined at runtime, some of the constants just after we create the
-	 *  fluid particles
-	 *
-	 *  ### Draw Fluid ### {#e7_sph_draw_part_fluid}
-	 *
-	 * The Function DrawParticles::DrawBox return an iterator that can be used to create particle in a predefined
-	 * box (smaller than the simulation domain) with a predefined spacing.
-	 * We start drawing the fluid particles, the initial pressure is initialized accordingly to the
-	 * Hydrostatic pressure given by:
-	 *
-	 *  \f$ P = \rho_{0} g (h_{max} - z) \f$
-	 *
-	 * Where \f$ h_{max} \f$ is the maximum height of the fluid.
-	 * The density instead is given by the equation (3). Assuming \f$ \rho \f$ constant to
-	 * \f$ \rho_{0} \f$ in the Hydrostatic equation is a good approximation. Velocity is
-	 * initialized to zero.
-	 *
-	 * \see \ref e0_s_vector_inst
-	 *
-	 * \htmlonly
-	 * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/fluid.jpg"/>
-	 * \endhtmlonly
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp draw fluid
-	 *
-	 */
-
-	//! \cond [draw fluid] \endcond
 
 	// You can ignore all these dp/2.0 is a trick to reach the same initialization
 	// of Dual-SPH that use a different criteria to draw particles
-	Box<3,double> fluid_box({dp/2.0,dp/2.0,dp/2.0},{0.4+dp/2.0,0.67-dp/2.0,0.3+dp/2.0});
+ 
+  	Box<3,double> fluid_box({dp/2.0,dp/2.0,-dp/2.0},{channel_length_x-dp/2.0,channel_length_y-dp/2.0,channel_length_z+dp/2.0});
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd,sz,domain,fluid_box);
@@ -1161,44 +891,18 @@ int main(int argc, char* argv[])
 		++fluid_it;
 	}
 
-	//! \cond [draw fluid] \endcond
-
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ### Draw Recipient ###
-	 *
-	 * Here we draw the recipient using the function DrawParticles::DrawSkin. This function can draw a set
-	 * of particles inside a box A removed of a second box or an array of boxes. So all the particles in the
-	 *  area included in the area A - B - C. There is no restriction that B or C must be included into A.
-	 *
-	 * \htmlonly
-	 * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/recipient.jpg"/>
-	 * \endhtmlonly
-	 *
-	 * In this case A is the box defining the recipient, B is the box cutting out the internal
-	 * part of the recipient, C is the hole where we will place the obstacle.
-     * Because we use Dynamic boundary condition (DBC) we initialize the density
-	 * to \f$ \rho_{0} \f$. It will be update over time according to equation (3) to keep
-	 * the particles confined.
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp draw recipient
-	 *
-	 */
-
-	//! \cond [draw recipient] \endcond
 
 	// Recipient
-	Box<3,double> recipient1({0.0,0.0,0.0},{1.6+dp/2.0,0.67+dp/2.0,0.4+dp/2.0});
-	Box<3,double> recipient2({dp,dp,dp},{1.6-dp/2.0,0.67-dp/2.0,0.4+dp/2.0});
+	Box<3,double> recipient1({-dp/2,-dp/2,-dp/2},{channel_length_x+dp/2.0,channel_length_y+dp/2.0,channel_length_z+dp/2.0});
+	Box<3,double> recipient2({dp/2,dp/2,-dp/2},{channel_length_x-dp/2.0,channel_length_y-dp/2.0,channel_length_z+dp/2.0});
 
-	Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
-	Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
-	Box<3,double> obstacle3({0.9+dp,0.24,0.0},{1.02,0.36,0.45});
+	// Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
+	// Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
+	// Box<3,double> obstacle3({0.9+dp,0.24,0.0},{1.02,0.36,0.45});
 
 	openfpm::vector<Box<3,double>> holes;
 	holes.add(recipient2);
-	holes.add(obstacle1);
+	// holes.add(obstacle1);
 	auto bound_box = DrawParticles::DrawSkin(vd,sz,domain,holes,recipient1);
 
 	while (bound_box.isNext())
@@ -1223,136 +927,34 @@ int main(int argc, char* argv[])
 		++bound_box;
 	}
 
-	//! \cond [draw recipient] \endcond
+	
+	// auto obstacle_box = DrawParticles::DrawSkin(vd,sz,domain,obstacle2,obstacle1);
 
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 *  ### Draw Obstacle ###
-	 *
-	 * Here we draw the obstacle in the same way we draw the recipient. also for the obstacle
-	 * is valid the same concept of using Dynamic boundary condition (DBC)
-	 *
-	 * \htmlonly
-	 * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/obstacle.jpg"/>
-	 * \endhtmlonly
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp draw obstacle
-	 *
-	 */
+	// while (obstacle_box.isNext())
+	// {
+	// 	vd.add();
 
-	//! \cond [draw obstacle] \endcond
+	// 	vd.getLastPos()[0] = obstacle_box.get().get(0);
+	// 	vd.getLastPos()[1] = obstacle_box.get().get(1);
+	// 	vd.getLastPos()[2] = obstacle_box.get().get(2);
 
-	auto obstacle_box = DrawParticles::DrawSkin(vd,sz,domain,obstacle2,obstacle1);
+	// 	vd.template getLastProp<type>() = BOUNDARY;
+	// 	vd.template getLastProp<rho>() = rho_zero;
+	// 	vd.template getLastProp<rho_prev>() = rho_zero;
+	// 	vd.template getLastProp<velocity>()[0] = 0.0;
+	// 	vd.template getLastProp<velocity>()[1] = 0.0;
+	// 	vd.template getLastProp<velocity>()[2] = 0.0;
 
-	while (obstacle_box.isNext())
-	{
-		vd.add();
+	// 	vd.template getLastProp<velocity_prev>()[0] = 0.0;
+	// 	vd.template getLastProp<velocity_prev>()[1] = 0.0;
+	// 	vd.template getLastProp<velocity_prev>()[2] = 0.0;
 
-		vd.getLastPos()[0] = obstacle_box.get().get(0);
-		vd.getLastPos()[1] = obstacle_box.get().get(1);
-		vd.getLastPos()[2] = obstacle_box.get().get(2);
-
-		vd.template getLastProp<type>() = BOUNDARY;
-		vd.template getLastProp<rho>() = rho_zero;
-		vd.template getLastProp<rho_prev>() = rho_zero;
-		vd.template getLastProp<velocity>()[0] = 0.0;
-		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
-
-		vd.template getLastProp<velocity_prev>()[0] = 0.0;
-		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-		++obstacle_box;
-	}
+	// 	++obstacle_box;
+	// }
 
 	vd.map();
 
 	//! \cond [draw obstacle] \endcond
-
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ## Load balancing and Dynamic load balancing ##
-	 *
-	 * ### Load Balancing ###
-	 *
-	 * If at this point we output the particles and we visualize where they are accordingly
-	 * to their processor id we can easily see that particles are distributed unevenly. The
-	 * processor that has particles in white has few particles and all of them are non fluid.
-	 * This mean that it will be almost in idle. This situation is not ideal
-	 *
-	 * \htmlonly
-	 * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/unbalanced_particles.jpg"/>
-	 * \endhtmlonly
-	 *
-	 * In order to reach an optimal situation we have to distribute the particles to
-	 * reach a balanced situation. To do this we have to set the computation of each
-	 * sub-sub-domain, redecompose the space and distribute the particles accordingly to this
-	 * new configuration. To do this we need a model. A model specify how to set
-	 * the computational cost for each sub-sub-domains (for example it specify if the computational cost to
-	 * process a sub-sub-domain is quadratic or linear with the number of
-	 * particles ...). A model look like this.
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp model custom
-	 *
-	 *  Setting the the computational cost on sub-sub-domains is performed running
-	 *  across the particles. For each one of them, it is calculated on which sub-sub-domain it belong.
-	 *   Than the function **addComputation** is called. Inside this call we can set the weight
-	 *   in the way we prefer. In this case we set the weight as:
-	 *
-	 * \f$ w_v =  4 N_{fluid} + 3 N_{boundary} \f$
-	 *
-	 * Where \f$ N_{fluid} \f$ Is the number of fluid particles in the sub-sub-domains and \f$ N_{boundary} \f$
-	 * are the number of boundary particles. For example in our ModelCustom we square this number,
-	 *  because the computation is proportional to the square of the number of particles in each sub-sub-domain.
-	 * A second cycle is performed in order to calculate a complex function of this number (for example squaring).
-	 *
-	 * Implicitly the communication cost is given by \f$ \frac{V_{ghost}}{V_{sub-sub}}
-	 * t_s \f$, while the migration cost is given by \f$ v_{sub-sub} \f$. In general\f$ t_s \f$ is the number
-	 *  of ghost get between two rebalance. In this special case where we have two type of particles,
-	 * we have two different computation for each of them, this mean that fluid particles
-	 * and boundary particles has different computation cost.
-	 *
-	 *  After filling the computational cost based on our model
-	 * we can decompose the problem in computationally equal chunk for each processor.
-	 * We use the function **decomposed** to redecompose the space and subsequently we use
-	 *  the function map to redistribute
-	 * the particles.
-	 *
-	 * \note All processors now has part of the fluid. It is good to note that the computationaly
-	 *       balanced configuration does not correspond to the evenly distributed particles to know
-	 *       more about that please follow the video tutorials
-	 *
-	 * \htmlonly
-	 * <a href="#" onclick="hide_show('vector-video-6')" >Dynamic load balancing the theory part1</a><br>
-	 * <div style="display:none" id="vector-video-6">
-	 * <video id="vid6" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/upload/video/dlb-1.mp4" type="video/mp4"></video>
-	 * </div>
-	 * <a href="#" onclick="hide_show('vector-video-7')" >Dynamic load balancing the theory part2</a><br>
-	 * <div style="display:none" id="vector-video-7">
-	 * <video id="vid7" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/upload/video/dlb-2.mp4" type="video/mp4"></video>
-	 * </div>
-	 * <a href="#" onclick="hide_show('vector-video-8')" >Dynamic load balancing practice part1</a><br>
-	 * <div style="display:none" id="vector-video-8">
-	 * <video id="vid8" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/upload/video/dlb-3.mp4" type="video/mp4"></video>
-	 * </div>
-	 * <a href="#" onclick="hide_show('vector-video-9')" >Dynamic load balancing practice part2</a><br>
-	 * <div style="display:none" id="vector-video-9">
-	 * <video id="vid9" width="1200" height="576" controls> <source src="http://openfpm.mpi-cbg.de/upload/video/dlb-4.mp4" type="video/mp4"></video>
-	 * </div>
-	 * \endhtmlonly
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp load balancing
-	 *
-	 * \htmlonly
-	 * <img src="http://ppmcore.mpi-cbg.de/web/images/examples/7_SPH_dlb/load_balanced_particles.jpg"/>
-	 * \endhtmlonly
-	 *
-	 */
-
-	//! \cond [load balancing] \endcond
 
 	// Now that we fill the vector with particles
 	ModelCustom md;
@@ -1369,21 +971,6 @@ int main(int argc, char* argv[])
 
 	// Evolve
 
-	/*!
-	 * \page Vector_7_sph_dlb Vector 7 SPH Dam break  simulation with Dynamic load balancing
-	 *
-	 * ## Main Loop ##
-	 *
-	 * The main loop do time integration. It calculate the pressure based on the
-	 * density, than calculate the forces, than we calculate delta time, and finally update position
-	 * and velocity. After 200 time-step we do a re-balancing. We save the configuration
-	 * and we calculate the pressure on the probe position every 0.01 seconds
-	 *
-	 * \snippet Vector/7_SPH_dlb/main.cpp main loop
-	 *
-	 */
-
-	//! \cond [main loop] \endcond
 
 	size_t write = 0;
 	size_t it = 0;
