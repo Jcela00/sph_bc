@@ -43,7 +43,7 @@ const double MassBound = 0.000614125;
 
 // End simulation time
 #ifdef TEST_RUN
-const double t_end = 0.001;
+const double t_end = 1;
 #else
 const double t_end = 1.5;
 #endif
@@ -742,7 +742,7 @@ int main(int argc, char *argv[])
 	// You can ignore all these dp/2.0 is a trick to reach the same initialization
 	// of Dual-SPH that use a different criteria to draw particles
 
-	Box<3, double> fluid_box({dp, dp, 0.0}, {channel_length_x - dp, channel_length_y - dp, channel_length_z});
+	Box<3, double> fluid_box({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -794,7 +794,7 @@ int main(int argc, char *argv[])
 	// Box<3, double> recipient1({-dp / 2.0, -dp / 2.0, -dp / 2.0}, {channel_length_x + dp / 2.0, channel_length_y + dp / 2.0, channel_length_z + dp / 2.0});
 	// Box<3, double> recipient2({dp / 2.0, dp / 2.0, -dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z + dp / 2.0});
 	Box<3, double> recipient1({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
-	Box<3, double> recipient2({dp, dp, 0.0}, {channel_length_x - dp, channel_length_y - dp, channel_length_z});
+	Box<3, double> recipient2({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
 
 	// Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
 	// Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
