@@ -726,6 +726,7 @@ int main(int argc, char *argv[])
 	// Box<3, double> domain({-5.0 * dp / 2.0, -5.0 * dp / 2.0, -5.0 * dp / 2.0}, {channel_length_x + 5.0 * dp / 2.0, channel_length_y + 5.0 * dp / 2.0, channel_length_z + 5.0 * dp / 2.0});
 	double epsilon = dp / 10.0;
 	Box<3, double> domain({-epsilon, -epsilon, -epsilon}, {channel_length_x + epsilon, channel_length_y + epsilon, channel_length_z + epsilon});
+	// Box<3, double> domain({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
 
 	// Fill W_dap
 	W_dap = 1.0 / Wab(H / 1.5);
@@ -742,7 +743,7 @@ int main(int argc, char *argv[])
 	// You can ignore all these dp/2.0 is a trick to reach the same initialization
 	// of Dual-SPH that use a different criteria to draw particles
 
-	Box<3, double> fluid_box({dp, dp, 0.0}, {channel_length_x - dp, channel_length_y - dp, channel_length_z});
+	Box<3, double> fluid_box({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -794,7 +795,7 @@ int main(int argc, char *argv[])
 	// Box<3, double> recipient1({-dp / 2.0, -dp / 2.0, -dp / 2.0}, {channel_length_x + dp / 2.0, channel_length_y + dp / 2.0, channel_length_z + dp / 2.0});
 	// Box<3, double> recipient2({dp / 2.0, dp / 2.0, -dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z + dp / 2.0});
 	Box<3, double> recipient1({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
-	Box<3, double> recipient2({dp, dp, 0.0}, {channel_length_x - dp, channel_length_y - dp, channel_length_z});
+	Box<3, double> recipient2({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
 
 	// Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
 	// Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
@@ -853,16 +854,12 @@ int main(int argc, char *argv[])
 
 	vd.map();
 
-	//! \cond [draw obstacle] \endcond
-
 	// Now that we fill the vector with particles
 	ModelCustom md;
 
 	vd.addComputationCosts(md);
 	vd.getDecomposition().decompose();
 	vd.map();
-
-	//! \cond [load balancing] \endcond
 
 	vd.ghost_get<type, rho, Pressure, velocity>();
 

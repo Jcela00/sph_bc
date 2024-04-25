@@ -3,25 +3,25 @@ include ../../common.mk
 
 OBJ = main.o
 
-sph_dlb:
-sph_dlb_test: OPT += -DTEST_RUN
-sph_dlb_test: sph_dlb
+sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))
+sph_dlb: $(OBJ)
+	$(CC) $(OPT) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
+
+sph_dlb_test: $(OBJ)
+	$(CC) $(OPT) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
 
 %.o: %.cpp
 	$(CC) $(OPT) -c -o $@ $< $(INCLUDE_PATH)
 
-sph_dlb: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
-
-all: sph_dlb
+all: sph_dlb sph_dlb_test
 
 run: sph_dlb
 	mpirun --oversubscribe -np 4 ./sph_dlb
-run_test: sph_dlb_test
-	mpirun --oversubscribe -np 4 ./sph_dlb
 
-.PHONY: clean all run
+run_test: sph_dlb_test
+	mpirun --oversubscribe -np 4 ./sph_dlb_test
+
+.PHONY: clean all run run_test
 
 clean:
-	rm -f *.o *~ core sph_dlb
-
+	rm -f *.o *~ core sph_dlb sph_dlb_test
