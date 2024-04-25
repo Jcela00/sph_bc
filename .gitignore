@@ -1,5 +1,4 @@
-*.pvtp
-*.vtp
+
 main.o
 sph_dlb
 
