@@ -520,12 +520,12 @@ void verlet_int(particles &vd, double dt)
 		vd.template getProp<rho>(a) = vd.template getProp<rho_prev>(a) + dt2 * vd.template getProp<drho>(a);
 
 		// Check if the particle go out of range in space and in density
-		if (vd.getPos(a)[0] < 0.000263878 || vd.getPos(a)[1] < 0.000263878 || vd.getPos(a)[2] < 0.000263878 ||
-			vd.getPos(a)[0] > 0.000263878 + 1.59947 || vd.getPos(a)[1] > 0.000263878 + 0.672972 || vd.getPos(a)[2] > 0.000263878 + 0.903944 ||
-			vd.template getProp<rho>(a) < RhoMin || vd.template getProp<rho>(a) > RhoMax)
-		{
-			to_remove.add(a.getKey());
-		}
+		// if (vd.getPos(a)[0] < 0.000263878 || vd.getPos(a)[1] < 0.000263878 || vd.getPos(a)[2] < 0.000263878 ||
+		// 	vd.getPos(a)[0] > 0.000263878 + 1.59947 || vd.getPos(a)[1] > 0.000263878 + 0.672972 || vd.getPos(a)[2] > 0.000263878 + 0.903944 ||
+		// 	vd.template getProp<rho>(a) < RhoMin || vd.template getProp<rho>(a) > RhoMax)
+		// {
+		// 	to_remove.add(a.getKey());
+		// }
 
 		vd.template getProp<velocity_prev>(a)[0] = velX;
 		vd.template getProp<velocity_prev>(a)[1] = velY;
@@ -597,13 +597,13 @@ void euler_int(particles &vd, double dt)
 		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + vd.template getProp<force>(a)[2] * dt;
 		vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
 
-		// Check if the particle go out of range in space and in density
-		if (vd.getPos(a)[0] < 0.000263878 || vd.getPos(a)[1] < 0.000263878 || vd.getPos(a)[2] < 0.000263878 ||
-			vd.getPos(a)[0] > 0.000263878 + 1.59947 || vd.getPos(a)[1] > 0.000263878 + 0.672972 || vd.getPos(a)[2] > 0.000263878 + 0.903944 ||
-			vd.template getProp<rho>(a) < RhoMin || vd.template getProp<rho>(a) > RhoMax)
-		{
-			to_remove.add(a.getKey());
-		}
+		// // Check if the particle go out of range in space and in density
+		// if (vd.getPos(a)[0] < 0.000263878 || vd.getPos(a)[1] < 0.000263878 || vd.getPos(a)[2] < 0.000263878 ||
+		// 	vd.getPos(a)[0] > 0.000263878 + 1.59947 || vd.getPos(a)[1] > 0.000263878 + 0.672972 || vd.getPos(a)[2] > 0.000263878 + 0.903944 ||
+		// 	vd.template getProp<rho>(a) < RhoMin || vd.template getProp<rho>(a) > RhoMax)
+		// {
+		// 	to_remove.add(a.getKey());
+		// }
 
 		vd.template getProp<velocity_prev>(a)[0] = velX;
 		vd.template getProp<velocity_prev>(a)[1] = velY;
@@ -724,7 +724,7 @@ int main(int argc, char *argv[])
 	double channel_length_y = Ny * dp;
 	double channel_length_z = Nz * dp;
 	// Box<3, double> domain({-5.0 * dp / 2.0, -5.0 * dp / 2.0, -5.0 * dp / 2.0}, {channel_length_x + 5.0 * dp / 2.0, channel_length_y + 5.0 * dp / 2.0, channel_length_z + 5.0 * dp / 2.0});
-	double epsilon = dp / 10.0;
+	double epsilon = dp / 2.0;
 	Box<3, double> domain({-epsilon, -epsilon, -epsilon}, {channel_length_x + epsilon, channel_length_y + epsilon, channel_length_z + epsilon});
 	// Box<3, double> domain({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
 
@@ -743,7 +743,7 @@ int main(int argc, char *argv[])
 	// You can ignore all these dp/2.0 is a trick to reach the same initialization
 	// of Dual-SPH that use a different criteria to draw particles
 
-	Box<3, double> fluid_box({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
+	Box<3, double> fluid_box({dp / 2.0, dp / 2.0, dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z - dp / 2.0});
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -794,17 +794,18 @@ int main(int argc, char *argv[])
 	// Recipient
 	// Box<3, double> recipient1({-dp / 2.0, -dp / 2.0, -dp / 2.0}, {channel_length_x + dp / 2.0, channel_length_y + dp / 2.0, channel_length_z + dp / 2.0});
 	// Box<3, double> recipient2({dp / 2.0, dp / 2.0, -dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z + dp / 2.0});
+
 	Box<3, double> recipient1({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
-	Box<3, double> recipient2({dp, dp, dp}, {channel_length_x - dp, channel_length_y - dp, channel_length_z - dp});
+	Box<3, double> recipient2({-2.5 * dp, -2.5 * dp, -dp / 2.0}, {channel_length_x + 2.5 * dp, channel_length_y + 2.5 * dp, channel_length_z + dp / 2.0});
 
 	// Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
 	// Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
 	// Box<3,double> obstacle3({0.9+dp,0.24,0.0},{1.02,0.36,0.45});
 
 	openfpm::vector<Box<3, double>> holes;
-	holes.add(recipient2);
+	holes.add(fluid_box);
 	// holes.add(obstacle1);
-	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient1);
+	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient2);
 
 	while (bound_box.isNext())
 	{
@@ -934,7 +935,10 @@ int main(int argc, char *argv[])
 			// calculate the pressure at the sensor points
 			sensor_pressure(vd, NN, press_t, probes);
 
+			vd.deleteGhost();
 			vd.write_frame("Geometry", write);
+			vd.ghost_get<type, rho, Pressure, velocity>();
+
 			write++;
 
 			if (v_cl.getProcessUnitID() == 0)

@@ -1,4 +1,6 @@
-
+VTPDATA
+*.vtp
+*.pvtp
 main.o
 sph_dlb
 
