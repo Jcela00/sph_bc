@@ -12,6 +12,7 @@
 #define FLUID 1
 
 // initial spacing between particles dp in the formulas
+// const double dp = 0.0085;
 const double dp = 0.0085;
 // Maximum height of the fluid water
 // is going to be calculated and filled later on
@@ -706,45 +707,35 @@ int main(int argc, char *argv[])
 	// initialize the library
 	openfpm_init(&argc, &argv);
 
-	// It contain for each time-step the value detected by the probes
-	openfpm::vector<openfpm::vector<double>> press_t;
-	openfpm::vector<Point<3, double>> probes;
+	// Here we define our domain
 
-	probes.add({0.8779, 0.3, 0.02});
-	probes.add({0.754, 0.31, 0.02});
+	size_t Np_fluid[3] = {20, 20, 20};
+	size_t Np_boundary = 1;
+	size_t sz[3] = {Np_fluid[0] + (2 * Np_boundary + 2), Np_fluid[1] + (2 * Np_boundary + 2), Np_fluid[2] + (2 * Np_boundary + 2)};
 
-	// Here we define our domain a 2D box with internals from 0 to 1.0 for x and y
-	// Box<3,double> domain({-0.05,-0.05,-0.05},{1.7010,0.7065,0.5025});
-	size_t Nx, Ny, Nz;
-	Nx = 20;
-	Ny = 20;
-	Nz = 40;
-	size_t sz[3] = {Nx, Ny, Nz};
-	double channel_length_x = Nx * dp;
-	double channel_length_y = Ny * dp;
-	double channel_length_z = Nz * dp;
-	// Box<3, double> domain({-5.0 * dp / 2.0, -5.0 * dp / 2.0, -5.0 * dp / 2.0}, {channel_length_x + 5.0 * dp / 2.0, channel_length_y + 5.0 * dp / 2.0, channel_length_z + 5.0 * dp / 2.0});
-	double epsilon = dp / 2.0;
-	Box<3, double> domain({-epsilon, -epsilon, -epsilon}, {channel_length_x + epsilon, channel_length_y + epsilon, channel_length_z + epsilon});
-	// Box<3, double> domain({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
+	double Lx = Np_fluid[0] * dp;
+	double Ly = Np_fluid[1] * dp;
+	double Lz = Np_fluid[2] * dp;
+
+	double dummyk = 0.5 + (double)Np_boundary;
+	Box<3, double> domain({-dummyk * dp, -dummyk * dp, -dummyk * dp}, {Lx + dummyk * dp, Ly + dummyk * dp, Lz + dummyk * dp});
+
+	// Box<3, double> domain({-(5.0 / 2.0) * dp, -dp / 2.0, -dp / 2.0}, {Lx + (5.0 / 2.0) * dp, Ly + dp / 2.0, Lz + dp / 2.0});
 
 	// Fill W_dap
 	W_dap = 1.0 / Wab(H / 1.5);
 
 	// Here we define the boundary conditions of our problem
-	size_t bc[3] = {NON_PERIODIC, NON_PERIODIC, PERIODIC};
+	size_t bc[3] = {NON_PERIODIC, NON_PERIODIC, NON_PERIODIC};
 
 	// extended boundary around the domain, and the processor domain
-	// Ghost<3, double> g(2 * H);
-
 	Ghost<3, double> g(2.0 * H);
+
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
-	// You can ignore all these dp/2.0 is a trick to reach the same initialization
-	// of Dual-SPH that use a different criteria to draw particles
-
-	Box<3, double> fluid_box({dp / 2.0, dp / 2.0, dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z - dp / 2.0});
-
+	// Initialize the fluid particles
+	// Box<3, double> fluid_box({dp / 2.0, -(5.0 / 2.0) * dp, -(5.0 / 2.0) * dp}, {Lx - dp / 2.0, Ly + (5.0 / 2.0) * dp, Lz + (5.0 / 2.0) * dp});
+	Box<3, double> fluid_box({0.0, 0.0, 0.0}, {Lx, Ly, Lz});
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
 
@@ -769,11 +760,8 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<type>() = FLUID;
 
 		// We also initialize the density of the particle and the hydro-static pressure given by
-		//
 		// rho_zero*g*h = P
-		//
 		// rho_p = (P/B + 1)^(1/Gamma) * rho_zero
-		//
 
 		vd.template getLastProp<Pressure>() = rho_zero * gravity * (max_fluid_height - fluid_it.get().get(2));
 
@@ -792,20 +780,12 @@ int main(int argc, char *argv[])
 	}
 
 	// Recipient
-	// Box<3, double> recipient1({-dp / 2.0, -dp / 2.0, -dp / 2.0}, {channel_length_x + dp / 2.0, channel_length_y + dp / 2.0, channel_length_z + dp / 2.0});
-	// Box<3, double> recipient2({dp / 2.0, dp / 2.0, -dp / 2.0}, {channel_length_x - dp / 2.0, channel_length_y - dp / 2.0, channel_length_z + dp / 2.0});
-
-	Box<3, double> recipient1({0.0, 0.0, 0.0}, {channel_length_x, channel_length_y, channel_length_z});
-	Box<3, double> recipient2({-2.5 * dp, -2.5 * dp, -dp / 2.0}, {channel_length_x + 2.5 * dp, channel_length_y + 2.5 * dp, channel_length_z + dp / 2.0});
-
-	// Box<3,double> obstacle1({0.9,0.24-dp/2.0,0.0},{1.02+dp/2.0,0.36,0.45+dp/2.0});
-	// Box<3,double> obstacle2({0.9+dp,0.24+dp/2.0,0.0},{1.02-dp/2.0,0.36-dp,0.45-dp/2.0});
-	// Box<3,double> obstacle3({0.9+dp,0.24,0.0},{1.02,0.36,0.45});
+	double kk = (double)Np_boundary;
+	Box<3, double> recipient({-kk * dp, -kk * dp, -kk * dp}, {Lx + kk * dp, Ly + kk * dp, Lz + kk * dp});
 
 	openfpm::vector<Box<3, double>> holes;
 	holes.add(fluid_box);
-	// holes.add(obstacle1);
-	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient2);
+	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
 	while (bound_box.isNext())
 	{
@@ -828,30 +808,6 @@ int main(int argc, char *argv[])
 
 		++bound_box;
 	}
-
-	// auto obstacle_box = DrawParticles::DrawSkin(vd,sz,domain,obstacle2,obstacle1);
-
-	// while (obstacle_box.isNext())
-	// {
-	// 	vd.add();
-
-	// 	vd.getLastPos()[0] = obstacle_box.get().get(0);
-	// 	vd.getLastPos()[1] = obstacle_box.get().get(1);
-	// 	vd.getLastPos()[2] = obstacle_box.get().get(2);
-
-	// 	vd.template getLastProp<type>() = BOUNDARY;
-	// 	vd.template getLastProp<rho>() = rho_zero;
-	// 	vd.template getLastProp<rho_prev>() = rho_zero;
-	// 	vd.template getLastProp<velocity>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity>()[2] = 0.0;
-
-	// 	vd.template getLastProp<velocity_prev>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-	// 	++obstacle_box;
-	// }
 
 	vd.map();
 
@@ -933,11 +889,11 @@ int main(int argc, char *argv[])
 			vd.updateCellList(NN);
 
 			// calculate the pressure at the sensor points
-			sensor_pressure(vd, NN, press_t, probes);
+			// sensor_pressure(vd, NN, press_t, probes);
 
-			vd.deleteGhost();
+			// vd.deleteGhost();
 			vd.write_frame("Geometry", write);
-			vd.ghost_get<type, rho, Pressure, velocity>();
+			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			write++;
 
