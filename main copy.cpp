@@ -46,7 +46,7 @@ const double MassBound = 0.000614125;
 #ifdef TEST_RUN
 const double t_end = 0.001;
 #else
-const double t_end = 50.0;
+const double t_end = 1.5;
 #endif
 
 // Gravity acceleration
@@ -701,90 +701,49 @@ inline void sensor_pressure(Vector &vd,
 //                                     type   density   density    Pressure    delta       force     velocity    velocity
 //                                                      at n-1                 density                           at n - 1
 
-// void ChannelGeometryInitialize(size_t bc[3], size_t boundary_thickness[3], size_t Np_fluid[3])
-// {
-// }
-
 int main(int argc, char *argv[])
 {
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
 
-	// Number of fluid and boundary particles in the x, y and z direction
-	size_t Np_fluid[3] = {40, 1, 80};
-	size_t Np_boundary[3] = {3, 0, 0};
+	// Here we define our domain
+
+	size_t Np_fluid[3] = {1, 1, 20};
+	size_t Np_boundary = 1;
 
 	// Here we define the boundary conditions of our problem
 	size_t bc[3] = {NON_PERIODIC, NON_PERIODIC, PERIODIC};
 
-	//////////////////////////////////////////
-	// Size of the virtual grid that defines where to place the particles
-	size_t sz[3];
+	size_t sz[3] = {Np_fluid[0] + 2 * (Np_boundary * (1 - bc[0]) + 1),
+					Np_fluid[1] + 2 * (Np_boundary * (1 - bc[1]) + 1),
+					Np_fluid[2] + 2 * (Np_boundary * (1 - bc[2]) + 1)};
 
-	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
-	// First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
-	double length[3];
-	// offset to add to the domain box to create the correct particle positions, if non periodic it has to go from -dp/2 - Np_boundary*dp to Lx+dp/2 + Np_boundary*dp
-	double offset_domain[3];
-	// offset to add to the recipient box, if non periodic it has to go from - Np_boundary*dp  to length + Np_boundary*dp
-	double offset_recipient[3];
-	// offset to add to the fluid box, if non periodic it has to go from 0 to length
-	double offset_fluid[3];
+	// size_t sz[3] = {Np_fluid[0] + 2 * (Np_boundary + 1),
+	// 				Np_fluid[1] + 2 * (Np_boundary + 1),
+	// 				Np_fluid[2] + 2 * (Np_boundary + 1)};
 
-	// non periodic situation grid of 5 fluid particles and 3 boundary particles
-	// We need a virtual grid of 5 + 2*(3+1) particles,
-	// therefore the domain is discretized with 13 grid points,
-	// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
-	// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
-	//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
-	// D: domain, o: boundary, x: fluid, --: dp distance
-	// in a periodic situation we have the following
-	// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
-	// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+	double Lx = Np_fluid[0] * dp;
+	double Ly = Np_fluid[1] * dp;
+	double Lz = Np_fluid[2] * dp;
 
-	for (int k = 0; k < 3; k++)
-	{
-		length[k] = dp * Np_fluid[k];
-		// non periodic, fluid covered by boundary
-		if (bc[k] == 0)
-		{
-			sz[k] = Np_fluid[k] + 2 * (Np_boundary[k] + 1);
-			offset_domain[k] = (0.5 + Np_boundary[k]) * dp;
-			offset_recipient[k] = Np_boundary[k] * dp;
-			offset_fluid[k] = 0.0;
-		}
-		// periodic, open ended
-		else
-		{
-			sz[k] = Np_fluid[k] + 2;
-			offset_domain[k] = 0.5 * dp;
-			offset_recipient[k] = 0.0;
-			offset_fluid[k] = 0.0;
-		}
-	}
+	std::cout << "Lx: " << Lx << " Ly: " << Ly << " Lz: " << Lz << std::endl;
+	const double offset_x = (0.5 + (1 - bc[0]) * Np_boundary) * dp;
+	const double offset_y = (0.5 + (1 - bc[1]) * Np_boundary) * dp;
+	const double offset_z = (0.5 + (1 - bc[2]) * Np_boundary) * dp;
 
-	// Define the boxes
-	Box<3, double> domain({-offset_domain[0],
-						   -offset_domain[1],
-						   -offset_domain[2]},
-						  {length[0] + offset_domain[0],
-						   length[1] + offset_domain[1],
-						   length[2] + offset_domain[2]});
+	// const double offset_x = (0.5 + Np_boundary) * dp;
+	// const double offset_y = (0.5 + Np_boundary) * dp;
+	// const double offset_z = (0.5 + Np_boundary) * dp;
 
-	Box<3, double> fluid_box({-offset_fluid[0],
-							  -offset_fluid[1],
-							  -offset_fluid[2]},
-							 {length[0] + offset_fluid[0],
-							  length[1] + offset_fluid[1],
-							  length[2] + offset_fluid[2]});
-
-	Box<3, double> recipient({-offset_recipient[0],
-							  -offset_recipient[1],
-							  -offset_recipient[2]},
-							 {length[0] + offset_recipient[0],
-							  length[1] + offset_recipient[1],
-							  length[2] + offset_recipient[2]});
+	// 0.5 + (double)Np_boundary;
+	// const double offset_periodic = dp / (double)2.0;
+	Box<3, double> domain({-offset_x,
+						   -offset_y,
+						   -offset_z},
+						  {Lx + offset_x,
+						   Ly + offset_y,
+						   Lz + offset_z});
 
 	// Fill W_dap
 	W_dap = 1.0 / Wab(H / 1.5);
@@ -793,6 +752,39 @@ int main(int argc, char *argv[])
 	Ghost<3, double> g(2.0 * H);
 
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
+
+	// Initialize the fluid particles
+	// Box<3, double> fluid_box({dp / 2.0, -(5.0 / 2.0) * dp, -(5.0 / 2.0) * dp}, {Lx - dp / 2.0, Ly + (5.0 / 2.0) * dp, Lz + (5.0 / 2.0) * dp});
+	const double offset = (double)Np_boundary * dp;
+	const double offset_periodic = 1.0 * dp;
+
+	// Box<3, double> fluid_box({0.0,
+	// 						  0.0,
+	// 						  0.0},
+	// 						 {Lx,
+	// 						  Ly,
+	// 						  Lz});
+
+	// Box<3, double> recipient({-offset,
+	// 						  -offset,
+	// 						  -offset},
+	// 						 {Lx + offset,
+	// 						  Ly + offset,
+	// 						  Lz + offset});
+
+	Box<3, double> fluid_box({0.0 - offset_periodic * (bc[0]),
+							  0.0 - offset_periodic * (bc[1]),
+							  0.0 - offset_periodic * (bc[2])},
+							 {Lx + offset_periodic * (bc[0]),
+							  Ly + offset_periodic * (bc[1]),
+							  Lz + offset_periodic * (bc[2])});
+
+	Box<3, double> recipient({-offset * (1 - bc[0]) - offset_periodic * bc[0],
+							  -offset * (1 - bc[1]) - offset_periodic * bc[1],
+							  -offset * (1 - bc[2]) - offset_periodic * bc[2]},
+							 {Lx + offset * (1 - bc[0]) + offset_periodic * bc[0],
+							  Ly + offset * (1 - bc[1]) + offset_periodic * bc[1],
+							  Lz + offset * (1 - bc[2]) + offset_periodic * bc[2]});
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -804,10 +796,13 @@ int main(int argc, char *argv[])
 	cbar = coeff_sound * sqrt(gravity * h_swl);
 
 	// for each particle inside the fluid box ...
+	int count = 0;
 	while (fluid_it.isNext())
 	{
 		// ... add a particle ...
 		vd.add();
+
+		count++;
 
 		// ... and set it position ...
 		vd.getLastPos()[0] = fluid_it.get().get(0);
@@ -816,6 +811,8 @@ int main(int argc, char *argv[])
 
 		// and its type.
 		vd.template getLastProp<type>() = FLUID;
+
+		std::cout << "Particle: " << count << "  Placed at:" << vd.getLastPos()[0] << " " << vd.getLastPos()[1] << " " << vd.getLastPos()[2] << std::endl;
 
 		// We also initialize the density of the particle and the hydro-static pressure given by
 		// rho_zero*g*h = P
@@ -843,266 +840,31 @@ int main(int argc, char *argv[])
 	holes.add(fluid_box);
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
-	int count_max = 2 * Np_boundary[0] * Np_fluid[1] * Np_fluid[2] + 2 * Np_boundary[1] * Np_fluid[0] * Np_fluid[2] + 2 * Np_boundary[2] * Np_fluid[0] * Np_fluid[1];
-	int count = 0;
-	std::cout << "count_max: " << count_max << std::endl;
+	count = 0;
 	while (bound_box.isNext())
 	{
-		if (count < count_max)
-		{
-			vd.add();
+		vd.add();
 
-			vd.getLastPos()[0] = bound_box.get().get(0);
-			vd.getLastPos()[1] = bound_box.get().get(1);
-			vd.getLastPos()[2] = bound_box.get().get(2);
+		vd.getLastPos()[0] = bound_box.get().get(0);
+		vd.getLastPos()[1] = bound_box.get().get(1);
+		vd.getLastPos()[2] = bound_box.get().get(2);
 
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			++bound_box;
-
-			std::cout << "Placed particle: " << count << " at position: " << vd.getLastPos()[0] << " " << vd.getLastPos()[1] << " " << vd.getLastPos()[2] << std::endl;
-		}
-		else
-		{
-			break;
-		}
 		count++;
+		std::cout << " Boundary particle: " << count << "  Placed at:" << vd.getLastPos()[0] << " " << vd.getLastPos()[1] << " " << vd.getLastPos()[2] << std::endl;
+		vd.template getLastProp<type>() = BOUNDARY;
+		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<rho_prev>() = rho_zero;
+		vd.template getLastProp<velocity>()[0] = 0.0;
+		vd.template getLastProp<velocity>()[1] = 0.0;
+		vd.template getLastProp<velocity>()[2] = 0.0;
+
+		vd.template getLastProp<velocity_prev>()[0] = 0.0;
+		vd.template getLastProp<velocity_prev>()[1] = 0.0;
+		vd.template getLastProp<velocity_prev>()[2] = 0.0;
+
+		++bound_box;
 	}
 
-	// we need to manually place 1 layer of particles on the gap between the periodic ghosts and the domain,
-	// domain coordinates {-(0.5+Np_boundary)*dp X (Lx + 0.5+Np_boundary)*dp}
-	// soo the new particles will be in the plane  z = -3.5dp + epsilon
-	// where epsilon is a small number to avoid particles to be in the boundary
-
-	double epsilon = 0.0000001;
-	// double epsilon = 0.0;
-
-	double coord_z = -offset_domain[2] + epsilon;
-
-	// the inner particles
-	for (int j = 0; j < Np_fluid[0]; j++)
-	{
-		for (int i = 0; i < Np_fluid[1]; i++)
-		{
-			vd.add();
-
-			vd.getLastPos()[0] = j * dp + 0.5 * dp;
-			vd.getLastPos()[1] = i * dp + 0.5 * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = FLUID;
-
-			vd.template getLastProp<Pressure>() = rho_zero * gravity * (max_fluid_height - fluid_it.get().get(2));
-
-			vd.template getLastProp<rho>() = pow(vd.template getLastProp<Pressure>() / B + 1, 1.0 / gamma_) * rho_zero;
-			vd.template getLastProp<rho_prev>() = vd.template getLastProp<rho>();
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-		}
-	}
-
-	// the boundary particles
-	// for each layer in the x direction we add the particles in the  yz plane for positive and negative x (without corners)
-	// 						(Lx,Ly)
-	// o---------------------o
-	// o|                   |o
-	// o|                   |o
-	// o|                   |o
-	// o|                   |o
-	// o|                   |o
-	// o|                   |o
-	// o---------------------o
-	//   (0,0)
-
-	// y
-	// ^
-	// |
-	// |
-	// ---->x
-
-	for (int layer_x = 0; layer_x < Np_boundary[0]; layer_x++)
-	{
-		// first we do in the y direction
-		int jmin = 0;
-		int jmax = Np_fluid[1];
-		for (int j = jmin; j < jmax; j++)
-		{
-			// add bottom row particles
-			vd.add();
-
-			vd.getLastPos()[0] = -0.5 * dp - layer_x * dp;
-			vd.getLastPos()[1] = j * dp + 0.5 * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			// add top row particles
-			vd.add();
-
-			vd.getLastPos()[0] = Np_fluid[0] * dp + 0.5 * dp + layer_x * dp;
-			vd.getLastPos()[1] = j * dp + 0.5 * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-		}
-	}
-	for (int layer_y = 0; layer_y < Np_boundary[1]; layer_y++)
-	{
-		int imin = 0;
-		int imax = Np_fluid[0];
-
-		for (int i = imin; i < imax; i++)
-		{
-			// add left column particles
-			vd.add();
-
-			vd.getLastPos()[0] = i * dp + 0.5 * dp;
-			vd.getLastPos()[1] = -0.5 * dp - layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			// add right column particles
-			vd.add();
-
-			vd.getLastPos()[0] = i * dp + 0.5 * dp;
-			vd.getLastPos()[1] = Np_fluid[1] * dp + 0.5 * dp + layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-		}
-	}
-
-	// now the corners
-	for (int layer_x = 0; layer_x < Np_boundary[0]; layer_x++)
-	{
-		for (int layer_y = 0; layer_y < Np_boundary[1]; layer_y++)
-		{
-			// bottom left corner starts at -dp/2 -dp/2
-			vd.add();
-
-			vd.getLastPos()[0] = -0.5 * dp - layer_x * dp;
-			vd.getLastPos()[1] = -0.5 * dp - layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			// bottom right corner starts at Lx+dp/2 -dp/2
-			vd.add();
-
-			vd.getLastPos()[0] = Np_fluid[0] * dp + dp / 2 + layer_x * dp;
-			vd.getLastPos()[1] = -0.5 * dp - layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			// top left corner starts at -dp/2 Ly+dp/2
-			vd.add();
-
-			vd.getLastPos()[0] = -0.5 * dp - layer_x * dp;
-			vd.getLastPos()[1] = Np_fluid[1] * dp + dp / 2 + layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-			// top right corner starts at Lx+dp/2 Ly+dp/2
-			vd.add();
-
-			vd.getLastPos()[0] = Np_fluid[0] * dp + dp / 2 + layer_x * dp;
-			vd.getLastPos()[1] = Np_fluid[1] * dp + dp / 2 + layer_y * dp;
-			vd.getLastPos()[2] = coord_z;
-
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
-			vd.template getLastProp<rho_prev>() = rho_zero;
-			vd.template getLastProp<velocity>()[0] = 0.0;
-			vd.template getLastProp<velocity>()[1] = 0.0;
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-			vd.template getLastProp<velocity_prev>()[0] = 0.0;
-			vd.template getLastProp<velocity_prev>()[1] = 0.0;
-			vd.template getLastProp<velocity_prev>()[2] = 0.0;
-		}
-	}
-
-	//////////////////////////////////////////
 	vd.map();
 
 	// Now that we fill the vector with particles
@@ -1193,18 +955,17 @@ int main(int argc, char *argv[])
 
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "   Max visc: " << max_visc << std::endl;
+				// std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "   Max visc: " << max_visc << std::endl;
 			}
 		}
 		else
 		{
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "    Max visc: " << max_visc << std::endl;
+				// std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "    Max visc: " << max_visc << std::endl;
 			}
 		}
 	}
 
-	std::cout << "length_x = " << length[0] << " length_y = " << length[1] << " length_z = " << length[2] << std::endl;
 	openfpm_finalize();
 }
