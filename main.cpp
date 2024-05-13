@@ -42,7 +42,7 @@ const double MassBound = 0.000614125;
 #ifdef TEST_RUN
 const double t_end = 0.001;
 #else
-const double t_end = 0.001;
+const double t_end = 500;
 #endif
 
 // Gravity acceleration
@@ -666,7 +666,9 @@ int main(int argc, char *argv[])
 	// Number of fluid and boundary particles in the x, y and z direction
 
 	bool bc_new = false;
-	size_t Np_fluid[3] = {4, 1, 5};
+	// size_t Np_fluid[3] = {60, 1, 120};
+	size_t Np_fluid[3] = {40, 1, 120};
+
 	size_t Np_boundary[3] = {3, 0, 0};
 
 	// Here we define the boundary conditions of our problem
@@ -690,7 +692,8 @@ int main(int argc, char *argv[])
 	// offset to add to the fluid box, if non periodic it has to go from 0 to length
 	double offset_fluid[3];
 	// In case of periodic boundary conditions, we need to add an asymetric offset to the right,top or front of the domain
-	double offset_periodic[3];
+	double offset_periodic_fluid[3];
+	double offset_periodic_recipient[3];
 
 	// non periodic situation grid of 5 fluid particles and 3 boundary particles
 	// We need a virtual grid of 5 + 2*(3+1) particles,
@@ -710,9 +713,10 @@ int main(int argc, char *argv[])
 		if (bc[dim] == 0)
 		{
 			sz[dim] = Np_fluid[dim] + 2 * (Np_boundary[dim] + 1);
-			offset_fluid[dim] = 0.0;
-			offset_periodic[dim] = 0.0;
 			offset_domain[dim] = (0.5 + Np_boundary[dim]) * dp;
+			offset_fluid[dim] = 0.0;
+			offset_periodic_fluid[dim] = 0.0;
+			offset_periodic_recipient[dim] = 0.0;
 
 			if (Np_boundary[dim] != 0)
 				sz_aux[dim] = 2 * sz[dim] - 1;
@@ -729,14 +733,18 @@ int main(int argc, char *argv[])
 		{
 			sz[dim] = Np_fluid[dim] + 2;
 			sz_aux[dim] = sz[dim];
+			offset_domain[dim] = 0.5 * dp;
 			offset_fluid[dim] = 0.0;
 			offset_recipient[dim] = 0.0;
-			offset_domain[dim] = 0.5 * dp;
-			offset_periodic[dim] = 0.5 * dp;
+			offset_periodic_fluid[dim] = 0.55 * dp;
+			offset_periodic_recipient[dim] = 0.75 * dp;
 		}
 	}
 
-	double epsilon = dp * 0.1;
+	// last position of fluid particles in z coordinate is at
+	// length[2] + 0.5*dp
+	double z_end = length[2] + 0.5 * dp;
+	double epsilon = 0.1 * dp;
 
 	// Define the boxes
 	Box<3, double> domain({-offset_domain[0],
@@ -749,24 +757,24 @@ int main(int argc, char *argv[])
 	Box<3, double> fluid_box({-offset_fluid[0],
 							  -offset_fluid[1],
 							  -offset_fluid[2]},
-							 {length[0] + offset_fluid[0] + offset_periodic[0],
-							  length[1] + offset_fluid[1] + offset_periodic[1],
-							  length[2] + offset_fluid[2] + offset_periodic[2]});
+							 {length[0] + offset_fluid[0] + offset_periodic_fluid[0],
+							  length[1] + offset_fluid[1] + offset_periodic_fluid[1],
+							  length[2] + offset_fluid[2] + offset_periodic_fluid[2]});
 
 	Box<3, double> recipient({-offset_recipient[0],
 							  -offset_recipient[1],
 							  -offset_recipient[2]},
-							 {length[0] + offset_recipient[0] + offset_periodic[0],
-							  length[1] + offset_recipient[1] + offset_periodic[1],
-							  length[2] + offset_recipient[2] + offset_periodic[2]});
+							 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+							  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
+							  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
 
 	// Will only be used in the new bc
 	Box<3, double> recipient_hole({offset_recipient[0],
 								   offset_recipient[1],
 								   offset_recipient[2]},
-								  {length[0] - offset_recipient[0] + offset_periodic[0],
-								   length[1] - offset_recipient[1] + offset_periodic[1],
-								   length[2] - offset_recipient[2] + offset_periodic[2]});
+								  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
+								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
 
 	std::ofstream file("domain_coordinates.txt");
 	file << "Domain: " << domain.toString() << std::endl;
@@ -783,6 +791,7 @@ int main(int argc, char *argv[])
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
 	// return an iterator to the fluid particles to add to vd
+	std::cout << "Creating fluid particles iter" << std::endl;
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
 
 	// here we fill some of the constants needed by the simulation
@@ -831,12 +840,6 @@ int main(int argc, char *argv[])
 	// Recipient
 
 	openfpm::vector<Box<3, double>> holes;
-	int count = 0;
-	int count_theoretical = 2 * (Np_boundary[0] * (Np_fluid[2] + 1));
-	std::cout << "Np_boundary[0]: " << Np_boundary[0] << std::endl;
-	std::cout << "Np_fluid[2]: " << Np_fluid[2] << std::endl;
-
-	std::cout << "Theoretical boundary particles: " << count_theoretical << std::endl;
 
 	if (bc_new == true)
 	{
@@ -849,11 +852,26 @@ int main(int argc, char *argv[])
 	{
 		holes.add(fluid_box);
 	}
-
+	std::cout << "Creating boundary particles iter" << std::endl;
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
 	while (bound_box.isNext())
 	{
+		Point<3, double> position = bound_box.get();
+
+		// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+		if (!recipient.isInside((position))) // with this we check if particle is outside the recipient box
+		{
+			++bound_box;
+			continue;
+		}
+
+		if (fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon))
+		{
+			++bound_box;
+			continue;
+		}
+
 		vd.add();
 
 		vd.getLastPos()[0] = bound_box.get().get(0);
@@ -863,7 +881,7 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<rho_prev>() = rho_zero;
-		vd.template getLastProp<velocity>()[0] = 0.0;
+		vd.template getLastProp<velocity>()[0] = 0.000;
 		vd.template getLastProp<velocity>()[1] = 0.0;
 		vd.template getLastProp<velocity>()[2] = 0.0;
 
@@ -872,197 +890,8 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<velocity_prev>()[2] = 0.0;
 
 		++bound_box;
-		count++;
-		std::cout << "Boundary particle #" << count << "added at x= " << vd.getLastPos()[0] << " y= " << vd.getLastPos()[1] << " z= " << vd.getLastPos()[2] << std::endl;
+		// std::cout << "Boundary particle " << count << " at position x=" << vd.getLastPos()[0] << " y=" << vd.getLastPos()[1] << " z=" << vd.getLastPos()[2] << std::endl;
 	}
-
-	///////////////////////////////////////////////////////////////////////////////////////////////
-	//////////////////////////////////NEW CODE FOR THE NEW BC///////////////////////////////////////
-	// // Number of fluid and boundary particles in the x, y and z direction
-	// size_t Np_fluid[3] = {10, 1, 20};
-	// size_t Np_boundary[3] = {1, 0, 0};
-
-	// // Here we define the boundary conditions of our problem
-	// size_t bc[3] = {NON_PERIODIC, NON_PERIODIC, PERIODIC};
-
-	// // Size of the virtual grid that defines where to place the particles
-	// size_t sz[3];
-	// // To place boundary particles at the wall we need a finer grid
-	// size_t sz_aux[3];
-
-	// // Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
-	// // First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
-	// double length[3];
-	// // offset to add to the domain box to create the correct particle positions, if non periodic it has to go from -dp/2 - Np_boundary*dp to Lx+dp/2 + Np_boundary*dp
-	// double offset_domain[3];
-	// // offset to add to the recipient box, if non periodic it has to go from - Np_boundary*dp  to length + Np_boundary*dp
-	// double offset_recipient[3];
-	// // offset to add to the fluid box, if non periodic it has to go from 0 to length
-	// double offset_fluid[3];
-	// // In case of periodic boundary conditions, we need to add an asymetric offset to the right,top or front of the domain
-	// double offset_periodic[3];
-
-	// // non periodic situation grid of 5 fluid particles and 3 boundary particles
-	// // We need a virtual grid of 5 + 2*(3+1) particles,
-	// // therefore the domain is discretized with 13 grid points,
-	// // when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
-	// // the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
-	// //           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
-	// // D: domain, o: boundary, x: fluid, --: dp distance
-	// // in a periodic situation we have the following
-	// // .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
-	// // therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
-
-	// for (int k = 0; k < 3; k++)
-	// {
-	// 	length[k] = dp * Np_fluid[k];
-
-	// 	// non periodic, fluid covered by boundary
-	// 	if (bc[k] == 0)
-	// 	{
-	// 		sz[k] = Np_fluid[k] + 2 * (Np_boundary[k] + 1);
-
-	// 		// We want to put one virtual grid point between each pair of the old ones,
-	// 		// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
-	// 		if (Np_boundary[k] != 0)
-	// 			sz_aux[k] = 2 * sz[k] - 1;
-	// 		else // for a direction with no boundary particles we dont need to add anything
-	// 			sz_aux[k] = sz[k];
-
-	// 		offset_domain[k] = (0.5 + Np_boundary[k]) * dp;
-	// 		offset_fluid[k] = 0.0;
-	// 		// offset_recipient[k] = Np_boundary[k] * dp;
-	// 		offset_recipient[k] = 0.25 * dp * Np_boundary[k];
-	// 		offset_periodic[k] = 0.0;
-	// 	}
-	// 	// periodic, open ended
-	// 	else
-	// 	{
-	// 		sz[k] = Np_fluid[k] + 2;
-	// 		sz_aux[k] = sz[k];
-	// 		offset_domain[k] = 0.5 * dp;
-	// 		offset_fluid[k] = 0.0;
-	// 		offset_recipient[k] = 0.0;
-	// 		offset_periodic[k] = 0.5 * dp;
-	// 	}
-	// }
-
-	// // Define the boxes
-	// Box<3, double> domain({-offset_domain[0],
-	// 					   -offset_domain[1],
-	// 					   -offset_domain[2]},
-	// 					  {length[0] + offset_domain[0],
-	// 					   length[1] + offset_domain[1],
-	// 					   length[2] + offset_domain[2]});
-
-	// Box<3, double> fluid_box({-offset_fluid[0],
-	// 						  -offset_fluid[1],
-	// 						  -offset_fluid[2]},
-	// 						 {length[0] + offset_fluid[0] + offset_periodic[0],
-	// 						  length[1] + offset_fluid[1] + offset_periodic[1],
-	// 						  length[2] + offset_fluid[2] + offset_periodic[2]});
-
-	// Box<3, double> recipient({-offset_recipient[0],
-	// 						  -offset_recipient[1],
-	// 						  -offset_recipient[2]},
-	// 						 {length[0] + offset_recipient[0] + offset_periodic[0],
-	// 						  length[1] + offset_recipient[1] + offset_periodic[1],
-	// 						  length[2] + offset_recipient[2] + offset_periodic[2]});
-
-	// Box<3, double> recipient_hole({offset_recipient[0],
-	// 							   offset_recipient[1],
-	// 							   offset_recipient[2]},
-	// 							  {length[0] - offset_recipient[0] + offset_periodic[0],
-	// 							   length[1] - offset_recipient[1] + offset_periodic[1],
-	// 							   length[2] - offset_recipient[2] + offset_periodic[2]});
-
-	// std::ofstream file("domain_coordinates.txt");
-	// file << "Domain: " << domain.toString() << std::endl;
-	// file << "Fluid box: " << fluid_box.toString() << std::endl;
-	// file << "Recipient: " << recipient.toString() << std::endl;
-	// file << "Hole: " << recipient_hole.toString() << std::endl;
-	// file.close();
-	// // Fill W_dap
-	// W_dap = 1.0 / Wab(H / 1.5);
-
-	// // extended boundary around the domain, and the processor domain
-	// Ghost<3, double> g(2.0 * H);
-
-	// particles vd(0, domain, bc, g, DEC_GRAN(512));
-
-	// // return an iterator to the fluid particles to add to vd
-	// auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
-
-	// // here we fill some of the constants needed by the simulation
-	// max_fluid_height = fluid_it.getBoxMargins().getHigh(2);
-	// h_swl = fluid_it.getBoxMargins().getHigh(2) - fluid_it.getBoxMargins().getLow(2);
-	// B = (coeff_sound) * (coeff_sound)*gravity * h_swl * rho_zero / gamma_;
-	// cbar = coeff_sound * sqrt(gravity * h_swl);
-
-	// // for each particle inside the fluid box ...
-	// while (fluid_it.isNext())
-	// {
-	// 	// ... add a particle ...
-	// 	vd.add();
-
-	// 	// ... and set it position ...
-	// 	vd.getLastPos()[0] = fluid_it.get().get(0);
-	// 	vd.getLastPos()[1] = fluid_it.get().get(1);
-	// 	vd.getLastPos()[2] = fluid_it.get().get(2);
-
-	// 	// and its type.
-	// 	vd.template getLastProp<type>() = FLUID;
-
-	// 	// We also initialize the density of the particle and the hydro-static pressure given by
-	// 	//
-	// 	// rho_zero*g*h = P
-	// 	//
-	// 	// rho_p = (P/B + 1)^(1/Gamma) * rho_zero
-	// 	//
-
-	// 	vd.template getLastProp<Pressure>() = rho_zero * gravity * (max_fluid_height - fluid_it.get().get(2));
-
-	// 	vd.template getLastProp<rho>() = pow(vd.template getLastProp<Pressure>() / B + 1, 1.0 / gamma_) * rho_zero;
-	// 	vd.template getLastProp<rho_prev>() = vd.template getLastProp<rho>();
-	// 	vd.template getLastProp<velocity>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity>()[2] = 0.0;
-
-	// 	vd.template getLastProp<velocity_prev>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-	// 	// next fluid particle
-	// 	++fluid_it;
-	// }
-
-	// // Recipient
-
-	// openfpm::vector<Box<3, double>> holes;
-	// holes.add(recipient_hole);
-	// auto bound_box = DrawParticles::DrawSkin(vd, sz_aux, domain, holes, recipient);
-
-	// while (bound_box.isNext())
-	// {
-	// 	vd.add();
-
-	// 	vd.getLastPos()[0] = bound_box.get().get(0);
-	// 	vd.getLastPos()[1] = bound_box.get().get(1);
-	// 	vd.getLastPos()[2] = bound_box.get().get(2);
-
-	// 	vd.template getLastProp<type>() = BOUNDARY;
-	// 	vd.template getLastProp<rho>() = rho_zero;
-	// 	vd.template getLastProp<rho_prev>() = rho_zero;
-	// 	vd.template getLastProp<velocity>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity>()[2] = 0.0;
-
-	// 	vd.template getLastProp<velocity_prev>()[0] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[1] = 0.0;
-	// 	vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
-	// 	++bound_box;
-	// }
 
 	vd.map();
 
@@ -1079,8 +908,8 @@ int main(int argc, char *argv[])
 
 	openfpm::vector<std::string> names({"type", "density", "density_prev", "pressure", "delta_density", "force", "velocity", "velocity_prev"});
 	vd.setPropNames(names);
-	// Evolve
 
+	// Evolve
 	size_t write = 0;
 	size_t it = 0;
 	size_t it_reb = 0;
