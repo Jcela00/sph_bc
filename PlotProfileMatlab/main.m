@@ -1,6 +1,8 @@
 clear all; clc; close all;
 % Load the data in csv format
-data = csvread('channel.csv', 1, 0);
+filenum = 1000;
+filename = ['data/channel_' num2str(filenum) '.csv'];
+data = csvread(filename, 1, 0);
 % delete nan density values
 data = data(~isnan(data(:, 2)), :);
 type_particle = data(:, 1);
@@ -25,6 +27,8 @@ min_y = min(positions(:, 2));
 max_z = max(positions(:, 3));
 min_z = min(positions(:, 3));
 
+Lx = max_x - min_x - 5 * dp;
+
 % positons for profile computation
 x_samples = 80;
 x_grid = linspace(min_x, max_x, x_samples);
@@ -36,6 +40,40 @@ z_points = z_points(3:end - 2);
 
 velocity_interp = zeros(x_samples, 3, z_samples);
 
+% first fix boundary particles velocities
+for i = 1:Nparticles
+
+    if type_particle(i, 1) == 0 % boundary particle
+        fixed_vel = [0, 0, 0];
+        nom = 0;
+        den = 0;
+
+        for k = 1:Nparticles
+
+            if type_particle(k, 1) == 1 % only consider fluid particles
+
+                if (k ~= i) % dont consider self
+                    r = norm(positions(i, :) - positions(k, :));
+                    W = kernel(r, H);
+                    nom = nom + velocity(k, :) * W;
+                    den = den + W;
+                end
+
+            end
+
+        end
+
+        if den == 0
+            den = 1;
+        end
+
+        fixed_vel = nom / den;
+        velocity(i, :) = -fixed_vel;
+
+    end
+
+end
+
 for j = 1:z_samples % loop over z coordinates along the channel
     zval = z_points(j);
     z_grid = zval * ones(1, x_samples);
@@ -45,13 +83,13 @@ for j = 1:z_samples % loop over z coordinates along the channel
 
         for k = 1:Nparticles % loop over all particles
 
-            if type_particle(k) == 1 % fluid particles
-                r = norm(R_grid(i, :) - positions(k, :));
-                W = kernel(r, H);
+            %if type_particle(k) == 1 % fluid particles
+            r = norm(R_grid(i, :) - positions(k, :));
+            W = kernel(r, H);
 
-                velocity_interp(i, :, j) = velocity_interp(i, :, j) + mass * velocity(k, :) * W / density(k, 1);
+            velocity_interp(i, :, j) = velocity_interp(i, :, j) + mass * velocity(k, :) * W / density(k, 1);
 
-            end
+            %end
 
         end
 
@@ -63,7 +101,7 @@ x_fine = linspace(min_x + 2.5 * dp, max_x - 2.5 * dp, 1000);
 
 for j = 1:z_samples
     umax = max(-velocity_interp(:, 3, j));
-    w_a = prof_a(x_fine, umax, [min_x, max_x]);
+    w_a = prof_a(x_fine, umax, Lx);
     figure;
     plot(x_grid, -velocity_interp(:, 3, j), 'k'); hold on;
     plot(x_fine, w_a, 'r--')
@@ -84,21 +122,14 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % analytical velocity profile
 
-function u = prof_a(x, umax, xlims)
+function u = prof_a(x, umax, Lx)
     % u =g/(2*nu)*x*(h-x)
     % or umax= g*h^2/(8*nu) and then
     % u = (4umax/h)*x(1-x/h)
 
-    xmin = xlims(1);
-    xmax = xlims(2);
-
-    dp = 0.0085;
-    x_in_min = xmin + 2.5 * dp;
-    x_in_max = xmax - 2.5 * dp;
-
     g = 9.81;
     % nu = 0.001;
-    h = 0.17;
+    h = Lx;
     % w = (g / (2 * nu)) .* x .* (h - x);
     u = zeros(1, length(x));
 

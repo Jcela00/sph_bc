@@ -4,3 +4,6 @@ VTPDATA
 main.o
 sph_dlb
 main_checkpoint.cpp
+main_manual_placement_1proc.cpp
+main_copy.cpp
+/PlotProfileMatlab/data

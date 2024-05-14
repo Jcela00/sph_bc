@@ -801,6 +801,8 @@ int main(int argc, char *argv[])
 	cbar = coeff_sound * sqrt(gravity * h_swl);
 
 	// for each particle inside the fluid box ...
+	const double lx = length[0];
+	const double prof_coeff = (30.0 * 4.0) / lx;
 	while (fluid_it.isNext())
 	{
 		// ... add a particle ...
@@ -827,11 +829,15 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<rho_prev>() = vd.template getLastProp<rho>();
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+
+		// impose parabolic profile for faster convergence
+		// uz = -K*x(h-x) K depends on viscosity which i dont know right now
+		// uz = (4*umax/h)*x(1-x/h)
+		vd.template getLastProp<velocity>()[2] = -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
 
 		vd.template getLastProp<velocity_prev>()[0] = 0.0;
 		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = 0.0;
+		vd.template getLastProp<velocity_prev>()[2] = -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
 
 		// next fluid particle
 		++fluid_it;
