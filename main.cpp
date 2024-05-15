@@ -8,6 +8,11 @@
 // A constant to indicate fluid particles
 #define FLUID 1
 
+// bool variable to indicate the dimensionality of the problem
+// changes the normalizaiton of the kernel
+// true for 3D, false for 2D
+bool three_dimensional = false;
+
 // initial spacing between particles dp in the formulas
 const double dp = 0.0085;
 // Maximum height of the fluid water
@@ -144,23 +149,32 @@ inline void EqState(particles &vd)
 	}
 }
 
-const double a2 = 1.0 / M_PI / H / H / H;
+// const double a2 = 1.0 / M_PI / H / H / H;
+// in 3d the normalization is 1/(pi*h^3) in 2d is 10/(7pi*h^2)
+const double a2 = three_dimensional ? 1.0 / M_PI / H / H / H : 15.0 / 14.0 / M_PI / H / H;
 
 inline double Wab(double r)
 {
 	r /= H;
-
 	if (r < 1.0)
 		return (1.0 - 3.0 / 2.0 * r * r + 3.0 / 4.0 * r * r * r) * a2;
 	else if (r < 2.0)
-		return (1.0 / 4.0 * (2.0 - r * r) * (2.0 - r * r) * (2.0 - r * r)) * a2;
+	{
+		// I think there is a mistake in the original code, r^2 should be r
+		// return (1.0 / 4.0 * (2.0 - r * r) * (2.0 - r * r) * (2.0 - r * r)) * a2;
+		return (1.0 / 4.0 * (2.0 - r) * (2.0 - r) * (2.0 - r)) * a2;
+	}
 	else
 		return 0.0;
 }
 
-const double c1 = -3.0 / M_PI / H / H / H / H;
-const double d1 = 9.0 / 4.0 / M_PI / H / H / H / H;
-const double c2 = -3.0 / 4.0 / M_PI / H / H / H / H;
+// const double c1 = -3.0 / M_PI / H / H / H / H;
+// const double d1 = 9.0 / 4.0 / M_PI / H / H / H / H;
+// const double c2 = -3.0 / 4.0 / M_PI / H / H / H / H;
+
+const double c1 = (-3.0 / H) * a2;
+const double d1 = (9.0 / 4.0 / H) * a2;
+const double c2 = (-3.0 / 4.0 / H) * a2;
 const double a2_4 = 0.25 * a2;
 // Filled later
 double W_dap = 0.0;
@@ -667,7 +681,7 @@ int main(int argc, char *argv[])
 
 	bool bc_new = false;
 	// size_t Np_fluid[3] = {60, 1, 120};
-	size_t Np_fluid[3] = {40, 1, 120};
+	size_t Np_fluid[3] = {20, 1, 40};
 
 	size_t Np_boundary[3] = {3, 0, 0};
 
@@ -776,12 +790,13 @@ int main(int argc, char *argv[])
 								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
 								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
 
-	std::ofstream file("domain_coordinates.txt");
-	file << "Domain: " << domain.toString() << std::endl;
-	file << "Fluid box: " << fluid_box.toString() << std::endl;
-	file << "Recipient: " << recipient.toString() << std::endl;
-	file << "Recipient hole: " << recipient_hole.toString() << std::endl;
-	file.close();
+	// std::ofstream file("domain_coordinates.txt");
+	// file << "Domain: " << domain.toString() << std::endl;
+	// file << "Fluid box: " << fluid_box.toString() << std::endl;
+	// file << "Recipient: " << recipient.toString() << std::endl;
+	// file << "Recipient hole: " << recipient_hole.toString() << std::endl;
+
+	// file.close();
 	// Fill W_dap
 	W_dap = 1.0 / Wab(H / 1.5);
 
@@ -829,15 +844,18 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<rho_prev>() = vd.template getLastProp<rho>();
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
+		vd.template getLastProp<velocity>()[2] = 0.0;
 
 		// impose parabolic profile for faster convergence
 		// uz = -K*x(h-x) K depends on viscosity which i dont know right now
 		// uz = (4*umax/h)*x(1-x/h)
-		vd.template getLastProp<velocity>()[2] = -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
+
+		// -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
 
 		vd.template getLastProp<velocity_prev>()[0] = 0.0;
 		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
+		vd.template getLastProp<velocity_prev>()[2] = 0.0;
+		//-prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
 
 		// next fluid particle
 		++fluid_it;
