@@ -99,9 +99,9 @@ classdef ParticleData
             for k = 1:obj.Npart
 
                 if obj.Type(k) == 1
-                    plot(obj.Position(:, 1), -obj.Velocity(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
+                    plot(obj.Position(:, 1), obj.Velocity(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
                 else
-                    plot(obj.Position(:, 1), -obj.VelocityPrev(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
+                    plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
 
                 end
 
@@ -135,6 +135,57 @@ classdef ParticleData
             else
                 W = 0;
             end
+
+        end
+
+        function PlotProfile(obj, fig, x_samples, z_coord, switch_var)
+
+            % Sample positons for profile computation
+            x_sample_grid = linspace(obj.PositionLimits(1, 1), obj.PositionLimits(1, 2), x_samples);
+
+            y_grid = obj.PositionLimits(2, 1) * ones(1, x_samples); % y is constant ( by plane geometry)
+            z_grid = z_coord * ones(1, x_samples); % z is constant ( given parameter)
+
+            velocity_interp = zeros(x_samples, 3);
+
+            R_grid = [x_sample_grid; y_grid; z_grid]';
+
+            for i = 1:x_samples % loop over all x coordinates across the channel
+
+                Wnorm = 0; % to normalize to kernel sum when support is not full of particles
+
+                for k = 1:obj.Npart % loop over all particles
+
+                    r = norm(R_grid(i, :) - obj.Position(k, :));
+
+                    if (r < 2 * obj.H)
+                        W = obj.kernel(r);
+                        Wnorm = Wnorm + W * obj.mass / obj.Density(k, 1);
+
+                        if (obj.Type(k, 1) == 1) % fluid particle
+                            velocity_interp(i, :) = velocity_interp(i, :) + obj.mass * obj.Velocity(k, :) * W / obj.Density(k, 1);
+                        else % boundary particle, velocity is stored in VelocityPrev
+                            velocity_interp(i, :) = velocity_interp(i, :) + obj.mass * obj.VelocityPrev(k, :) * W / obj.Density(k, 1);
+                        end
+
+                    end
+
+                end
+
+                velocity_interp(i, :) = velocity_interp(i, :) / Wnorm;
+
+            end
+
+            figure(fig);
+            plot(x_sample_grid, velocity_interp(:, 3), 'o-', 'DisplayName', obj.Name, 'MarkerSize', 4);
+            xlabel('$x$'); ylabel('Velocity $z$');
+            title(['SPH interpolated velocity profile at z = ' num2str(z_coord)]);
+            xline(obj.PositionLimits(1, 1), 'k--', 'HandleVisibility', 'off');
+            xline(obj.PositionLimits(1, 2), 'k--', 'HandleVisibility', 'off');
+            xline(0.0, 'k', 'HandleVisibility', 'off');
+            xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
+            particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
+            plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
 
         end
 
@@ -175,100 +226,6 @@ classdef ParticleData
 
             % remove zero values
             CheckSum = CheckSum(CheckSum ~= 0);
-        end
-
-        function PlotProfile(obj, fig, x_samples, z_samples, switch_var)
-
-            % Sample positons for profile computation
-            x_sample_grid = linspace(obj.PositionLimits(1, 1), obj.PositionLimits(1, 2), x_samples);
-
-            y_grid = obj.PositionLimits(2, 1) * ones(1, x_samples);
-            z_sample_grid = linspace(obj.PositionLimits(3, 1), obj.PositionLimits(3, 2), z_samples + 4);
-            z_sample_grid = z_sample_grid(3:end - 2);
-
-            velocity_interp = zeros(x_samples, 3, z_samples);
-
-            if (switch_var == 1)
-                % fix boundary particles velocities
-                for i = 1:obj.Npart
-
-                    if (obj.Type(i, 1) == 0) % boundary particle
-                        fixed_vel = [0, 0, 0];
-                        nom = 0;
-                        den = 0;
-
-                        for k = 1:obj.Npart
-
-                            if obj.Type(k, 1) == 1 % only consider fluid particles
-
-                                if (k ~= i) % dont consider self
-                                    r = norm(obj.Position(i, :) - obj.Position(k, :));
-                                    W = obj.kernel(r);
-                                    nom = nom + obj.Velocity(k, :) * W;
-                                    den = den + W;
-                                end
-
-                            end
-
-                        end
-
-                        if den == 0
-                            den = 1;
-                        end
-
-                        fixed_vel = nom / den;
-                        obj.VelocityPrev(i, :) = -fixed_vel;
-
-                    end
-
-                end
-
-            else
-                obj.VelocityPrev = zeros(size(obj.VelocityPrev));
-
-            end
-
-            for j = 1:z_samples % loop over z coordinates along the channel
-                z_val = z_sample_grid(j);
-                z_grid = z_val * ones(1, x_samples);
-                R_grid = [x_sample_grid; y_grid; z_grid]';
-
-                for i = 1:x_samples % loop over all x coordinates across the channel
-
-                    for k = 1:obj.Npart % loop over all particles
-
-                        r = norm(R_grid(i, :) - obj.Position(k, :));
-
-                        if (r < 2 * obj.H)
-                            W = obj.kernel(r);
-
-                            if (obj.Type(k, 1) == 1) % fluid particle
-                                velocity_interp(i, :, j) = velocity_interp(i, :, j) + obj.mass * obj.Velocity(k, :) * W / obj.Density(k, 1);
-                            else
-                                velocity_interp(i, :, j) = velocity_interp(i, :, j) + obj.mass * obj.VelocityPrev(k, :) * W / obj.Density(k, 1);
-                            end
-
-                        end
-
-                    end
-
-                end
-
-            end
-
-            for j = 1:z_samples
-                figure(fig);
-                plot(x_sample_grid, -velocity_interp(:, 3, j), '.-', 'DisplayName', obj.Name);
-                xlabel('$x$'); ylabel('Velocity $z$');
-                title(['SPH interpolated velocity profile at z = ' num2str(z_sample_grid(j))]);
-                xline(obj.PositionLimits(1, 1), 'k--', 'HandleVisibility', 'off');
-                xline(obj.PositionLimits(1, 2), 'k--', 'HandleVisibility', 'off');
-                xline(0.0, 'k', 'HandleVisibility', 'off');
-                xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
-                particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
-                plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
-            end
-
         end
 
     end

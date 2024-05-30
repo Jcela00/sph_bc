@@ -12,7 +12,7 @@
 #define NEW_NO_SLIP 2
 
 // output file name
-std::string filename = "test_nu";
+std::string filename = "test_prof";
 
 // bool variable to indicate the dimensionality of the problem
 // changes the normalizaiton of the kernel
@@ -40,8 +40,8 @@ const double H = std::sqrt(3.0) * dp;
 // Eta in the formulas
 const double Eta2 = 0.01 * H * H;
 
-// double visco = 0.1;
-double visco = 0.1;
+// constant used to write files
+const int write_const = 100;
 
 // cbar in the formula (calculated later)
 double cbar = 0.0;
@@ -50,21 +50,27 @@ double cbar = 0.0;
 #ifdef TEST_RUN
 const double t_end = 0.001;
 #else
-const double t_end = 20;
+const double t_end = 100;
 #endif
 
 // Gravity acceleration
-// const double gravity = 9.81;
-const double gravity = 9.81;
+const double gravity = 0.1;
+
+// double visco = 0.1;
+double visco = 0.14;
+// new viscosity
+double eta = 0.1;
 
 // Reference density 1000Kg/m^3
-const double rho_zero = 1000.0;
+const double rho_zero = 1.0;
 
 // Minimum Rho allowed
 const double RhoMin = 0.7 * rho_zero;
 
 // Maximum Rho allowed
 const double RhoMax = 1.3 * rho_zero;
+
+std::ofstream FileForce("force_check.txt");
 
 // Mass of the fluid particles
 // M=rho*V, V=dp^3 or V = dp^2
@@ -195,11 +201,11 @@ inline void DWab(Point<3, double> &dx, Point<3, double> &DW, double r, bool prin
 
 	double qq2 = qq * qq;
 	double fac1 = (c1 * qq + d1 * qq2) / r;
-	double b1 = (qq < 1.0) ? 1.0f : 0.0f;
+	double b1 = (qq < 1.0) ? 1.0 : 0.0;
 
 	double wqq = (2.0 - qq);
 	double fac2 = c2 * wqq * wqq / r;
-	double b2 = (qq >= 1.0 && qq < 2.0) ? 1.0f : 0.0f;
+	double b2 = (qq >= 1.0 && qq < 2.0) ? 1.0 : 0.0;
 
 	double factor = (b1 * fac1 + b2 * fac2);
 
@@ -216,7 +222,7 @@ inline double Tensile(double r, double rhoa, double rhob, double prs1, double pr
 	double wab;
 	if (r > H)
 	{
-		double wqq1 = 2.0f - qq;
+		double wqq1 = 2.0 - qq;
 		double wqq2 = wqq1 * wqq1;
 
 		wab = a2_4 * (wqq2 * wqq1);
@@ -226,7 +232,7 @@ inline double Tensile(double r, double rhoa, double rhob, double prs1, double pr
 		double wqq2 = qq * qq;
 		double wqq3 = wqq2 * qq;
 
-		wab = a2 * (1.0f - 1.5f * wqq2 + 0.75f * wqq3);
+		wab = a2 * (1.0 - 1.5 * wqq2 + 0.75 * wqq3);
 	}
 
 	//-Tensile correction.
@@ -245,46 +251,57 @@ inline double Pi(const Point<3, double> &dr, double rr2, Point<3, double> &dv, d
 	const double dot_rr2 = dot / (rr2 + Eta2);
 	visc = std::max(dot_rr2, visc);
 
-	if (dot < 0)
-	{
-		const float amubar = H * dot_rr2;
-		const float robar = (rhoa + rhob) * 0.5f;
-		const float pi_visc = (-visco * cbar * amubar / robar);
+	// if (dot < 0)
+	// {
+	const float amubar = H * dot_rr2;
+	const float robar = (rhoa + rhob) * 0.5;
+	const float pi_visc = (-visco * cbar * amubar / robar);
 
-		return pi_visc;
-	}
-	else
-		return 0.0;
+	return pi_visc;
+	// }
+	// else
+	// 	return 0.0;
 }
-
-inline double interact(Point<3, double> &va, Point<3, double> &dr, bool bottomwall)
+inline Point<3, double> Pi_new(const Point<3, double> &dr, double r, Point<3, double> &dv, Point<3, double> &dW, double rhoa, double rhob, double massa, double massb, double &visc)
 {
-	Point<3, double> normal_bottom_wall;
-	normal_bottom_wall.get(0) = 1.0;
-	normal_bottom_wall.get(1) = 0.0;
-	normal_bottom_wall.get(2) = 0.0;
-
-	Point<3, double> normal_top_wall;
-	normal_top_wall.get(0) = -1.0;
-	normal_top_wall.get(1) = 0.0;
-	normal_top_wall.get(2) = 0.0;
-
-	Point<3, double> normal;
-	if (bottomwall)
-	{
-		normal = normal_bottom_wall;
-	}
-	else
-	{
-		normal = normal_top_wall;
-	}
-
-	Point<3, double> offset_1 = -normal * dp / 2.0; // offset from wall to first particle
-	Point<3, double> offset_2 = -normal * dp;		// offset from first to second particle, and from second to third
-
-	Point<3, double> r1 = dr + offset_1;
-	double r1_norm = sqrt(norm2(r1));
+	const Point<3, double> e_ab = dr / r; // unit vector from a to b
+	const double dot = e_ab.get(0) * dW.get(0) + e_ab.get(1) * dW.get(1) + e_ab.get(2) * dW.get(2);
+	double Va2 = (massa / rhoa) * (massa / rhoa);
+	double Vb2 = (massb / rhob) * (massb / rhob);
+	Point<3, double> pi_visc = ((Va2 + Vb2) * dot * dv) / (r + Eta2);
+	const double normvisc = sqrt(norm2(pi_visc));
+	visc = std::max(normvisc, visc);
+	return pi_visc;
 }
+
+// inline double interact(Point<3, double> &va, Point<3, double> &dr, bool bottomwall)
+// {
+// 	Point<3, double> normal_bottom_wall;
+// 	normal_bottom_wall.get(0) = 1.0;
+// 	normal_bottom_wall.get(1) = 0.0;
+// 	normal_bottom_wall.get(2) = 0.0;
+
+// 	Point<3, double> normal_top_wall;
+// 	normal_top_wall.get(0) = -1.0;
+// 	normal_top_wall.get(1) = 0.0;
+// 	normal_top_wall.get(2) = 0.0;
+
+// 	Point<3, double> normal;
+// 	if (bottomwall)
+// 	{
+// 		normal = normal_bottom_wall;
+// 	}
+// 	else
+// 	{
+// 		normal = normal_top_wall;
+// 	}
+
+// 	Point<3, double> offset_1 = -normal * dp / 2.0; // offset from wall to first particle
+// 	Point<3, double> offset_2 = -normal * dp;		// offset from first to second particle, and from second to third
+
+// 	Point<3, double> r1 = dr + offset_1;
+// 	double r1_norm = sqrt(norm2(r1));
+// }
 
 template <typename CellList>
 void calc_boundary(particles &vd, CellList &NN)
@@ -388,7 +405,7 @@ void calc_boundary(particles &vd, CellList &NN)
 }
 
 template <typename CellList>
-inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
+inline void calc_forces(particles &vd, CellList &NN, double &max_visc, bool flag)
 {
 	auto part = vd.getDomainIterator();
 
@@ -419,7 +436,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 		// Reset the force counter (- gravity on zeta direction)
 		vd.template getProp<force>(a)[0] = 0.0;
 		vd.template getProp<force>(a)[1] = 0.0;
-		vd.template getProp<force>(a)[2] = -gravity;
+		vd.template getProp<force>(a)[2] = gravity;
 		vd.template getProp<drho>(a) = 0.0;
 
 		// We threat FLUID particle differently from BOUNDARY PARTICLES ...
@@ -474,6 +491,9 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 					const double dot = dr.get(0) * dv.get(0) + dr.get(1) * dv.get(1) + dr.get(2) * dv.get(2);
 					const double dot_rr2 = dot / (r2 + Eta2);
 					max_visc = std::max(dot_rr2, max_visc);
+
+					// call the viscosity funciton just to update max_visc
+					// Point<3, double> dummy = Pi_new(dr, r, dv, DW, rhoa, rhob, massa, massb, max_visc);
 
 					vd.getProp<drho>(a) += massb * (dv.get(0) * DW.get(0) + dv.get(1) * DW.get(1) + dv.get(2) * DW.get(2));
 				}
@@ -557,13 +577,29 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 
 					Point<3, double> DW;
 					DWab(dr, DW, r, false);
+					double fakevisc = 0.0;
+					// Point<3, double> visc_term = Pi_new(dr, r, v_rel_aux, DW, rhoa, rhob, massa, massb, max_visc) * rho_zero / massb / massb;
+					double PressureTerm = -massb * (vd.getProp<Pressure>(a) + vd.getProp<Pressure>(b)) / (rhoa * rhob);
+					double TensileTerm = -massb * Tensile(r, rhoa, rhob, Pa, Pb);
+					double ViscosityTerm = -massb * Pi(dr, r2, v_rel_aux, rhoa, rhob, massa, max_visc);
+					// double factor = -massb * ((vd.getProp<Pressure>(a) + vd.getProp<Pressure>(b)) / (rhoa * rhob) + Tensile(r, rhoa, rhob, Pa, Pb) + Pi(dr, r2, v_rel_aux, rhoa, rhob, massb, max_visc));
 
-					double factor = -massb * ((vd.getProp<Pressure>(a) + vd.getProp<Pressure>(b)) / (rhoa * rhob) + Tensile(r, rhoa, rhob, Pa, Pb) + Pi(dr, r2, v_rel_aux, rhoa, rhob, massb, max_visc));
+					double factor = PressureTerm + TensileTerm + ViscosityTerm;
+					vd.getProp<force>(a)[0] += factor * DW.get(0); // + visc_term.get(0);
+					vd.getProp<force>(a)[1] += factor * DW.get(1); // + visc_term.get(1);
+					vd.getProp<force>(a)[2] += factor * DW.get(2); // + visc_term.get(2);
 
-					vd.getProp<force>(a)[0] += factor * DW.get(0);
-					vd.getProp<force>(a)[1] += factor * DW.get(1);
-					vd.getProp<force>(a)[2] += factor * DW.get(2);
+					// if (flag == 1)
+					// {
+					// 	double Viscosity_x = ViscosityTerm * DW.get(0);
+					// 	double Viscosity_y = ViscosityTerm * DW.get(1);
+					// 	double Viscosity_z = ViscosityTerm * DW.get(2);
+					// 	FileForce << "V_X: " << std::left << std::setw(18) << Viscosity_x << " V_Y: " << std::left << std::setw(18) << Viscosity_y << " V_Z: " << std::left << std::setw(18) << Viscosity_z << std::endl;
+					// 	FileForce << "V_X: " << std::left << std::setw(18) << visc_term.get(0) << " V_Y: " << std::left << std::setw(18) << visc_term.get(1) << " V_Z: " << std::left << std::setw(18) << visc_term.get(2) << std::endl;
+					// 	FileForce << "//////////////////////////////////////////////////////////////////////" << std::endl;
+					// }
 
+					// vd.getProp<drho>(a) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
 					vd.getProp<drho>(a) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
 				}
 
@@ -617,8 +653,9 @@ double calc_deltaT(particles &vd, double ViscDtMax)
 	const double dt_f = (Maxacc) ? sqrt(H / Maxacc) : std::numeric_limits<int>::max();
 
 	//-dt2 combines the Courant and the viscous time-step controls.
-	const double dt_cv = H / (std::max(cbar, Maxvel * 10.) + H * ViscDtMax);
+	// const double dt_cv = H / (std::max(cbar, Maxvel * 10.) + H * ViscDtMax);
 
+	const double dt_cv = H / (std::max(cbar, Maxvel * 10.) + H * ViscDtMax);
 	//-dt new value of time step.
 	double dt = double(CFLnumber) * std::min(dt_f, dt_cv);
 	if (dt < double(DtMin))
@@ -963,13 +1000,6 @@ int main(int argc, char *argv[])
 								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
 								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
 
-	// std::ofstream file("domain_coordinates.txt");
-	// file << "Domain: " << domain.toString() << std::endl;
-	// file << "Fluid box: " << fluid_box.toString() << std::endl;
-	// file << "Recipient: " << recipient.toString() << std::endl;
-	// file << "Recipient hole: " << recipient_hole.toString() << std::endl;
-
-	// file.close();
 	// Fill W_dap
 	W_dap = 1.0 / Wab(H / 1.5);
 
@@ -989,22 +1019,16 @@ int main(int argc, char *argv[])
 	max_fluid_height = fluid_it.getBoxMargins().getHigh(2);
 
 	// Fill needed constants
-	// Channel height
 	double L = length[0];
-	double h_swl = fluid_it.getBoxMargins().getHigh(2) - fluid_it.getBoxMargins().getLow(2);
-	// cbar = coeff_sound * sqrt(gravity * h_swl);
 
-	double nu = sqrt(10 * visco * H * gravity * L * L / 64);
-	double umax = gravity * L * L / (8 * nu);
+	double nu = sqrt(10.0 * visco * H * gravity * L * L / 64.0);
+	// double nu = 0.01;
+	// double visco = (64.0 / 10.0) * (nu * nu / (H * gravity * L));
+	// double nu = eta;
+	double umax = gravity * L * L / (8.0 * nu);
 	cbar = coeff_sound * umax;
 	B = cbar * cbar * rho_zero / gamma_;
 	double Re = L * umax / nu;
-
-	// cbar = coeff_sound * 30.0;
-	// B = cbar * cbar * rho_zero / gamma_;
-	// double nu = visco * H * cbar / (2 * (dimensions + 2));
-	// double umax = gravity * L * L / (8 * nu);
-	// double Re = umax * L / nu;
 
 	std::ofstream file("Constants.txt");
 	file << "gravity: " << gravity << std::endl;
@@ -1017,8 +1041,7 @@ int main(int argc, char *argv[])
 	file << "B: " << B << std::endl;
 
 	// for each particle inside the fluid box ...
-	const double lx = length[0];
-	const double prof_coeff = (30.0 * 4.0) / lx;
+	const double profile_parameter = gravity / (2.0 * nu);
 	while (fluid_it.isNext())
 	{
 		// ... add a particle ...
@@ -1044,22 +1067,17 @@ int main(int argc, char *argv[])
 
 		// vd.template getLastProp<Pressure>() = 0.0;
 
-		vd.template getLastProp<rho>() = pow(vd.template getLastProp<Pressure>() / B + 1, 1.0 / gamma_) * rho_zero;
+		// vd.template getLastProp<rho>() = pow(vd.template getLastProp<Pressure>() / B + 1, 1.0 / gamma_) * rho_zero;
+		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<rho_prev>() = vd.template getLastProp<rho>();
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
-
-		// impose parabolic profile for faster convergence
-		// uz = -K*x(h-x) K depends on viscosity which i dont know right now
-		// uz = (4*umax/h)*x(1-x/h)
-
-		// -prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
+		// impose theoretical pouiselle flow profile for faster convergence
+		vd.template getLastProp<velocity>()[2] = profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
 
 		vd.template getLastProp<velocity_prev>()[0] = 0.0;
 		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = 0.0;
-		//-prof_coeff * fluid_it.get().get(0) * (1 - fluid_it.get().get(0) / lx);
+		vd.template getLastProp<velocity_prev>()[2] = profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
 
 		// next fluid particle
 		++fluid_it;
@@ -1131,7 +1149,7 @@ int main(int argc, char *argv[])
 
 	vd.ghost_get<type, rho, Pressure, velocity>();
 
-	auto NN = vd.getCellList(2 * H);
+	auto NN = vd.getCellList(2.0 * H);
 
 	openfpm::vector<std::string> names({"type", "density", "density_prev", "pressure", "delta_density", "force", "velocity", "velocity_prev"});
 	vd.setPropNames(names);
@@ -1178,7 +1196,16 @@ int main(int argc, char *argv[])
 		}
 
 		// Calc forces
-		calc_forces(vd, NN, max_visc);
+		bool flag = 0;
+		// if (t > 1.0 && t < 1.0005)
+		// {
+		// 	FileForce << "///////////////////////////////////////////" << std::endl;
+		// 	FileForce << "NEW TIME" << std::endl;
+		// 	FileForce << "///////////////////////////////////////////" << std::endl;
+		// 	flag = 1;
+		// }
+
+		calc_forces(vd, NN, max_visc, flag);
 
 		// Get the maximum viscosity term across processors
 		v_cl.max(max_visc);
@@ -1199,7 +1226,7 @@ int main(int argc, char *argv[])
 
 		t += dt;
 
-		if (write < t * 100)
+		if (write < t * write_const)
 		{
 			// sensor_pressure calculation require ghost and update cell-list
 			vd.map();
@@ -1209,9 +1236,9 @@ int main(int argc, char *argv[])
 			// calculate the pressure at the sensor points
 			// sensor_pressure(vd, NN, press_t, probes);
 
-			vd.deleteGhost();
+			// vd.deleteGhost();
 			vd.write_frame(filename, write);
-			vd.ghost_get<type, rho, Pressure, velocity>();
+			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			write++;
 
@@ -1229,6 +1256,5 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	std::cout << "length_x = " << length[0] << " length_y = " << length[1] << " length_z = " << length[2] << std::endl;
 	openfpm_finalize();
 }
