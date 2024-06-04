@@ -11,54 +11,77 @@ set(groot, 'defaultLineMarkerSize', 8);
 dp = 0.025;
 rho0 = 1;
 dim = 2;
-filenum = 1500;
+filenum = 400;
 Nfluid = [40 1 60];
 Nboundary = [3, 0, 0];
+Hconst = sqrt(3);
 
-filenums = [1:10] * 1000;
-fig4 = figure; hold on;
+% LOAD DATA
+NoPressureOldVisc = ParticleData('CSV_Data/NoPressureOldVisc/file', filenum, ['NoPressure'], dp, Nfluid, Nboundary, rho0, dim, sqrt(3));
+NoPresureNewVisc = ParticleData('CSV_Data/NoPressureNewVisc/file', filenum, ['NoPressure'], dp, Nfluid, Nboundary, rho0, dim, sqrt(3));
+obj = NoPresureNewVisc;
+% PLOT OVER TIME
+fig1 = figure; hold on;
+xsamples = 100; % sample points to evaluate SPH sum
+z_coord = 0.5; % channel z point to evaluate profile
+obj.PlotProfileOverTime(fig1, xsamples, z_coord, 0, [10:50:400]);
 xfine = linspace(0, 1, 1000);
 ufine = prof_a(xfine);
 plot(xfine, ufine, 'k', 'DisplayName', 'Analytical');
+legend;
 
-for kk = 1:length(filenums)
-    filenum = filenums(kk);
-    partTest3 = ParticleData('CSV_Data/Vrel/file', filenum, ['Nu test' num2str(filenum)], dp, Nfluid, Nboundary, rho0, dim);
+% PARTICLE SCATTER PLOT
+fig2 = figure; hold on;
+obj.ScatterParticlePlot(fig2);
+plot(xfine, ufine, 'k', 'DisplayName', 'Analytical');
+legend;
 
-    obj = partTest3;
-    %%% Plot ParaView like particles %%%
-    % fig1 = figure;
-    % obj.PlotParticles(fig1);
-    % xline(0.75 - 2 * obj.H, 'r--', 'HandleVisibility', 'off');
-    % xline(0.75 + 2 * obj.H, 'r--', 'HandleVisibility', 'off');
+% PLOT LIKE PARAVIEW
+fig3 = figure;
+obj.PlotParticles(fig3);
+% CHECK KERNEL
+checksum = obj.CheckKernel();
+figure;
+histogram(checksum, 50);
 
-    %%% Plot Particle Scatter Plot %%%
-    % fig3 = figure; hold on;
-    % obj.ScatterParticlePlot(fig3)
-    % xfine = linspace(0, 1, 1000);
-    % ufine = prof_a(xfine);
-    % plot(xfine, ufine, 'k-', 'LineWidth', 1.5, 'DisplayName', 'Analytical');
+% % % single filenum
+% filenum = 20000;
+% partTest3 = ParticleData(filename, filenum, ['Nu test' num2str(filenum)], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% obj = partTest3;
+% %% Plot ParaView like particles %%%
+% % fig2 = figure;
+% % obj.PlotParticles(fig2);
+% % xline(0.75 - 2 * obj.H, 'r--', 'HandleVisibility', 'off');
+% % xline(0.75 + 2 * obj.H, 'r--', 'HandleVisibility', 'off');
 
-    %%% Plot SPH interpolated profile %%%
-    xsamples = 200; % sample points to evaluate SPH sum
-    z_coord = 0.5; % channel z point to evaluate profile
+% %%% Plot Particle Scatter Plot %%%
+% fig3 = figure; hold on;
+% obj.ScatterParticlePlot(fig3)
+% xfine = linspace(0, 1, 1000);
+% ufine = prof_a(xfine);
+% plot(xfine, ufine, 'k-', 'LineWidth', 1.5, 'DisplayName', 'Analytical');
+% legend;
 
-    obj.PlotProfile(fig4, xsamples, z_coord, 0);
-    legend;
+% %%% Plot SPH interpolated profile %%%
+% % fig4 = figure; hold on;
+% % xsamples = 100; % sample points to evaluate SPH sum
+% % z_coord = 0.5; % channel z point to evaluate profile
 
-    %%% Plot sum W for all particles & histogram %%%
-    % checksum = obj.CheckKernel();
-    % figure;
-    % histogram(checksum, 50);
-end
+% % obj.PlotProfile(fig4, xsamples, z_coord, 0);
+% % plot(xfine, ufine, 'k-', 'LineWidth', 1.5, 'DisplayName', 'Analytical');
+% % legend;
 
+% % %%% Plot sum W for all particles & histogram %%%
+% % checksum = obj.CheckKernel();
+% % figure;
+% % histogram(checksum, 50);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % analytical velocity profile
 
 function u = prof_a(x)
 
     g = 0.1;
-    nu = 0.0097325;
+    nu = 0.01;
     L = 1;
     u = (g / (2 * nu)) .* x .* (L - x);
 

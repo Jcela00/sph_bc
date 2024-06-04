@@ -1,7 +1,8 @@
 classdef ParticleData
 
     properties
-        Name
+        BaseName
+        PlotName
         dim
         Type
         Density
@@ -24,18 +25,23 @@ classdef ParticleData
         Nboundary
         PositionLimits
         FluidBox
+        filename_base
+        dim_self
+        Hconst_self
     end
 
     methods
 
-        function obj = ParticleData(filename, filenum, titlename, dp, Nfluid, Nboundary, rho0, dim)
+        function obj = ParticleData(filename, filenum, titlename, dp, Nfluid, Nboundary, rho0, dim, Hconst)
             % Load the data in csv format
+            obj.filename_base = filename;
             name = [filename '_' num2str(filenum) '.csv'];
             data = csvread(name, 1, 0);
 
             % delete nan density values
             % data = data(~isnan(data(:, 2)), :);
-            obj.Name = titlename;
+            obj.BaseName = titlename;
+            obj.PlotName = [obj.BaseName ' ' num2str(filenum)];
             obj.dim = dim;
             obj.Type = data(:, 1);
             obj.Density = data(:, 2);
@@ -51,6 +57,8 @@ classdef ParticleData
             obj.Position = data(:, 16:18);
             obj.Npart = length(obj.Type);
             obj.dp = dp;
+            obj.dim_self = dim;
+            obj.Hconst_self = Hconst;
 
             if (dim == 2)
                 obj.mass = rho0 * obj.dp ^ 2;
@@ -60,7 +68,7 @@ classdef ParticleData
                 error('Invalid dimension parameter, must be 2 or 3.');
             end
 
-            obj.H = sqrt(3) * obj.dp;
+            obj.H = Hconst * obj.dp;
             obj.rho0 = rho0;
             obj.Nfluid = Nfluid;
             obj.Nboundary = Nboundary;
@@ -71,6 +79,11 @@ classdef ParticleData
                             Nfluid(2) * dp
                             Nfluid(3) * dp];
 
+        end
+
+        function obj = Update(obj, filenum)
+            % create a new instance of the particle data object at a new time step
+            obj = ParticleData(obj.filename_base, filenum, obj.BaseName, obj.dp, obj.Nfluid, obj.Nboundary, obj.rho0, obj.dim, obj.Hconst_self);
         end
 
         function PlotParticles(obj, fig)
@@ -89,7 +102,7 @@ classdef ParticleData
             clim([obj.VelMin, obj.VelMax]);
             axis equal;
             xlabel('$z$'); ylabel('$x$');
-            title(obj.Name);
+            title(obj.PlotName);
 
         end
 
@@ -99,9 +112,21 @@ classdef ParticleData
             for k = 1:obj.Npart
 
                 if obj.Type(k) == 1
-                    plot(obj.Position(:, 1), obj.Velocity(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
+
+                    if (k == 1)
+                        plot(obj.Position(:, 1), obj.Velocity(:, 3), 'o', 'MarkerSize', 2, 'DisplayName', obj.PlotName);
+                    else
+                        plot(obj.Position(:, 1), obj.Velocity(:, 3), 'o', 'MarkerSize', 2, 'HandleVisibility', 'off');
+                    end
+
                 else
-                    plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), '.', 'MarkerSize', 2, 'DisplayName', obj.Name);
+
+                    if (k == 1)
+                        plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), 'o', 'MarkerSize', 2, 'DisplayName', obj.PlotName);
+
+                    else
+                        plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), 'o', 'MarkerSize', 2, 'HandleVisibility', 'off');
+                    end
 
                 end
 
@@ -114,6 +139,7 @@ classdef ParticleData
             xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
             particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
             plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
+            axis equal;
 
         end
 
@@ -177,7 +203,7 @@ classdef ParticleData
             end
 
             figure(fig);
-            plot(x_sample_grid, velocity_interp(:, 3), 'o-', 'DisplayName', obj.Name, 'MarkerSize', 4);
+            plot(x_sample_grid, velocity_interp(:, 3), 'o-', 'DisplayName', obj.PlotName, 'MarkerSize', 4);
             xlabel('$x$'); ylabel('Velocity $z$');
             title(['SPH interpolated velocity profile at z = ' num2str(z_coord)]);
             xline(obj.PositionLimits(1, 1), 'k--', 'HandleVisibility', 'off');
@@ -186,6 +212,7 @@ classdef ParticleData
             xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
             particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
             plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
+            axis equal;
 
         end
 
@@ -226,6 +253,26 @@ classdef ParticleData
 
             % remove zero values
             CheckSum = CheckSum(CheckSum ~= 0);
+        end
+
+        function PlotProfileOverTime(obj, fig, x_samples, z_coord, switch_var, filenums)
+
+            for k = 1:length(filenums)
+                filenum = filenums(k);
+                obj = obj.Update(filenum);
+                obj.PlotProfile(fig, x_samples, z_coord, switch_var);
+            end
+
+        end
+
+        function ScatterPlotOverTime(obj, fig, filenums)
+
+            for k = 1:length(filenums)
+                filenum = filenums(k)
+                obj = obj.Update(filenum);
+                obj.ScatterParticlePlot(fig);
+            end
+
         end
 
     end
