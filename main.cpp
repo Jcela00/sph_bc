@@ -1,6 +1,7 @@
 #include "Vector/vector_dist.hpp"
 #include "Draw/DrawParticles.hpp"
 #include <math.h>
+#include <sys/stat.h>
 #include <cmath>
 
 // Type of particles
@@ -30,16 +31,28 @@
 const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
-const int BC_TYPE = NO_SLIP;
+const int BC_TYPE = NEW_NO_SLIP;
 const int VISC_TYPE = ARTIFICIAL_VISCOSITY;
 const int PRESSURE_TYPE = NO_PRESSURE;
-const int SCENARIO = COUETTE;
+const int SCENARIO = POISEUILLE;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
-// Output file name
-std::string filename = "COUETTE_ArtVisc_NoPressure";
 
+// Output file name
+
+std::string filename = "Poiseuille_NEWBC";
+
+// std::string filename = "Poiseuille_NoP_ArtVisc"; // ALREADY USED
+// std::string filename = "Poiseuille_OldP_ArtVisc"; // AlREADY USED
+// std::string filename = "Poiseuille_NewP_ArtVisc"; // ALREADY USED
+// std::string filename = "Poiseuille_NoP_PhysVisc"; // ALREADY USED
+// std::string filename = "Poiseuille_OldP_PhysVisc"; // ALREADY USED
+// std::string filename = "Poiseuille_NewP_PhysVisc"; // ALREADY USED
+
+// std::string filename = "Couette_NoP_ArtVisc"; // ALREADY USED
+// std::string filename = "Couette_NewP_ArtVisc"; // ALREADY USED
+// std::string filename = "Couette_OldP_ArtVisc"; // AlREADY USED
 // Controls otput file frequency, low means less frequent
-const int write_const = 1;
+const int write_const = 100;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// SPATIAL CONSTANTS /////////////////////////////////////////////////////////
@@ -83,6 +96,9 @@ const double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 Point<3, double> gravity_vector;
 double gravity;
 
+// Wall Normal
+Point<3, double> normal_bottom_wall = {1.0, 0.0, 0.0};
+
 // Wall velocity
 Point<3, double> vw_top;
 Point<3, double> vw_bottom;
@@ -106,7 +122,7 @@ const double Eta2 = 0.01 * H * H;
 
 //////// TIME CONSTANTS //////////////////////////////////////////////////////////////
 // End simulation time
-const double t_end = 1;
+const double t_end = 100;
 // Constant used to define time integration
 const double CFLnumber = 0.2;
 // Minimum T
@@ -276,35 +292,112 @@ inline double PressureForceNew(const double rhoa, const double rhob, const doubl
 
 	return (-1.0 / massa) * (Va2 + Vb2) * pbar;
 }
+std::vector<std::pair<Point<3, double>, Point<3, double>>> interact(Point<3, double> &vf, Point<3, double> &vw, Point<3, double> &r_wf, Point<3, double> &xw)
+{
+	// Parameters
+	// vf = fluid particle velocity
+	// vw = wall velocity ( if moving wall )
+	// r_wf = vector from wall to fluid particle
+	// xw = wall position
+	const double xwall = xw.get(0);
+	bool is_bottom_wall = (xwall <= 0.0 ? true : false);
+	Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
+	Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
+	if (!is_bottom_wall)
+	{
+		tangential.get(2) = -tangential.get(2);
+	}
+	Point<3, double> r_fw = -1.0 * r_wf;
 
-// inline double interact(Point<3, double> &va, Point<3, double> &dr, bool bottomwall)
-// {
-// 	Point<3, double> normal_bottom_wall;
-// 	normal_bottom_wall.get(0) = 1.0;
-// 	normal_bottom_wall.get(1) = 0.0;
-// 	normal_bottom_wall.get(2) = 0.0;
+	// Project va on tangential and normal directions
+	double vt = (vf.get(0) * tangential.get(0) + vf.get(1) * tangential.get(1) + vf.get(2) * tangential.get(2));
+	double vn = (vf.get(0) * normal.get(0) + vf.get(1) * normal.get(1) + vf.get(2) * normal.get(2));
 
-// 	Point<3, double> normal_top_wall;
-// 	normal_top_wall.get(0) = -1.0;
-// 	normal_top_wall.get(1) = 0.0;
-// 	normal_top_wall.get(2) = 0.0;
+	double lf = r_fw.get(0) * normal.get(0) + r_fw.get(1) * normal.get(1) + r_fw.get(2) * normal.get(2); // vertical distance from fluid particle to wall
+	lf = (lf < 0.0 ? -1.0 * lf : lf);																	 // absolute value
 
-// 	Point<3, double> normal;
-// 	if (bottomwall)
-// 	{
-// 		normal = normal_bottom_wall;
-// 	}
-// 	else
-// 	{
-// 		normal = normal_top_wall;
-// 	}
+	Point<3, double> offset_1 = -1.0 * normal * dp / 2.0; // offset from wall to first particle
+	Point<3, double> offset_2 = -1.0 * normal * dp;		  // offset from first to second particle, and from second to third
 
-// 	Point<3, double> offset_1 = -normal * dp / 2.0; // offset from wall to first particle
-// 	Point<3, double> offset_2 = -normal * dp;		// offset from first to second particle, and from second to third
+	Point<3, double> r1 = r_fw + offset_1; // Vector from fluid particle to first dummy particle
+	double r1_norm = sqrt(norm2(r1));	   // Norm of r1
+	double lw1 = dp / 2.0;				   // Distance from wall to first dummy particle
 
-// 	Point<3, double> r1 = dr + offset_1;
-// 	double r1_norm = sqrt(norm2(r1));
-// }
+	Point<3, double> r2 = r1 + offset_2; // Vector from fluid particle to second dummy particle
+	double r2_norm = sqrt(norm2(r2));	 // Norm of r2
+	double lw2 = 1.5 * dp;				 // Distance from wall to second dummy particle
+
+	Point<3, double> r3 = r2 + offset_2; // Vector from fluid particle to third dummy particle
+	double r3_norm = sqrt(norm2(r3));	 // Norm of r3
+	double lw3 = 2.5 * dp;				 // Distance from wall to third dummy particle
+
+	Point<3, double> v1 = {0.0, 0.0, 0.0}; // Velocity of first dummy particle
+	Point<3, double> v2 = {0.0, 0.0, 0.0}; // Velocity of second dummy particle
+	Point<3, double> v3 = {0.0, 0.0, 0.0}; // Velocity of third dummy particle
+
+	std::vector<std::pair<Point<3, double>, Point<3, double>>> dv_r_vec; // vector of pairs of dv and r
+
+	if (r1_norm < 2.0 * H)
+	{
+		v1 = 2.0 * vw - vt * (lw1 / lf) * tangential + vn * (lw1 / lf) * normal;
+		std::pair<Point<3, double>, Point<3, double>> p1 = std::make_pair(v1, -1.0 * r1);
+		dv_r_vec.push_back(p1);
+	}
+	else if (r2_norm < 2.0 * H)
+	{
+		v2 = 2.0 * vw - vt * (lw2 / lf) * tangential + vn * (lw2 / lf) * normal;
+		std::pair<Point<3, double>, Point<3, double>> p2 = std::make_pair(v2, -1.0 * r2);
+		dv_r_vec.push_back(p2);
+	}
+	else if (r3_norm < 2.0 * H)
+	{
+		v3 = 2.0 * vw - vt * (lw3 / lf) * tangential + vn * (lw3 / lf) * normal;
+		std::pair<Point<3, double>, Point<3, double>> p3 = std::make_pair(v3, -1.0 * r3);
+		dv_r_vec.push_back(p3);
+	}
+
+	// if (is_bottom_wall)
+	// {
+	// 	std::cout << "Bottom wall" << std::endl;
+	// 	std::cout << "normal: " << normal.get(0) << " " << normal.get(1) << " " << normal.get(2) << std::endl;
+	// 	std::cout << "tangential: " << tangential.get(0) << " " << tangential.get(1) << " " << tangential.get(2) << std::endl;
+	// 	std::cout << "xw: " << xw.get(0) << " " << xw.get(1) << " " << xw.get(2) << std::endl;
+	// 	std::cout << "r_fw" << r_fw.get(0) << " " << r_fw.get(1) << " " << r_fw.get(2) << std::endl;
+	// 	std::cout << "offset_1: " << offset_1.get(0) << " " << offset_1.get(1) << " " << offset_1.get(2) << std::endl;
+	// 	std::cout << "offset_2: " << offset_2.get(0) << " " << offset_2.get(1) << " " << offset_2.get(2) << std::endl;
+	// 	std::cout << "r1: " << r1.get(0) / dp << " " << r1.get(1) / dp << " " << r1.get(2) / dp << " norm: " << r1_norm << std::endl;
+	// 	std::cout << "r2: " << r2.get(0) / dp << " " << r2.get(1) / dp << " " << r2.get(2) / dp << " norm: " << r2_norm << std::endl;
+	// 	std::cout << "r3: " << r3.get(0) / dp << " " << r3.get(1) / dp << " " << r3.get(2) / dp << " norm: " << r3_norm << std::endl;
+	// 	std::cout << "vt: " << vt << std::endl;
+	// 	std::cout << "vn: " << vn << std::endl;
+	// 	std::cout << "v1: " << v1.get(0) << " " << v1.get(1) << " " << v1.get(2) << std::endl;
+	// 	std::cout << "v2: " << v2.get(0) << " " << v2.get(1) << " " << v2.get(2) << std::endl;
+	// 	std::cout << "v3: " << v3.get(0) << " " << v3.get(1) << " " << v3.get(2) << std::endl;
+
+	// 	std::cout << std::endl;
+	// }
+	// else
+	// {
+	// 	std::cout << "Top wall" << std::endl;
+	// 	std::cout << "normal: " << normal.get(0) << " " << normal.get(1) << " " << normal.get(2) << std::endl;
+	// 	std::cout << "tangential: " << tangential.get(0) << " " << tangential.get(1) << " " << tangential.get(2) << std::endl;
+	// 	std::cout << "xw: " << xw.get(0) << " " << xw.get(1) << " " << xw.get(2) << std::endl;
+	// 	std::cout << "r_fw" << r_fw.get(0) << " " << r_fw.get(1) << " " << r_fw.get(2) << std::endl;
+	// 	std::cout << "offset_1: " << offset_1.get(0) << " " << offset_1.get(1) << " " << offset_1.get(2) << std::endl;
+	// 	std::cout << "offset_2: " << offset_2.get(0) << " " << offset_2.get(1) << " " << offset_2.get(2) << std::endl;
+	// 	std::cout << "r1: " << r1.get(0) / dp << " " << r1.get(1) / dp << " " << r1.get(2) / dp << " norm: " << r1_norm << std::endl;
+	// 	std::cout << "r2: " << r2.get(0) / dp << " " << r2.get(1) / dp << " " << r2.get(2) / dp << " norm: " << r2_norm << std::endl;
+	// 	std::cout << "r3: " << r3.get(0) / dp << " " << r3.get(1) / dp << " " << r3.get(2) / dp << " norm: " << r3_norm << std::endl;
+	// 	std::cout << "vt: " << vt << std::endl;
+	// 	std::cout << "vn: " << vn << std::endl;
+	// 	std::cout << "v1: " << v1.get(0) << " " << v1.get(1) << " " << v1.get(2) << std::endl;
+	// 	std::cout << "v2: " << v2.get(0) << " " << v2.get(1) << " " << v2.get(2) << std::endl;
+	// 	std::cout << "v3: " << v3.get(0) << " " << v3.get(1) << " " << v3.get(2) << std::endl;
+	// 	std::cout << std::endl;
+	// }
+
+	return dv_r_vec;
+}
 
 template <typename CellList>
 void calc_boundary(particles &vd, CellList &NN)
@@ -526,10 +619,8 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 						const double dot_rr2 = dot / (r2 + Eta2);
 						max_visc = std::max(dot_rr2, max_visc);
 					}
-					{
-					}
 
-					if (BC_TYPE == NO_SLIP)
+					if (BC_TYPE == NO_SLIP || BC_TYPE == NEW_NO_SLIP)
 					{
 						// We dont evolve boundary particle density
 						vd.getProp<drho>(a) = 0.0;
@@ -567,6 +658,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 				Point<3, double> xb = vd.getPos(b);
 
 				// Get the distance between a and b
+				// in fluid - boundary its xf-xb
 				Point<3, double> dr = xa - xb;
 
 				// take the norm (squared) of this vector
@@ -598,6 +690,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 					// interactions fluid boundary use vrel_aux in momentum equation and vrel in continuity equation in the no slip case
 					Point<3, double> v_rel = va - vb;
 					Point<3, double> v_rel_aux;
+					std::vector<std::pair<Point<3, double>, Point<3, double>>> dv_r_vector; // vector of relative velocities and positions for the new bc
 
 					if (vd.getProp<type>(b) == FLUID) // fluid particle
 					{								  // fluid particles use same vrel in momentum and continuity equation
@@ -615,9 +708,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 						}
 						else if (BC_TYPE == NEW_NO_SLIP)
 						{
-
-							// double v_boundary = Interact(va,dr);
-							/// v_rel_aux = va - v_boundary;
+							dv_r_vector = interact(va, vb, dr, xb); // might have 0 to 3 components
 						}
 					}
 
@@ -628,6 +719,8 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 					Point<3, double> PhysicalViscosityTerm;
 					double ArtificalViscosityTerm;
 					double PressureTerm;
+
+					// Compute pressure term depending on the type of pressure
 					if (PRESSURE_TYPE == OLD_PRESSURE)
 					{
 						PressureTerm = PressureForce(rhoa, rhob, Pa, Pb, massa, massb);
@@ -641,22 +734,90 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 						PressureTerm = 0.0;
 					}
 
-					double TensileTerm = -massb * Tensile(r, rhoa, rhob, Pa, Pb);
+					double factor = PressureTerm;
 
-					double factor = TensileTerm + PressureTerm;
+					if (BC_TYPE == NEW_NO_SLIP && vd.getProp<type>(b) == BOUNDARY)
+					{
+					}
+					else
+					{
+						// compute tensile term
+						double TensileTerm = -massb * Tensile(r, rhoa, rhob, Pa, Pb);
 
+						// factor in front of kernel gradient
+						factor += TensileTerm;
+					}
+
+					// Depending on the type of viscosity term we compute the viscosity term
+					// and add it to the force
 					if (VISC_TYPE == PHYSICAL_VISCOSITY)
 					{
-						PhysicalViscosityTerm = Pi_physical(dr, r, v_rel_aux, DW, rhoa, rhob, massa, massb, max_visc) / massa;
-						vd.getProp<force>(a)[0] += PhysicalViscosityTerm.get(0);
-						vd.getProp<force>(a)[1] += PhysicalViscosityTerm.get(1);
-						vd.getProp<force>(a)[2] += PhysicalViscosityTerm.get(2);
+						if (BC_TYPE == NEW_NO_SLIP && vd.getProp<type>(b) == BOUNDARY)
+						{
+							for (size_t component = 0; component < dv_r_vector.size(); component++)
+							{
+								// routine returns pair of relative velocity, and vector from fluid particle to dummy particle
+								// can have up to 3 components
+								Point<3, double> v_rel_aux_ = dv_r_vector[component].first;
+								Point<3, double> dr_ = dv_r_vector[component].second;
+								double r_ = sqrt(norm2(dr_));
+
+								double TensileTerm = -massb * Tensile(r_, rhoa, rhob, Pa, Pb);
+								factor += TensileTerm;
+
+								// Evaluate gradient of the kernel at the returned positions of the dummy particles
+								Point<3, double> DW_aux;
+								DWab(dr_, DW_aux, r_, false);
+
+								PhysicalViscosityTerm = Pi_physical(dr_, r_, v_rel_aux_, DW_aux, rhoa, rhob, massa, massb, max_visc) / massa;
+								vd.getProp<force>(a)[0] += PhysicalViscosityTerm.get(0);
+								vd.getProp<force>(a)[1] += PhysicalViscosityTerm.get(1);
+								vd.getProp<force>(a)[2] += PhysicalViscosityTerm.get(2);
+							}
+						}
+						else
+						{
+							PhysicalViscosityTerm = Pi_physical(dr, r, v_rel_aux, DW, rhoa, rhob, massa, massb, max_visc) / massa;
+							vd.getProp<force>(a)[0] += PhysicalViscosityTerm.get(0);
+							vd.getProp<force>(a)[1] += PhysicalViscosityTerm.get(1);
+							vd.getProp<force>(a)[2] += PhysicalViscosityTerm.get(2);
+						}
 					}
 					else if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
 					{
-						ArtificalViscosityTerm = -massb * Pi_artificial(dr, r2, v_rel_aux, rhoa, rhob, massa, max_visc);
-						factor += ArtificalViscosityTerm;
+						if (BC_TYPE == NEW_NO_SLIP && vd.getProp<type>(b) == BOUNDARY)
+						{
+							for (size_t component = 0; component < dv_r_vector.size(); component++)
+							{
+								Point<3, double> v_rel_aux_ = dv_r_vector[component].first;
+								Point<3, double> dr_ = dv_r_vector[component].second;
+								double r2_ = norm2(dr_);
+								double r_ = sqrt(r2_);
+
+								double TensileTerm = -massb * Tensile(r_, rhoa, rhob, Pa, Pb);
+								factor += TensileTerm;
+
+								// Evaluate gradient of the kernel at the returned positions of the dummy particles
+								Point<3, double> DW_aux;
+								DWab(dr_, DW_aux, r_, false);
+								ArtificalViscosityTerm = -massb * Pi_artificial(dr_, r2_, v_rel_aux_, rhoa, rhob, massa, max_visc);
+								// We cant add the contribution of this dummy particles to the factor term,
+								// because they have different DW, they cant be added to the force at the same time
+								// we directly add the contribution to the force wheighted with the proper DW
+								vd.getProp<force>(a)[0] += ArtificalViscosityTerm * DW_aux.get(0);
+								vd.getProp<force>(a)[1] += ArtificalViscosityTerm * DW_aux.get(1);
+								vd.getProp<force>(a)[2] += ArtificalViscosityTerm * DW_aux.get(2);
+								// ArtificalViscosityTerm = -massb * Pi_artificial(dr_, r2_, v_rel_aux_, rhoa, rhob, massa, max_visc);
+								// factor += ArtificalViscosityTerm;
+							}
+						}
+						else
+						{
+							ArtificalViscosityTerm = -massb * Pi_artificial(dr, r2, v_rel_aux, rhoa, rhob, massa, max_visc);
+							factor += ArtificalViscosityTerm;
+						}
 					}
+
 					vd.getProp<force>(a)[0] += factor * DW.get(0);
 					vd.getProp<force>(a)[1] += factor * DW.get(1);
 					vd.getProp<force>(a)[2] += factor * DW.get(2);
@@ -934,126 +1095,143 @@ int main(int argc, char *argv[])
 	// initialize the library
 	openfpm_init(&argc, &argv);
 
-	if (SCENARIO == POISEUILLE)
-	{
-		gravity_vector = {0.0, 0.0, 0.1};
-		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
-	}
-	else if (SCENARIO == COUETTE)
-	{
-		gravity_vector = {0.0, 0.0, 0.0};
-		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 1.25};
-		vw_bottom = {0.0, 0.0, 0.0};
-	}
+	Box<3, double> domain;
+	Box<3, double> fluid_box;
+	Box<3, double> recipient;
+	Box<3, double> recipient_hole;
 
-	bool bc_new = false;
-
-	// Number of fluid and boundary particles in the x, y and z direction
-	size_t Np_fluid[3] = {40, 1, 60};
-	size_t Np_boundary[3] = {3, 0, 0};
-
-	// Here we define the boundary conditions of our problem
-	size_t bc[3] = {NON_PERIODIC, NON_PERIODIC, PERIODIC};
+	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
+	// First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
+	double length[3];
 
 	// Size of the virtual grid that defines where to place the particles
 	size_t sz[3];
+
+	// Here we define the boundary conditions of our problem
+	size_t bc[3];
 
 	// In the case of the new bc we need particles at the wall, for this we need sz_aux
 	// We want to put one virtual grid point between each pair of the old ones,
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
 	size_t sz_aux[3];
 
-	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
-	// First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
-	double length[3];
-	// offset to add to the domain box to create the correct particle positions, if non periodic it has to go from -dp/2 - Np_boundary*dp to Lx+dp/2 + Np_boundary*dp
-	double offset_domain[3];
-	// offset to add to the recipient box, if non periodic it has to go from - Np_boundary*dp  to length + Np_boundary*dp
-	double offset_recipient[3];
-	// In case of periodic boundary conditions, we need to add an asymetric offset to the right,top or front of the domain
-	double offset_periodic_fluid[3];
-	double offset_periodic_recipient[3];
-
-	// non periodic situation grid of 5 fluid particles and 3 boundary particles
-	// We need a virtual grid of 5 + 2*(3+1) particles,
-	// therefore the domain is discretized with 13 grid points,
-	// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
-	// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
-	//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
-	// D: domain, o: boundary, x: fluid, --: dp distance
-	// in a periodic situation we have the following
-	// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
-	// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
-
-	for (int dim = 0; dim < 3; dim++)
+	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE)
 	{
-		length[dim] = dp * Np_fluid[dim];
-		// non periodic, fluid covered by boundary
-		if (bc[dim] == 0)
+		if (SCENARIO == POISEUILLE)
 		{
-			sz[dim] = Np_fluid[dim] + 2 * (Np_boundary[dim] + 1);
-			offset_domain[dim] = (0.5 + Np_boundary[dim]) * dp;
-			offset_periodic_fluid[dim] = 0.0;
-			offset_periodic_recipient[dim] = 0.0;
+			gravity_vector = {0.0, 0.0, 0.1};
+			gravity = sqrt(norm2(gravity_vector));
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (SCENARIO == COUETTE)
+		{
+			gravity_vector = {0.0, 0.0, 0.0};
+			gravity = sqrt(norm2(gravity_vector));
+			vw_top = {0.0, 0.0, 1.25};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
 
-			if (Np_boundary[dim] != 0)
-				sz_aux[dim] = 2 * sz[dim] - 1;
-			else // for a direction with no boundary particles we dont need to add anything
-				sz_aux[dim] = sz[dim];
+		// Number of fluid and boundary particles in the x, y and z direction
+		size_t Np_fluid[3] = {40, 1, 60};
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		size_t Np_boundary[3] = {Nbound_x, 0, 0};
 
-			if (bc_new == 1) // Np_boundary should only be 0 or 1 if we are using the new bc
-				offset_recipient[dim] = 0.25 * Np_boundary[dim] * dp;
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+
+		// offset to add to the domain box to create the correct particle positions, if non periodic it has to go from -dp/2 - Np_boundary*dp to Lx+dp/2 + Np_boundary*dp
+		double offset_domain[3];
+		// offset to add to the recipient box, if non periodic it has to go from - Np_boundary*dp  to length + Np_boundary*dp
+		double offset_recipient[3];
+		// In case of periodic boundary conditions, we need to add an asymetric offset to the right,top or front of the domain
+		double offset_periodic_fluid[3];
+		double offset_periodic_recipient[3];
+
+		// non periodic situation grid of 5 fluid particles and 3 boundary particles
+		// We need a virtual grid of 5 + 2*(3+1) particles,
+		// therefore the domain is discretized with 13 grid points,
+		// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
+		// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
+		//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
+		// D: domain, o: boundary, x: fluid, --: dp distance
+		// in a periodic situation we have the following
+		// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
+		// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+
+		for (int dim = 0; dim < 3; dim++)
+		{
+			length[dim] = dp * Np_fluid[dim];
+			// non periodic, fluid covered by boundary
+			if (bc[dim] == 0)
+			{
+				sz[dim] = Np_fluid[dim] + 2 * (Np_boundary[dim] + 1);
+				offset_domain[dim] = (0.5 + Np_boundary[dim]) * dp;
+				offset_periodic_fluid[dim] = 0.0;
+				offset_periodic_recipient[dim] = 0.0;
+
+				if (Np_boundary[dim] != 0)
+					sz_aux[dim] = 2 * sz[dim] - 1;
+				else // for a direction with no boundary particles we dont need to add anything
+					sz_aux[dim] = sz[dim];
+
+				if (BC_TYPE == NEW_NO_SLIP) // Np_boundary should only be 0 or 1 if we are using the new bc
+					offset_recipient[dim] = 0.25 * Np_boundary[dim] * dp;
+				else
+					offset_recipient[dim] = Np_boundary[dim] * dp;
+			}
+			// periodic, open ended
 			else
-				offset_recipient[dim] = Np_boundary[dim] * dp;
+			{
+				sz[dim] = Np_fluid[dim] + 2;
+				sz_aux[dim] = sz[dim];
+				offset_domain[dim] = 0.5 * dp;
+				offset_recipient[dim] = 0.0;
+				offset_periodic_fluid[dim] = 0.55 * dp;
+				offset_periodic_recipient[dim] = 0.75 * dp;
+			}
 		}
-		// periodic, open ended
-		else
-		{
-			sz[dim] = Np_fluid[dim] + 2;
-			sz_aux[dim] = sz[dim];
-			offset_domain[dim] = 0.5 * dp;
-			offset_recipient[dim] = 0.0;
-			offset_periodic_fluid[dim] = 0.55 * dp;
-			offset_periodic_recipient[dim] = 0.75 * dp;
-		}
+
+		// Define the boxes
+		Box<3, double> box_domain({-offset_domain[0],
+								   -offset_domain[1],
+								   -offset_domain[2]},
+								  {length[0] + offset_domain[0],
+								   length[1] + offset_domain[1],
+								   length[2] + offset_domain[2]});
+
+		Box<3, double> box_fluid({0.0,
+								  0.0,
+								  0.0},
+								 {length[0] + offset_periodic_fluid[0],
+								  length[1] + offset_periodic_fluid[1],
+								  length[2] + offset_periodic_fluid[2]});
+
+		Box<3, double> box_recipient({-offset_recipient[0],
+									  -offset_recipient[1],
+									  -offset_recipient[2]},
+									 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+									  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
+									  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
+
+		// Will only be used in the new bc
+		Box<3, double> box_recipient_hole({offset_recipient[0],
+										   offset_recipient[1],
+										   offset_recipient[2]},
+										  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+										   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
+										   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
+
+		domain = box_domain;
+		fluid_box = box_fluid;
+		recipient = box_recipient;
+		recipient_hole = box_recipient_hole;
 	}
 
 	// last position of fluid particles in z coordinate is at
 	// length[2] + 0.5*dp
 	double z_end = length[2] + 0.5 * dp;
-
-	// Define the boxes
-	Box<3, double> domain({-offset_domain[0],
-						   -offset_domain[1],
-						   -offset_domain[2]},
-						  {length[0] + offset_domain[0],
-						   length[1] + offset_domain[1],
-						   length[2] + offset_domain[2]});
-
-	Box<3, double> fluid_box({0.0,
-							  0.0,
-							  0.0},
-							 {length[0] + offset_periodic_fluid[0],
-							  length[1] + offset_periodic_fluid[1],
-							  length[2] + offset_periodic_fluid[2]});
-
-	Box<3, double> recipient({-offset_recipient[0],
-							  -offset_recipient[1],
-							  -offset_recipient[2]},
-							 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-							  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
-							  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
-
-	// Will only be used in the new bc
-	Box<3, double> recipient_hole({offset_recipient[0],
-								   offset_recipient[1],
-								   offset_recipient[2]},
-								  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
-								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
-								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
 
 	// Fill W_dap
 	W_dap = 1.0 / Wab(dp);
@@ -1094,27 +1272,7 @@ int main(int argc, char *argv[])
 		computed_nu = nu;
 	}
 
-	// if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
-	// {
-	// 	if (SCENARIO == POISEUILLE)
-	// 	{
-	// 		visco = (64.0 / 10.0) * (nu * nu / (H * gravity * L));
-	// 		computed_nu = sqrt(10.0 * visco * H * gravity * L * L / 64.0);
-	// 		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
-	// 	}
-	// 	else if (SCENARIO == COUETTE)
-	// 	{
-	// 		umax = vw_top.get(2);
-	// 		visco = (2.0 * (dimensions + 2) * nu) / (coeff_sound * H * umax);
-	// 		computed_nu = (1.0 / (2 * (dimensions + 2))) * visco * H * coeff_sound * umax;
-	// 	}
-	// }
-	// else if (VISC_TYPE == PHYSICAL_VISCOSITY)
-	// {
-
-	// }
-
-	std::string constants_filename = "Constants_" + filename + ".txt";
+	std::string constants_filename = filename + "_Constants_" + ".txt";
 	std::ofstream file(constants_filename);
 	file << "gravity_x:  " << gravity_vector.get(0) << std::endl;
 	file << "gravity_y:  " << gravity_vector.get(1) << std::endl;
@@ -1128,6 +1286,10 @@ int main(int argc, char *argv[])
 	file << "B: " << B << std::endl;
 	file << "H/dp: " << H / dp << std::endl;
 	file << "computed_nu: " << computed_nu << std::endl;
+	file << "BC_TYPE: " << BC_TYPE << std::endl;
+	file << "VISC_TYPE: " << VISC_TYPE << std::endl;
+	file << "PRESSURE_TYPE: " << PRESSURE_TYPE << std::endl;
+	file << "SCENARIO: " << SCENARIO << std::endl;
 
 	// for each particle inside the fluid box ...
 	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
@@ -1154,10 +1316,10 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<Pressure>() = 0.0;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<rho_prev>() = rho_zero;
-		vd.template getLastProp<velocity>()[0] = 0.1 * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
+		vd.template getLastProp<velocity>()[0] = 0.0; // 0.1 * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
 		vd.template getLastProp<velocity>()[1] = 0.0;
 		// impose theoretical pouiselle flow profile for faster convergence
-		vd.template getLastProp<velocity>()[2] = 0.1 * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
+		vd.template getLastProp<velocity>()[2] = 0.0; // 0.1 * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
 
 		// profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
 
@@ -1173,7 +1335,7 @@ int main(int argc, char *argv[])
 
 	openfpm::vector<Box<3, double>> holes;
 
-	if (bc_new == true)
+	if (BC_TYPE == NEW_NO_SLIP)
 	{
 		holes.add(recipient_hole);
 		sz[0] = sz_aux[0];
@@ -1186,6 +1348,7 @@ int main(int argc, char *argv[])
 	}
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 	double epsilon = 0.001;
+
 	while (bound_box.isNext())
 	{
 		Point<3, double> position = bound_box.get();
@@ -1193,11 +1356,17 @@ int main(int argc, char *argv[])
 		// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
 		// When running on multiple cores, with this we check if particle is outside the recipient box
 		// Another bug places boundary particles in the correct plane, but inside the fluid box;
-		if ((!recipient.isInside((position))) || (fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon)))
+		if ((!recipient.isInside((position))))
 		{
 			++bound_box;
 			continue;
 		}
+
+		// if ((fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon)))
+		// {
+		// 	++bound_box;
+		// 	continue;
+		// }
 
 		vd.add();
 
@@ -1214,6 +1383,10 @@ int main(int argc, char *argv[])
 			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
 			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
 			vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
+
+			vd.template getLastProp<force>()[0] = 0.0;
+			vd.template getLastProp<force>()[1] = 0.0;
+			vd.template getLastProp<force>()[2] = 0.0;
 		}
 		else if (bound_box.get().get(0) > length[0]) // top wall
 		{
@@ -1281,7 +1454,7 @@ int main(int argc, char *argv[])
 		vd.ghost_get<type, rho, Pressure, velocity>();
 
 		// In no slip bc, we need to compute a velocity for boundary particles
-		if (BC_TYPE == NO_SLIP)
+		if (BC_TYPE == NO_SLIP || BC_TYPE == NEW_NO_SLIP)
 		{
 			// 	Boundary condition
 			calc_boundary(vd, NN);

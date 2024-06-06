@@ -4,4 +4,5 @@ VTPDATA
 main.o
 sph_dlb
 main_manual_placement_1proc.cpp
-ProfileMatlab/CSV_Data
+ProfileMatlab
+CSV_Data/
