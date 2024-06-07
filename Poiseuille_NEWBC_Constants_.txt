@@ -1,0 +1,16 @@
+gravity_x:  0
+gravity_y:  0
+gravity_z:  0.1
+Re: 125
+L: 1
+nu: 0.01
+umax: 1.25
+alpha: 0.147802
+cbar: 12.5
+B: 22.3214
+H/dp: 1.73205
+computed_nu: 0.01
+BC_TYPE: 0
+VISC_TYPE: 0
+PRESSURE_TYPE: 2
+SCENARIO: 0
