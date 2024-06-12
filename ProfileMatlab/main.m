@@ -89,23 +89,23 @@ obj9 = Couette_NewP_ArtVisc;
 % legend;
 
 % COUETTE ART VISC
-timesteps = [[1:2:20] 40:20:filenum_end];
-fig1 = figure; hold on;
-obj7.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
-plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
-legend;
+%timesteps = [[1:2:20] 40:20:filenum_end];
+%fig1 = figure; hold on;
+%obj7.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
+%plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
+%legend;
 
-timesteps = [[1:2:20] 40:20:filenum_end];
-fig1 = figure; hold on;
-obj8.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
-plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
-legend;
+%timesteps = [[1:2:20] 40:20:filenum_end];
+%fig1 = figure; hold on;
+%obj8.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
+%plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
+%legend;
 
-timesteps = [[1:2:20] 40:20:filenum_end];
-fig1 = figure; hold on;
-obj9.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
-plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
-legend;
+%timesteps = [[1:2:20] 40:20:filenum_end];
+%fig1 = figure; hold on;
+%obj9.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
+%plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
+%legend;
 
 % PLOT JUST FINAL TIME
 % POUISEUILLE

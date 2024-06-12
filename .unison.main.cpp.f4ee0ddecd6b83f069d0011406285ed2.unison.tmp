@@ -42,9 +42,9 @@ const int dimensions = 2;
 const int BC_TYPE = NO_SLIP;
 const int VISC_TYPE = PHYSICAL_VISCOSITY;
 const int PRESSURE_TYPE = NEW_PRESSURE;
-const int SCENARIO = POISEUILLE;
+const int SCENARIO = HYDROSTATIC;
 const int TENSILE = TENSILE_DISABLED;
-const int INT_TYPE = KICK;
+const int INT_TYPE = VERLET;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // make filename by appending the type of BC and viscosity
@@ -88,7 +88,7 @@ const double coeff_sound = 10.0;
 double cbar = 0.0;
 
 // gamma in the formulas
-const double gamma_ = 1.0;
+const double gamma_ = 7.0;
 const double xi = 0.0;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -166,10 +166,8 @@ const int velocity = 6;
 const int velocity_prev = 7;
 // Background pressure force
 const int Background_P = 8;
-//
-const int v_transport = 9;
 
-typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3], double[9]>> particles;
+typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3]>> particles;
 //                                       |      |        |          |            |            |         |            |		   |
 //                                       |      |        |          |            |            |         |            |		   |
 //                                     type   density   density    Pressure    delta       force     velocity    velocity	background pressure force
@@ -1212,13 +1210,18 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
 		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
 
-		double v_transport_x = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<Background_P>(a)[0];
-		double v_transport_y = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
-		double v_transport_z = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
+		double v_tilde_x = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<Background_P>(a)[0];
+		double v_tilde_y = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
+		double v_tilde_z = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
 
-		vd.getPos(a)[0] += dt * v_transport_x;
-		vd.getPos(a)[1] += dt * v_transport_y;
-		vd.getPos(a)[2] += dt * v_transport_z;
+		vd.getPos(a)[0] += dt * v_tilde_x;
+		vd.getPos(a)[1] += dt * v_tilde_y;
+		vd.getPos(a)[2] += dt * v_tilde_z;
+
+		// // save forces for the next iteration
+		// vd.template getProp<velocity_prev>(a)[0] = vd.template getProp<force>(a)[0];
+		// vd.template getProp<velocity_prev>(a)[1] = vd.template getProp<force>(a)[1];
+		// vd.template getProp<velocity_prev>(a)[2] = vd.template getProp<force>(a)[2];
 
 		++part;
 	}
@@ -1247,7 +1250,6 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
 		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
 		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
-
 		++part2;
 	}
 
@@ -1391,7 +1393,7 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-	SetFilename(filename, "gamma1");
+	SetFilename(filename, "Background_10");
 	Box<3, double> domain;
 	Box<3, double> fluid_box;
 	Box<3, double> recipient;
@@ -1603,7 +1605,7 @@ int main(int argc, char *argv[])
 
 	cbar = coeff_sound * umax;
 	B = cbar * cbar * rho_zero / gamma_;
-	Pbackground = B;
+	Pbackground = B * 10.0;
 	double Re = L * umax / nu;
 
 	if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
@@ -1651,7 +1653,7 @@ int main(int argc, char *argv[])
 		if (SCENARIO == HYDROSTATIC)
 		{
 			// skip particles at top z coordinates, to make walls higher than the fluid
-			if (fluid_it.get().get(2) > z_end - 10.0 * dp)
+			if (fluid_it.get().get(2) > z_end - 5.0 * dp)
 			{
 				++fluid_it;
 				continue;
