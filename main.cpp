@@ -39,12 +39,12 @@
 const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
-const int BC_TYPE = NEW_NO_SLIP;
+const int BC_TYPE = NO_SLIP;
 const int VISC_TYPE = PHYSICAL_VISCOSITY;
 const int PRESSURE_TYPE = NEW_PRESSURE;
 const int SCENARIO = POISEUILLE;
-const int TENSILE = TENSILE_ENABLED;
-const int INT_TYPE = VERLET;
+const int TENSILE = TENSILE_DISABLED;
+const int INT_TYPE = KICK;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // make filename by appending the type of BC and viscosity
@@ -52,18 +52,8 @@ const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 // Output file name, filled later
 std::string filename;
 
-// std::string filename = "Poiseuille_NoP_ArtVisc"; // ALREADY USED
-// std::string filename = "Poiseuille_OldP_ArtVisc"; // AlREADY USED
-// std::string filename = "Poiseuille_NewP_ArtVisc"; // ALREADY USED
-// std::string filename = "Poiseuille_NoP_PhysVisc"; // ALREADY USED
-// std::string filename = "Poiseuille_OldP_PhysVisc"; // ALREADY USED
-// std::string filename = "Poiseuille_NewP_PhysVisc"; // ALREADY USED
-
-// std::string filename = "Couette_NoP_ArtVisc"; // ALREADY USED
-// std::string filename = "Couette_NewP_ArtVisc"; // ALREADY USED
-// std::string filename = "Couette_OldP_ArtVisc"; // AlREADY USED
 // Controls otput file frequency, low means less frequent
-const int write_const = 1000;
+const int write_const = 10;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// SPATIAL CONSTANTS /////////////////////////////////////////////////////////
@@ -71,7 +61,7 @@ const int write_const = 1000;
 const double dp = 0.025;
 
 // Factor relating H (smoothing length) and dp ( particle spacing)
-const double Hconst = std::sqrt(3.0);
+const double Hconst = 1;
 
 // H, smoothing length
 const double H = Hconst * dp;
@@ -131,7 +121,7 @@ double eta = nu * rho_zero;
 // Eta in the formulas
 const double Eta2 = 0.01 * H * H;
 
-const double initial_perturbation = 0.0;
+const double initial_perturbation = 0.3;
 
 double Pbackground = 10; // filled later
 
@@ -1263,6 +1253,10 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 	}
 
 	vd.ghost_get<type, rho, Pressure, velocity>();
+	if (BC_TYPE == NO_SLIP)
+	{
+		calc_boundary(vd, NN);
+	}
 	calc_forces(vd, NN, max_visc);
 
 	// particle iterator
@@ -1434,7 +1428,7 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-	SetFilename(filename, "NewBC_test");
+	SetFilename(filename, "H1");
 	Box<3, double> domain;
 	Box<3, double> fluid_box;
 	Box<3, double> recipient;
@@ -1646,7 +1640,7 @@ int main(int argc, char *argv[])
 
 	cbar = coeff_sound * umax;
 	B = cbar * cbar * rho_zero / gamma_;
-	Pbackground = B * 0.0;
+	Pbackground = B * 1.0;
 	double Re = L * umax / nu;
 
 	if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
@@ -1839,6 +1833,11 @@ int main(int argc, char *argv[])
 
 	if (INT_TYPE == KICK)
 	{
+		if (BC_TYPE == NO_SLIP)
+		{
+			calc_boundary(vd, NN);
+		}
+
 		calc_forces(vd, NN, max_visc);
 	}
 
@@ -1872,11 +1871,11 @@ int main(int argc, char *argv[])
 			vd.ghost_get<type, rho, Pressure, velocity>();
 
 			// In no slip bc, we need to compute a velocity for boundary particles
-			if (BC_TYPE == NO_SLIP)
-			{
-				// 	Boundary condition
-				calc_boundary(vd, NN);
-			}
+			// if (BC_TYPE == NO_SLIP)
+			// {
+			// 	// 	Boundary condition
+			// 	calc_boundary(vd, NN);
+			// }
 
 			// Calc forces
 			// calc_forces(vd, NN, max_visc);
@@ -1953,9 +1952,9 @@ int main(int argc, char *argv[])
 			// // calculate the pressure at the sensor points
 			// // sensor_pressure(vd, NN, press_t, probes);
 
-			vd.deleteGhost();
+			// vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			vd.ghost_get<type, rho, Pressure, velocity>();
+			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			write++;
 			if (v_cl.getProcessUnitID() == 0)
