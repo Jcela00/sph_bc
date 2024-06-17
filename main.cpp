@@ -30,9 +30,13 @@
 #define TENSILE_ENABLED 1
 #define TENSILE_DISABLED 0
 
-//
+// TYPE OF TIME INT
 #define KICK 0
 #define VERLET 1
+
+// TYPE OF KERNERL
+#define CUBIC 0
+#define QUINTIC 1
 
 //////// CODE PARAMETERS /////////////////////////////////////////////////////////////
 // Dimensionality of the problem changes the normalizaiton of the kernel
@@ -45,6 +49,7 @@ const int PRESSURE_TYPE = NEW_PRESSURE;
 const int SCENARIO = POISEUILLE;
 const int TENSILE = TENSILE_DISABLED;
 const int INT_TYPE = KICK;
+const int KERNEL = QUINTIC;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // make filename by appending the type of BC and viscosity
@@ -61,10 +66,12 @@ const int write_const = 10;
 const double dp = 0.025;
 
 // Factor relating H (smoothing length) and dp ( particle spacing)
-const double Hconst = 1;
+const double Hconst = 1.0;
 
 // H, smoothing length
 const double H = Hconst * dp;
+
+const double r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// EQ OF STATE CONSTANTS //////////////////////////////////////////////////////
@@ -160,10 +167,10 @@ const int Background_P = 8;
 const int v_transport = 9;
 
 typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3], double[3]>> particles;
-//                                       |      |        |          |            |            |         |            |		   |
-//                                       |      |        |          |            |            |         |            |		   |
-//                                     type   density   density    Pressure    delta       force     velocity    velocity	background pressure force
-//                                                      at n-1                 density                           at n - 1
+//                                       |     |        |        |        |        |         |            |		     |          |
+//                                       |     |        |        |        |        |         |            |		     |			|
+//                                     type  density   density  Pressure delta   force     velocity    velocity	  Pb force   v_transport
+//                                                      at n-1           density                       at n - 1
 
 struct ModelCustom
 {
@@ -214,43 +221,104 @@ inline double InvEqState(const double pressure)
 }
 
 // Normalization constant for the kernel
-// In 3D the normalization is 1/(pi*H^3) in 2d is 10/(7*pi*H^2)
-const double a2 = (dimensions == 3) ? 1.0 / (M_PI * H * H * H) : 10.0 / (7.0 * M_PI * H * H);
+const double Kcubic = (dimensions == 3) ? 1.0 / (M_PI * H * H * H) : 10.0 / (7.0 * M_PI * H * H);
+const double Kquintic = (dimensions == 3) ? 1.0 / (120.0 * M_PI * H * H * H) : 7.0 / (478.0 * M_PI * H * H);
 
 // Kernel function
-inline double Wab(double r)
+
+inline double Cubic_W(double r)
 {
 	r /= H;
-	if (r < 1.0)
-		return (1.0 - (3.0 / 2.0) * r * r + (3.0 / 4.0) * r * r * r) * a2;
-	else if (r < 2.0)
-	{
-		return ((1.0 / 4.0) * (2.0 - r) * (2.0 - r) * (2.0 - r)) * a2;
-	}
+	if (r >= 0.0 && r < 1.0)
+		return Kcubic * (1.0 - 1.5 * r * r + 0.75 * r * r * r);
+	else if (r >= 1.0 && r < 2.0)
+		return Kcubic * (0.25 * (2.0 - r) * (2.0 - r) * (2.0 - r));
 	else
 		return 0.0;
 }
-
-inline void DWab(const Point<3, double> &dx, Point<3, double> &DW, const double r)
+inline double Quintic_W(double r)
 {
-	const double c1 = (-3.0 / H) * a2;
-	const double d1 = (9.0 / 4.0 / H) * a2;
-	const double c2 = (-3.0 / 4.0 / H) * a2;
-	const double qq = r / H;
+	r /= H;
+	const double tmp3 = (3.0 - r) * (3.0 - r) * (3.0 - r) * (3.0 - r) * (3.0 - r);
+	const double tmp2 = (2.0 - r) * (2.0 - r) * (2.0 - r) * (2.0 - r) * (2.0 - r);
+	const double tmp1 = (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r);
+	if (r >= 0.0 && r < 1.0)
+		return Kquintic * (tmp3 - 6.0 * tmp2 + 15.0 * tmp1);
+	else if (r <= 1.0 && r < 2.0)
+		return Kquintic * (tmp3 - 6.0 * tmp2);
+	else if (r <= 2.0 && r < 3.0)
+		return Kquintic * tmp3;
+	else
+		return 0.0;
+}
+inline double Wab(double r)
+{
+	if (KERNEL == CUBIC)
+		return Cubic_W(r);
+	else if (KERNEL == QUINTIC)
+		return Quintic_W(r);
+}
 
-	double qq2 = qq * qq;
-	double fac1 = (c1 * qq + d1 * qq2) / r;
-	double b1 = (qq < 1.0) ? 1.0 : 0.0;
+inline void Grad_Cubic_W(const Point<3, double> &dx, Point<3, double> &DW, const double r)
+{
+	const double c1 = Kcubic * (-3.0 / H);
+	const double d1 = Kcubic * (9.0 / 4.0 / H);
+	const double c2 = Kcubic * (-3.0 / 4.0 / H);
+	const double q = r / H;
 
-	double wqq = (2.0 - qq);
-	double fac2 = c2 * wqq * wqq / r;
-	double b2 = (qq >= 1.0 && qq < 2.0) ? 1.0 : 0.0;
+	// double qq2 = qq * qq;
+	// double fac1 = (c1 * qq + d1 * qq2) / r;
+	// double b1 = (qq < 1.0) ? 1.0 : 0.0;
 
-	double factor = (b1 * fac1 + b2 * fac2);
+	// double wqq = (2.0 - qq);
+	// double fac2 = c2 * wqq * wqq / r;
+	// double b2 = (qq >= 1.0 && qq < 2.0) ? 1.0 : 0.0;
+
+	// double factor = (b1 * fac1 + b2 * fac2);
+
+	double factor;
+	if (q >= 0.0 && q < 1.0)
+		factor = c1 * q + d1 * q * q / r;
+	else if (q >= 1.0 && q < 2.0)
+		factor = c2 * (2.0 - q) * (2.0 - q) / r;
+	else
+		factor = 0.0;
 
 	DW.get(0) = factor * dx.get(0);
 	DW.get(1) = factor * dx.get(1);
 	DW.get(2) = factor * dx.get(2);
+}
+
+inline void Grad_Quintic_W(const Point<3, double> &dx, Point<3, double> &DW, const double r)
+{
+	const double q = r / H;
+
+	const double tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
+	const double tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
+	const double tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
+
+	const double c1 = Kquintic * (-5.0 / H);
+	double factor;
+
+	if (q >= 0.0 && q < 1.0)
+		factor = c1 * (tmp3 - 6.0 * tmp2 + 15.0 * tmp1) / r;
+	else if (q >= 1.0 && q < 2.0)
+		factor = c1 * (tmp3 - 6.0 * tmp2) / r;
+	else if (q >= 2.0 && q < 3.0)
+		factor = c1 * tmp3 / r;
+	else
+		factor = 0.0;
+
+	DW.get(0) = factor * dx.get(0);
+	DW.get(1) = factor * dx.get(1);
+	DW.get(2) = factor * dx.get(2);
+}
+inline void DWab(const Point<3, double> &dx, Point<3, double> &DW, const double r)
+{
+	if (KERNEL == CUBIC)
+		Grad_Cubic_W(dx, DW, r);
+	else if (KERNEL == QUINTIC)
+		Grad_Quintic_W(dx, DW, r);
 }
 
 // OLD TENSILE CONSTANTS 0.01:-0.2
@@ -396,7 +464,7 @@ void calc_boundary(particles &vd, CellList &NN)
 				double r2 = norm2(dr);
 
 				// If the particles interact ...
-				if (r2 < 4.0 * H * H)
+				if (r2 < r_threshold * r_threshold)
 				{
 					// calculate distance
 					double r = sqrt(r2);
@@ -537,7 +605,7 @@ void interact_fluid_boundary_new(particles &vd,
 	std::vector<Point<3, double>> DW_dummy;
 	double g_normal = dotProduct(gravity_vector, normal);
 
-	if (r1_norm < 2.0 * H)
+	if (r1_norm < r_threshold)
 	{
 		v1 = 2.0 * vw - vt * (lw1 / lf) * tangential - vn * (lw1 / lf) * normal;
 		p1 = Pf + rhof * g_normal * (lf + lw1);
@@ -552,7 +620,7 @@ void interact_fluid_boundary_new(particles &vd,
 		rho_dummy.push_back(rho1);
 		DW_dummy.push_back(DW);
 	}
-	else if (r2_norm < 2.0 * H)
+	else if (r2_norm < r_threshold)
 	{
 		v2 = 2.0 * vw - vt * (lw2 / lf) * tangential - vn * (lw2 / lf) * normal;
 		p2 = Pf + rhof * g_normal * (lf + lw2);
@@ -567,7 +635,7 @@ void interact_fluid_boundary_new(particles &vd,
 		rho_dummy.push_back(rho2);
 		DW_dummy.push_back(DW);
 	}
-	else if (r3_norm < 2.0 * H)
+	else if (r3_norm < r_threshold)
 	{
 		v3 = 2.0 * vw - vt * (lw3 / lf) * tangential - vn * (lw3 / lf) * normal;
 		p3 = Pf + rhof * g_normal * (lf + lw3);
@@ -725,9 +793,9 @@ void interact_fluid_fluid(particles &vd,
 	double Ab = rhob * (vb.get(0) * vdiff_b.get(0) + vb.get(1) * vdiff_b.get(1) + vb.get(2) * vdiff_b.get(2));
 
 	double F = (Va2 + Vb2) * 0.5 * (Aa + Ab) / massa;
-	// vd.getProp<force>(a_key)[0] += F * DW.get(0);
-	// vd.getProp<force>(a_key)[1] += F * DW.get(1);
-	// vd.getProp<force>(a_key)[2] += F * DW.get(2);
+	vd.getProp<force>(a_key)[0] += F * DW.get(0);
+	vd.getProp<force>(a_key)[1] += F * DW.get(1);
+	vd.getProp<force>(a_key)[2] += F * DW.get(2);
 
 	vd.getProp<force>(a_key)[0] += factor * DW.get(0);
 	vd.getProp<force>(a_key)[1] += factor * DW.get(1);
@@ -808,9 +876,9 @@ void interact_fluid_boundary_old(particles &vd,
 	double Ab = rhob * (vb.get(0) * vdiff_b.get(0) + vb.get(1) * vdiff_b.get(1) + vb.get(2) * vdiff_b.get(2));
 
 	double F = (Va2 + Vb2) * 0.5 * (Aa + Ab) / massf;
-	// vd.getProp<force>(fluid_key)[0] += F * DW.get(0);
-	// vd.getProp<force>(fluid_key)[1] += F * DW.get(1);
-	// vd.getProp<force>(fluid_key)[2] += F * DW.get(2);
+	vd.getProp<force>(fluid_key)[0] += F * DW.get(0);
+	vd.getProp<force>(fluid_key)[1] += F * DW.get(1);
+	vd.getProp<force>(fluid_key)[2] += F * DW.get(2);
 
 	vd.getProp<force>(fluid_key)[0] += factor * DW.get(0);
 	vd.getProp<force>(fluid_key)[1] += factor * DW.get(1);
@@ -901,7 +969,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 				double r2 = norm2(dr);
 
 				// If the particles interact ...
-				if (r2 < 4.0 * H * H)
+				if (r2 < r_threshold * r_threshold)
 				{
 
 					// get the mass of the particle
@@ -978,7 +1046,7 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 				double r2 = norm2(dr);
 
 				// if they interact
-				if (r2 < 4.0 * H * H)
+				if (r2 < r_threshold * r_threshold)
 				{
 					if (vd.getProp<type>(b) == BOUNDARY)
 					{
@@ -1252,7 +1320,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		++part;
 	}
 
-	vd.ghost_get<type, rho, Pressure, velocity>();
+	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
@@ -1287,6 +1355,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 
 		++part2;
 	}
+	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
 
 	// Calculate pressure from the density
 	EqState(vd);
@@ -1428,7 +1497,7 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-	SetFilename(filename, "H1");
+	SetFilename(filename, "1proc");
 	Box<3, double> domain;
 	Box<3, double> fluid_box;
 	Box<3, double> recipient;
@@ -1544,12 +1613,12 @@ int main(int argc, char *argv[])
 			// periodic, open ended
 			else
 			{
-				sz[dim] = Np_fluid[dim] + 2;
+				sz[dim] = Np_fluid[dim] + 1;
 				sz_aux[dim] = sz[dim];
 				offset_domain[dim] = 0.5 * dp;
 				offset_recipient[dim] = 0.0;
-				offset_periodic_fluid[dim] = 0.55 * dp;
-				offset_periodic_recipient[dim] = 0.75 * dp;
+				offset_periodic_fluid[dim] = 0.75 * dp;
+				offset_periodic_recipient[dim] = 0.85 * dp;
 			}
 		}
 
@@ -1613,7 +1682,7 @@ int main(int argc, char *argv[])
 	W_dap = 1.0 / Wab(dp);
 
 	// extended boundary around the domain, and the processor domain
-	Ghost<3, double> g(2.1 * Hconst * dp);
+	Ghost<3, double> g(4.5 * Hconst * dp);
 
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
@@ -1700,7 +1769,15 @@ int main(int argc, char *argv[])
 		// ... and set it position ...
 		vd.getLastPos()[0] = fluid_it.get().get(0);
 		vd.getLastPos()[1] = fluid_it.get().get(1);
-		vd.getLastPos()[2] = fluid_it.get().get(2);
+
+		if (fluid_it.get().get(2) == z_end)
+		{
+			vd.getLastPos()[2] = fluid_it.get().get(2) - 0.01 * dp;
+		}
+		else
+		{
+			vd.getLastPos()[2] = fluid_it.get().get(2);
+		}
 
 		// and its type.
 		vd.template getLastProp<type>() = FLUID;
@@ -1815,11 +1892,16 @@ int main(int argc, char *argv[])
 	vd.getDecomposition().decompose();
 	vd.map();
 
-	vd.ghost_get<type, rho, Pressure, velocity>();
+	// typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3], double[3]>> particles;
+	// //                                       |     |        |        |        |        |         |            |		     |          |
+	// //                                       |     |        |        |        |        |         |            |		     |			|
+	// //                                     type  density   density  Pressure delta   force     velocity    velocity	  Pb force   v_transport
+	// //
+	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
 
-	auto NN = vd.getCellList(2.0 * H);
+	auto NN = vd.getCellList(1.4 * r_threshold);
 
-	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P"});
+	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P", "v_transport"});
 	vd.setPropNames(names);
 
 	// Evolve
@@ -1868,7 +1950,7 @@ int main(int argc, char *argv[])
 			// EqState(vd);
 
 			max_visc = 0.0;
-			vd.ghost_get<type, rho, Pressure, velocity>();
+			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			// In no slip bc, we need to compute a velocity for boundary particles
 			// if (BC_TYPE == NO_SLIP)
@@ -1908,7 +1990,7 @@ int main(int argc, char *argv[])
 
 			max_visc = 0.0;
 
-			vd.ghost_get<type, rho, Pressure, velocity>();
+			vd.ghost_get<type, rho, rho_prev, drho, Pressure, velocity>();
 
 			// In no slip bc, we need to compute a velocity for boundary particles
 			if (BC_TYPE == NO_SLIP)
@@ -1952,8 +2034,10 @@ int main(int argc, char *argv[])
 			// // calculate the pressure at the sensor points
 			// // sensor_pressure(vd, NN, press_t, probes);
 
-			// vd.deleteGhost();
+			vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
+			vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+
 			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			write++;
