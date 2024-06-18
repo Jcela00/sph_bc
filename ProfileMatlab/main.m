@@ -70,11 +70,11 @@ obj9 = Couette_NewP_ArtVisc;
 % legend;
 
 % % POUISEUILLE PHYS VISC
-% timesteps = [[1:2:20] 40:20:filenum_end];
-% fig1 = figure; hold on;
-% obj4.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
-% plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical');
-% legend;
+timesteps = [[1:2:20] 40:20:filenum_end];
+fig1 = figure; hold on;
+obj4.PlotProfileOverTime(fig1, xsamples, z_coord, 0, timesteps);
+plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical');
+legend;
 
 % timesteps = [[1:2:20] 40:20:filenum_end];
 % fig1 = figure; hold on;
@@ -119,14 +119,14 @@ obj6.PlotProfile(fig2, xsamples, z_coord, 0);
 plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical');
 axis equal; legend;
 
-% COUETTE
+% % COUETTE
 
-fig3 = figure; hold on;
-obj7.PlotProfile(fig3, xsamples, z_coord, 0);
-obj8.PlotProfile(fig3, xsamples, z_coord, 0);
-obj9.PlotProfile(fig3, xsamples, z_coord, 0);
-plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
-axis equal; legend;
+% fig3 = figure; hold on;
+% obj7.PlotProfile(fig3, xsamples, z_coord, 0);
+% obj8.PlotProfile(fig3, xsamples, z_coord, 0);
+% obj9.PlotProfile(fig3, xsamples, z_coord, 0);
+% plot(xfine, ufine_c, 'k', 'DisplayName', 'Analytical');
+% axis equal; legend;
 
 % % PARTICLE SCATTER PLOT
 % fig3 = figure; hold on;
@@ -138,8 +138,8 @@ axis equal; legend;
 % fig4 = figure;
 % obj.PlotParticles(fig3);
 
-% % CHECK KERNEL
-% checksum = obj.CheckKernel();
+% CHECK KERNEL
+% checksum = obj1.CheckKernel();
 % figure;
 % histogram(checksum, 50);
 

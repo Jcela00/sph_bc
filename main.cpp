@@ -58,12 +58,12 @@ const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 std::string filename;
 
 // Controls otput file frequency, low means less frequent
-const int write_const = 10;
+const int write_const = 1000;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// SPATIAL CONSTANTS /////////////////////////////////////////////////////////
 // initial spacing between particles dp in the formulas
-const double dp = 0.025;
+const double dp = 0.05;
 
 // Factor relating H (smoothing length) and dp ( particle spacing)
 const double Hconst = 1.0;
@@ -99,8 +99,8 @@ const double RhoMin = 0.7 * rho_zero;
 const double RhoMax = 1.3 * rho_zero;
 
 // Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
-const double MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-const double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+double MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
 // Gravity vector and magnitude
 Point<3, double> gravity_vector;
@@ -128,7 +128,7 @@ double eta = nu * rho_zero;
 // Eta in the formulas
 const double Eta2 = 0.01 * H * H;
 
-const double initial_perturbation = 0.3;
+const double initial_perturbation = 0.0;
 
 double Pbackground = 10; // filled later
 
@@ -221,8 +221,8 @@ inline double InvEqState(const double pressure)
 }
 
 // Normalization constant for the kernel
-const double Kcubic = (dimensions == 3) ? 1.0 / (M_PI * H * H * H) : 10.0 / (7.0 * M_PI * H * H);
-const double Kquintic = (dimensions == 3) ? 1.0 / (120.0 * M_PI * H * H * H) : 7.0 / (478.0 * M_PI * H * H);
+const double Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+const double Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
 // Kernel function
 
@@ -244,9 +244,9 @@ inline double Quintic_W(double r)
 	const double tmp1 = (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r);
 	if (r >= 0.0 && r < 1.0)
 		return Kquintic * (tmp3 - 6.0 * tmp2 + 15.0 * tmp1);
-	else if (r <= 1.0 && r < 2.0)
+	else if (r >= 1.0 && r < 2.0)
 		return Kquintic * (tmp3 - 6.0 * tmp2);
-	else if (r <= 2.0 && r < 3.0)
+	else if (r >= 2.0 && r < 3.0)
 		return Kquintic * tmp3;
 	else
 		return 0.0;
@@ -389,6 +389,171 @@ inline double dotProduct(const Point<3, double> &v, const Point<3, double> &w)
 inline double norm_own(const Point<3, double> &v)
 {
 	return sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1) + v.get(2) * v.get(2));
+}
+template <typename CellList>
+void fix_mass(particles &vd, CellList &NN)
+{
+	// This function adjusts the mass of particles so that the initial density (determined by summation) is rho_zero
+
+	auto part = vd.getDomainIterator();
+
+	// Update the cell-list
+	vd.updateCellList(NN);
+	double global_sum = 0.0;
+	int count = 0;
+
+	// For each particle ...
+	while (part.isNext())
+	{
+		// Key of the particle a
+		vect_dist_key_dx a = part.get();
+
+		// if particle FLUID
+		if (vd.getProp<type>(a) == FLUID)
+		{
+			// Get the position xb of the particle a
+			Point<3, double> xa = vd.getPos(a);
+
+			// initialize sum
+			double W_sum = 0.0;
+			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+
+			// iterate the neighborhood particles
+			while (Np.isNext() == true)
+			{
+				// Key of b particle
+				unsigned long b = Np.get();
+
+				// if (a == b) skip this particle
+				if (a.getKey() == b)
+				{
+					++Np;
+					continue;
+				};
+
+				// Get the position xb of the particle b
+				Point<3, double> xb = vd.getPos(b);
+
+				// Get the vector pointing at xa from xb
+				Point<3, double> dr = xa - xb;
+
+				// take the norm squared of this vector
+				double r2 = norm2(dr);
+
+				// If the particles interact ...
+				if (r2 < r_threshold * r_threshold)
+				{
+					// calculate distance
+					double r = sqrt(r2);
+
+					// evaluate kernel
+					double w = Wab(r);
+
+					W_sum += w;
+				}
+
+				++Np;
+			}
+
+			global_sum += W_sum;
+			++count;
+		}
+
+		++part;
+	}
+	Vcluster<> &v_cl = create_vcluster();
+	v_cl.sum(count);
+	v_cl.sum(global_sum);
+	v_cl.execute();
+
+	double avg_sum = global_sum / count;
+	double V0 = 1.0 / avg_sum;
+	double newmass = rho_zero * V0;
+	MassFluid = newmass;
+	MassBound = newmass;
+}
+template <typename CellList>
+void calc_density(particles &vd, CellList &NN)
+{
+	// This function fills the value of velocity_prev for the boundary particles, with the velocity for no slip BC
+
+	auto part = vd.getDomainIterator();
+
+	// Update the cell-list
+	vd.updateCellList(NN);
+
+	// For each particle ...
+	while (part.isNext())
+	{
+		// Key of the particle a
+		vect_dist_key_dx a = part.get();
+
+		// if particle FLUID
+		if (vd.getProp<type>(a) == FLUID)
+		{
+			double massa = MassFluid;
+
+			// Get the position xb of the particle a
+			Point<3, double> xa = vd.getPos(a);
+
+			// initialize density sum
+			double rho_sum = 0.0;
+			int countpart = 0;
+			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+
+			// iterate the neighborhood particles
+			while (Np.isNext() == true)
+			{
+				// Key of b particle
+				unsigned long b = Np.get();
+
+				// if (a == b) skip this particle
+				if (a.getKey() == b)
+				{
+					++Np;
+					continue;
+				};
+
+				// Get the position xb of the particle b
+				Point<3, double> xb = vd.getPos(b);
+
+				// Get the vector pointing at xa from xb
+				Point<3, double> dr = xa - xb;
+
+				// take the norm squared of this vector
+				double r2 = norm2(dr);
+
+				// If the particles interact ...
+				if (r2 < r_threshold * r_threshold)
+				{
+					// calculate distance
+					double r = sqrt(r2);
+
+					// evaluate kernel
+					double w = Wab(r);
+
+					rho_sum += w;
+					// std::cout << "r/dp:" << r / dp << " w: " << w << "  rho_sum: " << rho_sum << std::endl;
+					countpart++;
+				}
+
+				++Np;
+			}
+			if (rho_sum != 0.0)
+			{
+				vd.template getProp<rho>(a) = rho_sum * massa;
+				// std::cout << "sum w: " << rho_sum << "  rho_sum*dp^2: " << rho_sum * H * H << " density: " << vd.template getProp<rho>(a) << std::endl;
+				// std::cout << "Density accounted for " << countpart << " particles" << std::endl;
+			}
+			else
+			{
+				std::cout << "WARNING: NO particles around, density summation zero" << std::endl;
+				vd.template getProp<rho>(a) = rho_zero;
+			}
+		}
+
+		++part;
+	}
 }
 
 template <typename CellList>
@@ -690,7 +855,7 @@ void interact_fluid_boundary_new(particles &vd,
 
 		// MassBound * (vf.get(0) * (W_dummy[comp]).get(0) + vf.get(1) * (W_dummy[comp]).get(1) + vf.get(2) * (W_dummy[comp]).get(2));
 		// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(vf, DW_dummy[comp]);
-		vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW_dummy[comp]);
+		// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW_dummy[comp]);
 	}
 
 	// if (is_bottom_wall)
@@ -805,7 +970,7 @@ void interact_fluid_fluid(particles &vd,
 	vd.getProp<Background_P>(a_key)[2] += -1.0 * (Pbackground / massa) * (Va2 + Vb2) * DW.get(2);
 	vd.getProp<Background_P>(a_key)[1] += -1.0 * (Pbackground / massa) * (Va2 + Vb2) * DW.get(1);
 
-	vd.getProp<drho>(a_key) += (massb) * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
+	// vd.getProp<drho>(a_key) += (massb) * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
 	// vd.getProp<drho>(a_key) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
 }
 
@@ -887,7 +1052,7 @@ void interact_fluid_boundary_old(particles &vd,
 	vd.getProp<Background_P>(fluid_key)[0] += -1.0 * (Pbackground / massf) * (Va2 + Vb2) * DW.get(0);
 	vd.getProp<Background_P>(fluid_key)[1] += -1.0 * (Pbackground / massf) * (Va2 + Vb2) * DW.get(1);
 	vd.getProp<Background_P>(fluid_key)[2] += -1.0 * (Pbackground / massf) * (Va2 + Vb2) * DW.get(2);
-	vd.getProp<drho>(fluid_key) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
+	// vd.getProp<drho>(fluid_key) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
 	// vd.getProp<drho>(fluid_key) += massb * (v_rel_aux.get(0) * DW.get(0) + v_rel_aux.get(1) * DW.get(1) + v_rel_aux.get(2) * DW.get(2));
 }
 
@@ -1281,7 +1446,7 @@ void euler_int(particles &vd, double dt)
 }
 
 template <typename CellList>
-void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_visc)
+void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_visc, Vcluster<> &v_cl)
 {
 	// particle iterator
 	auto part = vd.getDomainIterator();
@@ -1319,13 +1484,28 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 
 		++part;
 	}
+	v_cl.barrier();
+	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	v_cl.barrier();
 
-	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+	calc_density(vd, NN);
+	// Calculate pressure from the density
+	EqState(vd);
+	// vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+	v_cl.barrier();
+	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	v_cl.barrier();
+
 	if (BC_TYPE == NO_SLIP)
 	{
+		v_cl.barrier();
 		calc_boundary(vd, NN);
+		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+		v_cl.barrier();
 	}
+
 	calc_forces(vd, NN, max_visc);
+	v_cl.barrier();
 
 	// particle iterator
 	auto part2 = vd.getDomainIterator();
@@ -1343,7 +1523,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 			continue;
 		}
 
-		vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+		// vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
 
 		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
 		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
@@ -1355,10 +1535,8 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 
 		++part2;
 	}
-	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
 
-	// Calculate pressure from the density
-	EqState(vd);
+	// vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 
 	// increment the iteration counter
 	cnt++;
@@ -1564,7 +1742,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Number of fluid and boundary particles in the x, y and z direction
-		size_t Np_fluid[3] = {40, 1, 60};
+		size_t Np_fluid[3] = {20, 1, 80};
 
 		// bc[0] = NON_PERIODIC;
 		// bc[1] = NON_PERIODIC;
@@ -1613,7 +1791,7 @@ int main(int argc, char *argv[])
 			// periodic, open ended
 			else
 			{
-				sz[dim] = Np_fluid[dim] + 1;
+				sz[dim] = Np_fluid[dim] + 2;
 				sz_aux[dim] = sz[dim];
 				offset_domain[dim] = 0.5 * dp;
 				offset_recipient[dim] = 0.0;
@@ -1682,7 +1860,7 @@ int main(int argc, char *argv[])
 	W_dap = 1.0 / Wab(dp);
 
 	// extended boundary around the domain, and the processor domain
-	Ghost<3, double> g(4.5 * Hconst * dp);
+	Ghost<3, double> g(r_threshold + H);
 
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
@@ -1882,8 +2060,12 @@ int main(int argc, char *argv[])
 		++bound_box;
 		// std::cout << "Boundary particle " << count << " at position x=" << vd.getLastPos()[0] << " y=" << vd.getLastPos()[1] << " z=" << vd.getLastPos()[2] << std::endl;
 	}
+	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P", "v_transport"});
+	vd.setPropNames(names);
 
 	vd.map();
+
+	vd.write_frame("FIRST", 0, WRITER);
 
 	// Now that we fill the vector with particles
 	ModelCustom md;
@@ -1892,17 +2074,15 @@ int main(int argc, char *argv[])
 	vd.getDecomposition().decompose();
 	vd.map();
 
-	// typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3], double[3]>> particles;
-	// //                                       |     |        |        |        |        |         |            |		     |          |
-	// //                                       |     |        |        |        |        |         |            |		     |			|
-	// //                                     type  density   density  Pressure delta   force     velocity    velocity	  Pb force   v_transport
-	// //
 	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+	vd.write_frame("AFTER_GHOST", 0, WRITER);
 
-	auto NN = vd.getCellList(1.4 * r_threshold);
+	auto NN = vd.getCellList(r_threshold + H);
 
-	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P", "v_transport"});
-	vd.setPropNames(names);
+	// Adjust mass to have the correct density
+	fix_mass(vd, NN);
+	// double a;
+	// std::cin >> a;
 
 	// Evolve
 	size_t write = 0;
@@ -1915,10 +2095,13 @@ int main(int argc, char *argv[])
 
 	if (INT_TYPE == KICK)
 	{
+		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+
 		if (BC_TYPE == NO_SLIP)
 		{
 			calc_boundary(vd, NN);
 		}
+		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 
 		calc_forces(vd, NN, max_visc);
 	}
@@ -1942,14 +2125,13 @@ int main(int argc, char *argv[])
 			if (v_cl.getProcessUnitID() == 0)
 				std::cout << "REBALANCED " << std::endl;
 		}
-
 		vd.map();
+
 		if (INT_TYPE == KICK)
 		{
 			// // Calculate pressure from the density
 			// EqState(vd);
 
-			max_visc = 0.0;
 			// vd.ghost_get<type, rho, Pressure, velocity>();
 
 			// In no slip bc, we need to compute a velocity for boundary particles
@@ -1963,8 +2145,8 @@ int main(int argc, char *argv[])
 			// calc_forces(vd, NN, max_visc);
 
 			// // Get the maximum viscosity term across processors
-			// v_cl.max(max_visc);
-			// v_cl.execute();
+			v_cl.max(max_visc);
+			v_cl.execute();
 
 			// Calculate delta t integration
 			double dt = calc_deltaT(vd, max_visc);
@@ -1978,8 +2160,8 @@ int main(int argc, char *argv[])
 			// 	euler_int(vd, dt);
 			// 	it = 0;
 			// }
-
-			kick_drift_int(vd, NN, dt, max_visc);
+			max_visc = 0.0;
+			kick_drift_int(vd, NN, dt, max_visc, v_cl);
 
 			t += dt;
 		}
@@ -2027,7 +2209,7 @@ int main(int argc, char *argv[])
 		if (write < t * write_const)
 		{
 			// sensor_pressure calculation require ghost and update cell-list
-			// vd.map();
+			vd.map();
 			// vd.ghost_get<type, rho, Pressure, velocity>();
 			// vd.updateCellList(NN);
 
@@ -2036,7 +2218,7 @@ int main(int argc, char *argv[])
 
 			vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+			vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 
 			// vd.ghost_get<type, rho, Pressure, velocity>();
 
