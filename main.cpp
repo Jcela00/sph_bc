@@ -99,8 +99,8 @@ const double RhoMin = 0.7 * rho_zero;
 const double RhoMax = 1.3 * rho_zero;
 
 // Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
-const double MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-const double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+double MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
 // Gravity vector and magnitude
 Point<3, double> gravity_vector;
@@ -391,6 +391,88 @@ inline double norm_own(const Point<3, double> &v)
 	return sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1) + v.get(2) * v.get(2));
 }
 
+template <typename CellList>
+void fix_mass(particles &vd, CellList &NN)
+{
+	// This function adjusts the mass of particles so that the initial density (determined by summation) is rho_zero
+
+	auto part = vd.getDomainIterator();
+
+	// Update the cell-list
+	vd.updateCellList(NN);
+	double global_sum = 0.0;
+	int count = 0;
+
+	// For each particle ...
+	while (part.isNext())
+	{
+		// Key of the particle a
+		vect_dist_key_dx a = part.get();
+
+		// if particle FLUID
+		if (vd.getProp<type>(a) == FLUID)
+		{
+			// Get the position xb of the particle a
+			Point<3, double> xa = vd.getPos(a);
+
+			// initialize sum
+			double W_sum = 0.0;
+			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+
+			// iterate the neighborhood particles
+			while (Np.isNext() == true)
+			{
+				// Key of b particle
+				unsigned long b = Np.get();
+
+				// if (a == b) skip this particle
+				if (a.getKey() == b)
+				{
+					++Np;
+					continue;
+				};
+
+				// Get the position xb of the particle b
+				Point<3, double> xb = vd.getPos(b);
+
+				// Get the vector pointing at xa from xb
+				Point<3, double> dr = xa - xb;
+
+				// take the norm squared of this vector
+				double r2 = norm2(dr);
+
+				// If the particles interact ...
+				if (r2 < r_threshold * r_threshold)
+				{
+					// calculate distance
+					double r = sqrt(r2);
+
+					// evaluate kernel
+					double w = Wab(r);
+
+					W_sum += w;
+				}
+
+				++Np;
+			}
+
+			global_sum += W_sum;
+			++count;
+		}
+
+		++part;
+	}
+	Vcluster<> &v_cl = create_vcluster();
+	v_cl.sum(count);
+	v_cl.sum(global_sum);
+	v_cl.execute();
+
+	double avg_sum = global_sum / count;
+	double V0 = 1.0 / avg_sum;
+	double newmass = rho_zero * V0;
+	MassFluid = newmass;
+	MassBound = newmass;
+}
 template <typename CellList>
 void calc_boundary(particles &vd, CellList &NN)
 {
@@ -1325,6 +1407,8 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 	{
 		calc_boundary(vd, NN);
 	}
+	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
+
 	calc_forces(vd, NN, max_visc);
 
 	// particle iterator
@@ -1497,7 +1581,7 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-	SetFilename(filename, "1proc");
+	SetFilename(filename, "");
 	Box<3, double> domain;
 	Box<3, double> fluid_box;
 	Box<3, double> recipient;
@@ -1564,7 +1648,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Number of fluid and boundary particles in the x, y and z direction
-		size_t Np_fluid[3] = {40, 1, 60};
+		size_t Np_fluid[3] = {40, 1, 10};
 
 		// bc[0] = NON_PERIODIC;
 		// bc[1] = NON_PERIODIC;
@@ -1682,7 +1766,7 @@ int main(int argc, char *argv[])
 	W_dap = 1.0 / Wab(dp);
 
 	// extended boundary around the domain, and the processor domain
-	Ghost<3, double> g(4.5 * Hconst * dp);
+	Ghost<3, double> g(r_threshold + H);
 
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
@@ -1899,7 +1983,8 @@ int main(int argc, char *argv[])
 	// //
 	vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
 
-	auto NN = vd.getCellList(1.4 * r_threshold);
+	auto NN = vd.getCellList(r_threshold + H);
+	fix_mass(vd, NN);
 
 	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P", "v_transport"});
 	vd.setPropNames(names);
