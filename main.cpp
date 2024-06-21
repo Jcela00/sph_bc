@@ -57,13 +57,11 @@ const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 // Output file name, filled later
 std::string filename;
 
-// Controls otput file frequency, low means less frequent
-const int write_const = 1000;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// SPATIAL CONSTANTS /////////////////////////////////////////////////////////
 // initial spacing between particles dp in the formulas
-const double dp = 0.05;
+const double dp = 0.025;
 
 // Factor relating H (smoothing length) and dp ( particle spacing)
 const double Hconst = 1.0;
@@ -85,7 +83,7 @@ const double coeff_sound = 10.0;
 double cbar = 0.0;
 
 // gamma in the formulas
-const double gamma_ = 7.0;
+const double gamma_ = 1.0;
 const double xi = 0.0;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -99,8 +97,9 @@ const double RhoMin = 0.7 * rho_zero;
 const double RhoMax = 1.3 * rho_zero;
 
 // Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
-double MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-double MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+const double MassOld = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+double MassFluid = MassOld;
+double MassBound = MassOld;
 
 // Gravity vector and magnitude
 Point<3, double> gravity_vector;
@@ -117,7 +116,7 @@ Point<3, double> vw_bottom;
 double W_dap = 0.0;
 
 // Viscosity we want to use, independent of the type of viscosity term
-const double nu = 0.01;
+const double nu = 1;
 
 // Viscosity coefficient of the artificial viscosity (alpha) filled later if using artificial viscosity
 double visco = 500;
@@ -131,16 +130,19 @@ const double Eta2 = 0.01 * H * H;
 const double initial_perturbation = 0.0;
 
 double Pbackground = 10; // filled later
+const double Bfactor = 2.0;
 
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// TIME CONSTANTS //////////////////////////////////////////////////////////////
 // End simulation time
-const double t_end = 120;
+const double t_end = 10;
 // Constant used to define time integration
 const double CFLnumber = 0.1;
 // Minimum T
 const double DtMin = 0.00001;
+// Controls otput file frequency, low means less frequent
+const int write_const = 10;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
@@ -342,11 +344,10 @@ inline double Tensile(const double r, const double rhoa, const double rhob, cons
 		return 0.0;
 }
 
-inline double Pi_artificial(const Point<3, double> &dr, const double rr2, const Point<3, double> &dv, const double rhoa, const double rhob, const double massb, double &max_visc)
+inline double Pi_artificial(const Point<3, double> &dr, const double rr2, const Point<3, double> &dv, const double rhoa, const double rhob, const double massb)
 {
 	const double dot = dr.get(0) * dv.get(0) + dr.get(1) * dv.get(1) + dr.get(2) * dv.get(2);
 	const double dot_rr2 = dot / (rr2 + Eta2);
-	max_visc = std::max(dot_rr2, max_visc);
 
 	const float amubar = H * dot_rr2;
 	const float robar = (rhoa + rhob) * 0.5;
@@ -355,7 +356,7 @@ inline double Pi_artificial(const Point<3, double> &dr, const double rr2, const 
 	return pi_visc;
 }
 
-inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double r, const Point<3, double> &dv, const Point<3, double> &dW, const double rhoa, const double rhob, const double massa, const double massb, double &max_visc)
+inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double r, const Point<3, double> &dv, const Point<3, double> &dW, const double rhoa, const double rhob, const double massa, const double massb)
 {
 	// const Point<3, double> e_ab = dr / r; // unit vector from a to b
 	// const double dot = e_ab.get(0) * dW.get(0) + e_ab.get(1) * dW.get(1) + e_ab.get(2) * dW.get(2);
@@ -363,10 +364,8 @@ inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double r, 
 
 	double Va2 = (massa / rhoa) * (massa / rhoa);
 	double Vb2 = (massb / rhob) * (massb / rhob);
-	Point<3, double> pi_visc = eta * ((Va2 + Vb2) * dot * dv) / r;
-	const double normvisc = sqrt(norm2(pi_visc));
-	max_visc = std::max(normvisc, max_visc);
-	return pi_visc;
+	Point<3, double> pi_visc = eta * ((Va2 + Vb2) * dot * dv) / r / massa;
+	return pi_visc / 1.44;
 }
 
 inline double PressureForce(const double rhoa, const double rhob, const double prsa, const double prsb, const double massa, const double massb)
@@ -712,8 +711,7 @@ void interact_fluid_boundary_new(particles &vd,
 								 const Point<3, double> &xw,
 								 const Point<3, double> &r_wall_to_fluid,
 								 const double &dist2,
-								 unsigned long &boundary_key,
-								 double &max_visc)
+								 unsigned long &boundary_key)
 {
 
 	const double massw = MassBound;
@@ -839,14 +837,14 @@ void interact_fluid_boundary_new(particles &vd,
 
 		if (VISC_TYPE == PHYSICAL_VISCOSITY)
 		{
-			PhysicalViscosityTerm = Pi_physical(r_dummy[comp], sqrt(norm2(r_dummy[comp])), v_rel, DW_dummy[comp], rhof, rho_dummy[comp], massf, MassBound, max_visc) / massf;
+			PhysicalViscosityTerm = Pi_physical(r_dummy[comp], sqrt(norm2(r_dummy[comp])), v_rel, DW_dummy[comp], rhof, rho_dummy[comp], massf, MassBound) / massf;
 			vd.getProp<force>(fluid_key)[0] += PhysicalViscosityTerm.get(0);
 			vd.getProp<force>(fluid_key)[1] += PhysicalViscosityTerm.get(1);
 			vd.getProp<force>(fluid_key)[2] += PhysicalViscosityTerm.get(2);
 		}
 		else if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
 		{
-			ArtificalViscosityTerm = -MassBound * Pi_artificial(r_dummy[comp], sqrt(norm2(r_dummy[comp])), v_rel, rhof, rho_dummy[comp], massf, max_visc);
+			ArtificalViscosityTerm = -MassBound * Pi_artificial(r_dummy[comp], sqrt(norm2(r_dummy[comp])), v_rel, rhof, rho_dummy[comp], massf);
 			factor += ArtificalViscosityTerm;
 		}
 		vd.getProp<force>(fluid_key)[0] += factor * (DW_dummy[comp]).get(0);
@@ -906,8 +904,7 @@ void interact_fluid_fluid(particles &vd,
 						  const Point<3, double> &xb,
 						  const Point<3, double> &r_ab,
 						  const double &r2,
-						  const unsigned long &b_key,
-						  double &max_visc)
+						  const unsigned long &b_key)
 {
 
 	const double massb = MassFluid;
@@ -939,14 +936,14 @@ void interact_fluid_fluid(particles &vd,
 	double Vb2 = (massb / rhob) * (massb / rhob);
 	if (VISC_TYPE == PHYSICAL_VISCOSITY)
 	{
-		PhysicalViscosityTerm = Pi_physical(r_ab, r, v_rel, DW, rhoa, rhob, massa, massb, max_visc) / massa;
+		PhysicalViscosityTerm = Pi_physical(r_ab, r, v_rel, DW, rhoa, rhob, massa, massb);
 		vd.getProp<force>(a_key)[0] += PhysicalViscosityTerm.get(0);
 		vd.getProp<force>(a_key)[1] += PhysicalViscosityTerm.get(1);
 		vd.getProp<force>(a_key)[2] += PhysicalViscosityTerm.get(2);
 	}
 	else if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
 	{
-		ArtificalViscosityTerm = -massb * Pi_artificial(r_ab, r2, v_rel, rhoa, rhob, massa, max_visc);
+		ArtificalViscosityTerm = -massb * Pi_artificial(r_ab, r2, v_rel, rhoa, rhob, massa);
 		factor += ArtificalViscosityTerm;
 	}
 	Point<3, double> vta = vd.getProp<v_transport>(a_key);
@@ -985,8 +982,7 @@ void interact_fluid_boundary_old(particles &vd,
 								 const Point<3, double> &xb,
 								 const Point<3, double> &r_ab,
 								 const double &r2,
-								 unsigned long &boundary_key,
-								 double &max_visc)
+								 unsigned long &boundary_key)
 {
 	const double massb = MassBound;
 	const double rhob = vd.getProp<rho>(boundary_key);
@@ -1021,14 +1017,15 @@ void interact_fluid_boundary_old(particles &vd,
 	double Vb2 = (massb / rhob) * (massb / rhob);
 	if (VISC_TYPE == PHYSICAL_VISCOSITY)
 	{
-		PhysicalViscosityTerm = Pi_physical(r_fb, r, v_rel_aux, DW, rhof, rhob, massf, massb, max_visc) / massf;
+		PhysicalViscosityTerm = Pi_physical(r_fb, r, v_rel_aux, DW, rhof, rhob, massf, massb);
+
 		vd.getProp<force>(fluid_key)[0] += PhysicalViscosityTerm.get(0);
 		vd.getProp<force>(fluid_key)[1] += PhysicalViscosityTerm.get(1);
 		vd.getProp<force>(fluid_key)[2] += PhysicalViscosityTerm.get(2);
 	}
 	else if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
 	{
-		ArtificalViscosityTerm = -massb * Pi_artificial(r_fb, r2, v_rel_aux, rhof, rhob, massf, max_visc);
+		ArtificalViscosityTerm = -massb * Pi_artificial(r_fb, r2, v_rel_aux, rhof, rhob, massf);
 		factor += ArtificalViscosityTerm;
 	}
 
@@ -1057,7 +1054,7 @@ void interact_fluid_boundary_old(particles &vd,
 }
 
 template <typename CellList>
-inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
+inline void calc_forces(particles &vd, CellList &NN)
 {
 	vector_dist_iterator part = vd.getDomainIterator();
 
@@ -1067,49 +1064,45 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 	// For each particle ...
 	while (part.isNext())
 	{
-		// get particle a
+		// get key of particle a
+
 		vect_dist_key_dx a = part.get();
 
-		// Get the position xp of the particle
-		Point<3, double> xa = vd.getPos(a);
+		// We threat FLUID particle differently from BOUNDARY PARTICLES
+		// Boundary particles dont need any force computation
 
-		// Take the mass of the particle dependently if it is FLUID or BOUNDARY
-		double massa = (vd.getProp<type>(a) == FLUID) ? MassFluid : MassBound;
-
-		// Get the density and pressure of the of the particle a
-		double rhoa = vd.getProp<rho>(a);
-		double Pa = vd.getProp<Pressure>(a);
-
-		// Get the Velocity of the particle a
-		Point<3, double> va = vd.getProp<velocity>(a);
-
-		// Reset the force counter (- gravity on zeta direction)
-		vd.template getProp<force>(a)[0] = gravity_vector.get(0);
-		vd.template getProp<force>(a)[1] = gravity_vector.get(1);
-		vd.template getProp<force>(a)[2] = gravity_vector.get(2);
-
-		vd.template getProp<Background_P>(a)[0] = 0.0;
-		vd.template getProp<Background_P>(a)[1] = 0.0;
-		vd.template getProp<Background_P>(a)[2] = 0.0;
-
-		vd.template getProp<drho>(a) = 0.0;
-
-		// We threat FLUID particle differently from BOUNDARY PARTICLES ...
-		// INTERACTION OF A BOUNDARY PARTICLE WITH ITS NEIGHBORHOOD
-		if (vd.getProp<type>(a) == BOUNDARY)
+		if (vd.getProp<type>(a) == FLUID) // INTERACTION OF A FLUID PARTICLE WITH ITS NEIGHBORHOOD
 		{
-			// // SKIP PARTICLE
-			// ++part;
-			// continue;
 
-			// If it is a boundary particle calculate the delta rho based on equation 2
-			// This require to run across the neighborhoods particles of a
+			// Get the position xp of the particle
+			Point<3, double> xa = vd.getPos(a);
+
+			// Take the mass of the particle dependently if it is FLUID or BOUNDARY
+			double massa = MassFluid;
+
+			// Get the density and pressure of the of the particle a
+			double rhoa = vd.getProp<rho>(a);
+			double Pa = vd.getProp<Pressure>(a);
+
+			// Get the Velocity of the particle a
+			Point<3, double> va = vd.getProp<velocity>(a);
+
+			// Reset the force counter (0 + gravity)
+			vd.template getProp<force>(a)[0] = gravity_vector.get(0);
+			vd.template getProp<force>(a)[1] = gravity_vector.get(1);
+			vd.template getProp<force>(a)[2] = gravity_vector.get(2);
+
+			vd.template getProp<Background_P>(a)[0] = 0.0;
+			vd.template getProp<Background_P>(a)[1] = 0.0;
+			vd.template getProp<Background_P>(a)[2] = 0.0;
+
+			// Get an iterator over the neighborhood particles of p
 			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
 
 			// For each neighborhood particle
 			while (Np.isNext() == true)
 			{
-				// get particle b key
+				// get particle b
 				unsigned long b = Np.get();
 
 				// if (a == b) skip this particle
@@ -1118,89 +1111,8 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 					++Np;
 					continue;
 				};
-				// if interacting with another boundary particle skip
-				if (vd.getProp<type>(b) == BOUNDARY)
-				{
-					++Np;
-					continue;
-				}
 
 				// Get the position xb of the particle
-				Point<3, double> xb = vd.getPos(b);
-
-				// Get the distance between a and b
-				Point<3, double> dr = xa - xb;
-				// take the norm squared of this vector
-				double r2 = norm2(dr);
-
-				// If the particles interact ...
-				if (r2 < r_threshold * r_threshold)
-				{
-
-					// get the mass of the particle
-					double massb = MassFluid;
-
-					// Get the pressure and density of particle b
-					double Pb = vd.getProp<Pressure>(b);
-					double rhob = vd.getProp<rho>(b);
-
-					// Get the velocity of the particle b
-					Point<3, double> vb = vd.getProp<velocity>(b);
-
-					// ... calculate distance
-					double r = sqrt(r2);
-
-					Point<3, double> dv = va - vb;
-
-					Point<3, double> DW;
-					DWab(dr, DW, r);
-
-					if (VISC_TYPE == PHYSICAL_VISCOSITY)
-					{
-						// call the viscosity funciton just to update max_visc
-						Point<3, double> dummy = Pi_physical(dr, r, dv, DW, rhoa, rhob, massa, massb, max_visc);
-					}
-					else if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
-					{
-						const double dot = dr.get(0) * dv.get(0) + dr.get(1) * dv.get(1) + dr.get(2) * dv.get(2);
-						const double dot_rr2 = dot / (r2 + Eta2);
-						max_visc = std::max(dot_rr2, max_visc);
-					}
-
-					if (BC_TYPE == NO_SLIP || BC_TYPE == NEW_NO_SLIP)
-					{
-						// We dont evolve boundary particle density
-						vd.getProp<drho>(a) = 0.0;
-					}
-				}
-
-				++Np;
-			}
-		}
-		else // INTERACTION OF A FLUID PARTICLE WITH ITS NEIGHBORHOOD
-		{
-			// If it is a fluid particle calculate based on equation 1 and 2
-
-			// Get an iterator over the neighborhood particles of p
-			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
-
-			// std::cout << "Type Np: " << type_name<decltype(Np)>() << '\n';
-
-			// For each neighborhood particle
-			while (Np.isNext() == true)
-			{
-				// get particle b
-				unsigned long b = Np.get();
-
-				// std::cout << "Type b: " << type_name<decltype(b)>() << '\n';
-
-				// if (p == q) skip this particle
-				if (a.getKey() == b)
-				{
-					++Np;
-					continue;
-				};
-				// Get the position xp of the particle
 				Point<3, double> xb = vd.getPos(b);
 
 				// Get the distance between a and b
@@ -1216,13 +1128,13 @@ inline void calc_forces(particles &vd, CellList &NN, double &max_visc)
 					if (vd.getProp<type>(b) == BOUNDARY)
 					{
 						if (BC_TYPE == NO_SLIP)
-							interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, max_visc);
+							interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b);
 						else
-							interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, max_visc);
+							interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b);
 					}
 					else
 					{
-						interact_fluid_fluid(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, max_visc);
+						interact_fluid_fluid(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b);
 					}
 				}
 				++Np;
@@ -1265,7 +1177,7 @@ void max_acceleration_and_velocity(particles &vd, double &max_acc, double &max_v
 	v_cl.execute();
 }
 
-double calc_deltaT(particles &vd, double ViscDtMax)
+double calc_deltaT(particles &vd)
 {
 	double Maxacc = 0.0;
 	double Maxvel = 0.0;
@@ -1279,174 +1191,13 @@ double calc_deltaT(particles &vd, double ViscDtMax)
 	if (dt < DtMin)
 		dt = DtMin;
 
-	// if (dt == CFLnumber * dt_u)
-	// 	std::cout << "dt_u choosen, :" << dt << std::endl;
-	// else if (dt == CFLnumber * dt_visc)
-	// 	std::cout << "dt_visc choosen, :" << dt << std::endl;
-	// else if (dt == CFLnumber * dt_g)
-	// 	std::cout << "dt_g choosen, :" << dt << std::endl;
-	// else if (dt == DtMin)
-	// 	std::cout << "dt_min choosen, :" << dt << std::endl;
-
 	return dt;
 }
 
-// double calc_deltaT(particles &vd, double ViscDtMax)
-// {
-// 	double Maxacc = 0.0;
-// 	double Maxvel = 0.0;
-// 	max_acceleration_and_velocity(vd, Maxacc, Maxvel);
-
-// 	//-dt1 depends on force per unit mass.
-// 	const double dt_f = (Maxacc) ? sqrt(H / Maxacc) : std::numeric_limits<int>::max();
-
-// 	//-dt2 combines the Courant and the viscous time-step controls.
-// 	// const double dt_cv = H / (std::max(cbar, Maxvel * 10.) + H * ViscDtMax);
-
-// 	const double dt_cv = H / (std::max(cbar, Maxvel * 10.) + H * ViscDtMax);
-// 	//-dt new value of time step.
-// 	double dt = double(CFLnumber) * std::min(dt_f, dt_cv);
-// 	if (dt < double(DtMin))
-// 		dt = double(DtMin);
-
-// 	std::cout << "dt: " << dt << std::endl;
-
-// 	return dt;
-// }
-
 size_t cnt = 0;
 
-void verlet_int(particles &vd, double dt)
-{
-
-	// particle iterator
-	auto part = vd.getDomainIterator();
-
-	double dt205 = dt * dt * 0.5;
-	double dt2 = dt * 2.0;
-
-	// For each particle ...
-	while (part.isNext())
-	{
-		// ... a
-		auto a = part.get();
-
-		// if the particle is boundary
-		if (vd.template getProp<type>(a) == BOUNDARY)
-		{
-
-			// if (BC_TYPE == FREE_SLIP)
-			// {
-			// 	// Update rho
-			// 	double rhop = vd.template getProp<rho>(a);
-			// 	// Update only the density
-			// 	double rhonew = vd.template getProp<rho_prev>(a) + dt2 * vd.template getProp<drho>(a);
-			// 	vd.template getProp<rho>(a) = (rhonew < rho_zero) ? rho_zero : rhonew;
-			// 	vd.template getProp<rho_prev>(a) = rhop;
-			// }
-
-			++part;
-			continue;
-		}
-
-		//-Calculate displacement and update position / Calcula desplazamiento y actualiza posicion.
-		double dx = vd.template getProp<velocity>(a)[0] * dt + (vd.template getProp<force>(a)[0] + vd.template getProp<Background_P>(a)[0]) * dt205;
-		double dy = vd.template getProp<velocity>(a)[1] * dt + (vd.template getProp<force>(a)[1] + vd.template getProp<Background_P>(a)[1]) * dt205;
-		double dz = vd.template getProp<velocity>(a)[2] * dt + (vd.template getProp<force>(a)[2] + vd.template getProp<Background_P>(a)[2]) * dt205;
-
-		vd.getPos(a)[0] += dx;
-		vd.getPos(a)[1] += dy;
-		vd.getPos(a)[2] += dz;
-
-		double velX = vd.template getProp<velocity>(a)[0];
-		double velY = vd.template getProp<velocity>(a)[1];
-		double velZ = vd.template getProp<velocity>(a)[2];
-		double rhop = vd.template getProp<rho>(a);
-
-		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity_prev>(a)[0] + vd.template getProp<force>(a)[0] * dt2;
-		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity_prev>(a)[1] + vd.template getProp<force>(a)[1] * dt2;
-		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity_prev>(a)[2] + vd.template getProp<force>(a)[2] * dt2;
-		vd.template getProp<rho>(a) = vd.template getProp<rho_prev>(a) + dt2 * vd.template getProp<drho>(a);
-
-		vd.template getProp<velocity_prev>(a)[0] = velX;
-		vd.template getProp<velocity_prev>(a)[1] = velY;
-		vd.template getProp<velocity_prev>(a)[2] = velZ;
-		vd.template getProp<rho_prev>(a) = rhop;
-
-		++part;
-	}
-
-	// increment the iteration counter
-	cnt++;
-}
-
-void euler_int(particles &vd, double dt)
-{
-	// particle iterator
-	auto part = vd.getDomainIterator();
-
-	double dt205 = dt * dt * 0.5;
-	double dt2 = dt * 2.0;
-
-	// For each particle ...
-	while (part.isNext())
-	{
-		// ... a
-		auto a = part.get();
-
-		// if the particle is boundary
-		if (vd.template getProp<type>(a) == BOUNDARY)
-		{
-			// if (BC_TYPE == FREE_SLIP)
-			// {
-			// 	// Update rho
-			// 	double rhop = vd.template getProp<rho>(a);
-
-			// 	// Update only the density
-
-			// 	double rhonew = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
-			// 	vd.template getProp<rho>(a) = (rhonew < rho_zero) ? rho_zero : rhonew;
-
-			// 	vd.template getProp<rho_prev>(a) = rhop;
-			// }
-
-			++part;
-			continue;
-		}
-
-		//-Calculate displacement and update position / Calcula desplazamiento y actualiza posicion.
-		double dx = vd.template getProp<velocity>(a)[0] * dt + (vd.template getProp<force>(a)[0] + vd.template getProp<Background_P>(a)[0]) * dt205;
-		double dy = vd.template getProp<velocity>(a)[1] * dt + (vd.template getProp<force>(a)[1] + vd.template getProp<Background_P>(a)[1]) * dt205;
-		double dz = vd.template getProp<velocity>(a)[2] * dt + (vd.template getProp<force>(a)[2] + vd.template getProp<Background_P>(a)[2]) * dt205;
-
-		vd.getPos(a)[0] += dx;
-		vd.getPos(a)[1] += dy;
-		vd.getPos(a)[2] += dz;
-
-		double velX = vd.template getProp<velocity>(a)[0];
-		double velY = vd.template getProp<velocity>(a)[1];
-		double velZ = vd.template getProp<velocity>(a)[2];
-		double rhop = vd.template getProp<rho>(a);
-
-		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + vd.template getProp<force>(a)[0] * dt;
-		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + vd.template getProp<force>(a)[1] * dt;
-		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + vd.template getProp<force>(a)[2] * dt;
-		vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
-
-		vd.template getProp<velocity_prev>(a)[0] = velX;
-		vd.template getProp<velocity_prev>(a)[1] = velY;
-		vd.template getProp<velocity_prev>(a)[2] = velZ;
-		vd.template getProp<rho_prev>(a) = rhop;
-
-		++part;
-	}
-
-	// increment the iteration counter
-	cnt++;
-}
-
 template <typename CellList>
-void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_visc, Vcluster<> &v_cl)
+void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_cl)
 {
 	// particle iterator
 	auto part = vd.getDomainIterator();
@@ -1474,16 +1225,14 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
 		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
 
-		// double v_transport_x = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<Background_P>(a)[0];
-		// double v_transport_y = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
-		// double v_transport_z = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
-
 		vd.getPos(a)[0] += dt * vd.template getProp<v_transport>(a)[0];
 		vd.getPos(a)[1] += dt * vd.template getProp<v_transport>(a)[1];
 		vd.getPos(a)[2] += dt * vd.template getProp<v_transport>(a)[2];
 
 		++part;
 	}
+	v_cl.barrier();
+	vd.map();
 	v_cl.barrier();
 	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 	v_cl.barrier();
@@ -1503,8 +1252,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 		v_cl.barrier();
 	}
-
-	calc_forces(vd, NN, max_visc);
+	calc_forces(vd, NN);
 	v_cl.barrier();
 
 	// particle iterator
@@ -1536,84 +1284,12 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, double &max_vi
 		++part2;
 	}
 
-	// vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 
 	// increment the iteration counter
 	cnt++;
 }
 
-template <typename Vector, typename CellList>
-inline void sensor_pressure(Vector &vd,
-							CellList &NN,
-							openfpm::vector<openfpm::vector<double>> &press_t,
-							openfpm::vector<Point<3, double>> &probes)
-{
-	Vcluster<> &v_cl = create_vcluster();
-
-	press_t.add();
-
-	for (size_t i = 0; i < probes.size(); i++)
-	{
-		float press_tmp = 0.0f;
-		float tot_ker = 0.0;
-
-		// if the probe is inside the processor domain
-		if (vd.getDecomposition().isLocal(probes.get(i)) == true)
-		{
-			// Get the position of the probe i
-			Point<3, double> xp = probes.get(i);
-
-			// get the iterator over the neighbohood particles of the probes position
-			auto itg = NN.getNNIterator(NN.getCell(probes.get(i)));
-			while (itg.isNext())
-			{
-				auto q = itg.get();
-
-				// Only the fluid particles are importants
-				if (vd.template getProp<type>(q) != FLUID)
-				{
-					++itg;
-					continue;
-				}
-
-				// Get the position of the neighborhood particle q
-				Point<3, double> xq = vd.getPos(q);
-
-				// Calculate the contribution of the particle to the pressure
-				// of the probe
-				double r = sqrt(norm2(xp - xq));
-
-				double ker = Wab(r) * (MassFluid / rho_zero);
-
-				// Also keep track of the calculation of the summed
-				// kernel
-				tot_ker += ker;
-
-				// Add the total pressure contribution
-				press_tmp += vd.template getProp<Pressure>(q) * ker;
-
-				// next neighborhood particle
-				++itg;
-			}
-
-			// We calculate the pressure normalizing the
-			// sum over all kernels
-			if (tot_ker == 0.0)
-				press_tmp = 0.0;
-			else
-				press_tmp = 1.0 / tot_ker * press_tmp;
-		}
-
-		// This is not necessary in principle, but if you
-		// want to make all processor aware of the history of the calculated
-		// pressure we have to execute this
-		v_cl.sum(press_tmp);
-		v_cl.execute();
-
-		// We add the calculated pressure into the history
-		press_t.last().add(press_tmp);
-	}
-}
 void SetFilename(std::string &filename, std::string custom_string = "")
 {
 	filename = "";
@@ -1630,41 +1306,42 @@ void SetFilename(std::string &filename, std::string custom_string = "")
 		filename = "Hydrostatic";
 	}
 
-	if (VISC_TYPE == PHYSICAL_VISCOSITY)
+	// if (VISC_TYPE == PHYSICAL_VISCOSITY)
+	// {
+	// 	filename += "_PhysVisc";
+	// }
+	// else if (BC_TYPE == ARTIFICIAL_VISCOSITY)
+	// {
+	// 	filename += "_ArtVisc";
+	// }
+	// if (TENSILE == TENSILE_ENABLED)
+	// {
+	// 	filename += "_Tensile";
+	// }
+	// else
+	// {
+	// 	filename += "_NoTensile";
+	// }
+	// if (PRESSURE_TYPE == OLD_PRESSURE)
+	// {
+	// 	filename += "_OldPressure";
+	// }
+	// else if (PRESSURE_TYPE == NEW_PRESSURE)
+	// {
+	// 	filename += "_NewPressure";
+	// }
+	// else if (PRESSURE_TYPE == NO_PRESSURE)
+	// {
+	// 	filename += "_NoPressure";
+	// }
+
+	if (KERNEL == CUBIC)
 	{
-		filename += "_PhysVisc";
+		filename += "_Cubic";
 	}
-	else if (BC_TYPE == ARTIFICIAL_VISCOSITY)
+	else if (KERNEL == QUINTIC)
 	{
-		filename += "_ArtVisc";
-	}
-	if (TENSILE == TENSILE_ENABLED)
-	{
-		filename += "_Tensile";
-	}
-	else
-	{
-		filename += "_NoTensile";
-	}
-	if (PRESSURE_TYPE == OLD_PRESSURE)
-	{
-		filename += "_OldPressure";
-	}
-	else if (PRESSURE_TYPE == NEW_PRESSURE)
-	{
-		filename += "_NewPressure";
-	}
-	else if (PRESSURE_TYPE == NO_PRESSURE)
-	{
-		filename += "_NoPressure";
-	}
-	if (INT_TYPE == VERLET)
-	{
-		filename += "_Verlet";
-	}
-	else if (INT_TYPE == KICK)
-	{
-		filename += "_KickDrift";
+		filename += "_Quintic";
 	}
 
 	filename += ("_" + custom_string);
@@ -1742,7 +1419,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Number of fluid and boundary particles in the x, y and z direction
-		size_t Np_fluid[3] = {20, 1, 80};
+		size_t Np_fluid[3] = {40, 1, 20};
 
 		// bc[0] = NON_PERIODIC;
 		// bc[1] = NON_PERIODIC;
@@ -1887,7 +1564,7 @@ int main(int argc, char *argv[])
 
 	cbar = coeff_sound * umax;
 	B = cbar * cbar * rho_zero / gamma_;
-	Pbackground = B * 1.0;
+	Pbackground = B * Bfactor;
 	double Re = L * umax / nu;
 
 	if (VISC_TYPE == ARTIFICIAL_VISCOSITY)
@@ -1926,6 +1603,9 @@ int main(int argc, char *argv[])
 	file << "PRESSURE_TYPE: " << PRESSURE_TYPE << std::endl;
 	file << "TENSILE: " << TENSILE << std::endl;
 	file << "SCENARIO: " << SCENARIO << std::endl;
+	file << "MassOld: " << MassOld << std::endl;
+	file << "MassFluid_OLD: " << MassFluid << std::endl;
+	file << "MassBoundary_OLD: " << MassBound << std::endl;
 
 	// for each particle inside the fluid box ...
 	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
@@ -2081,6 +1761,9 @@ int main(int argc, char *argv[])
 
 	// Adjust mass to have the correct density
 	fix_mass(vd, NN);
+	file << "MassFluid: " << MassFluid << std::endl;
+	file << "MassBoundary: " << MassBound << std::endl;
+
 	// double a;
 	// std::cin >> a;
 
@@ -2091,8 +1774,6 @@ int main(int argc, char *argv[])
 	double t = 0.0;
 
 	// Compute forces for the first iteration
-	double max_visc = 0.0;
-
 	if (INT_TYPE == KICK)
 	{
 		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
@@ -2103,7 +1784,7 @@ int main(int argc, char *argv[])
 		}
 		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
 
-		calc_forces(vd, NN, max_visc);
+		calc_forces(vd, NN);
 	}
 
 	while (t <= t_end)
@@ -2111,7 +1792,7 @@ int main(int argc, char *argv[])
 		Vcluster<> &v_cl = create_vcluster();
 		timer it_time;
 
-		////// Do rebalancing every 200 timesteps
+		//// Do rebalancing every 200 timesteps
 		it_reb++;
 		if (it_reb == 200)
 		{
@@ -2129,86 +1810,17 @@ int main(int argc, char *argv[])
 
 		if (INT_TYPE == KICK)
 		{
-			// // Calculate pressure from the density
-			// EqState(vd);
 
-			// vd.ghost_get<type, rho, Pressure, velocity>();
+			// Calculate dt for time stepping
+			double dt = calc_deltaT(vd);
 
-			// In no slip bc, we need to compute a velocity for boundary particles
-			// if (BC_TYPE == NO_SLIP)
-			// {
-			// 	// 	Boundary condition
-			// 	calc_boundary(vd, NN);
-			// }
-
-			// Calc forces
-			// calc_forces(vd, NN, max_visc);
-
-			// // Get the maximum viscosity term across processors
-			v_cl.max(max_visc);
-			v_cl.execute();
-
-			// Calculate delta t integration
-			double dt = calc_deltaT(vd, max_visc);
-
-			// VerletStep or euler step
-			// it++;
-			// if (it < 40)
-			// 	verlet_int(vd, dt);
-			// else
-			// {
-			// 	euler_int(vd, dt);
-			// 	it = 0;
-			// }
-			max_visc = 0.0;
-			kick_drift_int(vd, NN, dt, max_visc, v_cl);
-
-			t += dt;
-		}
-		else if (INT_TYPE == VERLET)
-		{
-			// Calculate pressure from the density
-			EqState(vd);
-
-			max_visc = 0.0;
-
-			vd.ghost_get<type, rho, rho_prev, drho, Pressure, velocity>();
-
-			// In no slip bc, we need to compute a velocity for boundary particles
-			if (BC_TYPE == NO_SLIP)
-			{
-				// 	Boundary condition
-				calc_boundary(vd, NN);
-			}
-
-			// Calc forces
-			calc_forces(vd, NN, max_visc);
-
-			// Get the maximum viscosity term across processors
-			v_cl.max(max_visc);
-			v_cl.execute();
-
-			// Calculate delta t integration
-			double dt = calc_deltaT(vd, max_visc);
-
-			// double dt = calc_deltaT(vd);
-
-			// VerletStep or euler step
-			it++;
-			if (it < 40)
-				verlet_int(vd, dt);
-			else
-			{
-				euler_int(vd, dt);
-				it = 0;
-			}
+			kick_drift_int(vd, NN, dt, v_cl);
 
 			t += dt;
 		}
 
 		if (write < t * write_const)
 		{
-			// sensor_pressure calculation require ghost and update cell-list
 			vd.map();
 			// vd.ghost_get<type, rho, Pressure, velocity>();
 			// vd.updateCellList(NN);
@@ -2225,14 +1837,14 @@ int main(int argc, char *argv[])
 			write++;
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "   Max visc: " << max_visc << std::endl;
+				std::cout << "TIME: " << t << "  write " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << std::endl;
 			}
 		}
 		else
 		{
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << "    Max visc: " << max_visc << std::endl;
+				std::cout << "TIME: " << t << "  " << it_time.getwct() << "   " << v_cl.getProcessUnitID() << "   " << cnt << std::endl;
 			}
 		}
 	}
