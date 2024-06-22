@@ -21,14 +21,19 @@
 #define CUBIC 0
 #define QUINTIC 1
 
+// TYPE OF DENSITY COMPUTATION
+#define DENSITY_SUMMATION 0
+#define DENSITY_DIFFERENTIAL 1
+
 //////// CODE PARAMETERS /////////////////////////////////////////////////////////////
 // Dimensionality of the problem changes the normalizaiton of the kernel
 const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
-const int BC_TYPE = NEW_NO_SLIP;
+const int BC_TYPE = NO_SLIP;
 const int SCENARIO = POISEUILLE;
 const int KERNEL = QUINTIC;
+const int DENSITY_TYPE = DENSITY_DIFFERENTIAL;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // Output file name, filled later
@@ -93,7 +98,7 @@ Point<3, double> vw_bottom;
 double W_dap = 0.0;
 
 // Viscosity we want to use, independent of the type of viscosity term
-const double nu = 0.1;
+const double nu = 0.01;
 
 // Viscosity coefficient of the artificial viscosity (alpha) filled later if using artificial viscosity
 double visco = 500;
@@ -107,13 +112,13 @@ const double Eta2 = 0.01 * H * H;
 const double initial_perturbation = 0.0;
 
 double Pbackground = 10; // filled later
-const double Bfactor = 1.0;
+const double Bfactor = 10.0;
 
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// TIME CONSTANTS //////////////////////////////////////////////////////////////
 // End simulation time
-const double t_end = 10;
+const double t_end = 100;
 // Constant used to define time integration
 const double CFLnumber = 0.1;
 // Minimum T
@@ -128,28 +133,28 @@ const int write_const = 10;
 const size_t type = 0;
 // Density
 const int rho = 1;
-// Density at step n-1
-const int rho_prev = 2;
-// Pressure
-const int Pressure = 3;
+// pressure
+const int pressure = 2;
 // Delta rho calculated in the force calculation
-const int drho = 4;
+const int drho = 3;
 // calculated force
-const int force = 5;
+const int force = 4;
 // velocity
-const int velocity = 6;
-// velocity at previous step
-const int velocity_prev = 7;
-// Background pressure force
-const int Background_P = 8;
-//
-const int v_transport = 9;
+const int velocity = 5;
+// background pressure force
+const int force_transport = 6;
+// transport velocity
+const int v_transport = 7;
+// normal vector
+const int normal = 8;
+// curvature
+const int curvature = 9;
 
-typedef vector_dist<3, double, aggregate<size_t, double, double, double, double, double[3], double[3], double[3], double[3], double[3]>> particles;
-//                                       |     |        |        |        |        |         |            |		     |          |
-//                                       |     |        |        |        |        |         |            |		     |			|
-//                                     type  density   density  Pressure delta   force     velocity    velocity	  Pb force   v_transport
-//                                                      at n-1           density                       at n - 1
+typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[3], double[3], double[3], double[3], double[3], double>> particles;
+//                                       |         |     |        |        |        |           |		     |             |		|
+//                                       |         |     |        |        |        |           |		     |			   |		|
+//                                    type        rho   pressure delta   force     velocity   pb force   v_transport    normal	curvature
+//                                                              density
 
 struct ModelCustom
 {
@@ -162,7 +167,7 @@ struct ModelCustom
 		if (vd.template getProp<type>(p) == FLUID)
 			dec.addComputationCost(v, 4);
 		else
-			dec.addComputationCost(v, 4);
+			dec.addComputationCost(v, 3);
 	}
 
 	template <typename Decomposition>
@@ -189,7 +194,7 @@ inline void EqState(particles &vd)
 		double rho_a = vd.template getProp<rho>(a);
 		double rho_frac = rho_a / rho_zero;
 
-		vd.template getProp<Pressure>(a) = B * (std::pow(rho_frac, gamma_) - 1.0) + xi;
+		vd.template getProp<pressure>(a) = B * (std::pow(rho_frac, gamma_) - 1.0) + xi;
 
 		++it;
 	}
@@ -340,16 +345,18 @@ inline double Pi_artificial(const Point<3, double> &dr, const double rr2, const 
 
 inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double &r, const Point<3, double> &dv, const Point<3, double> &dW)
 {
-	return eta * (dv * dotProduct(dr, dW)) / r / r / 1.44;
+	return eta * (dv * dotProduct(dr, dW)) / r / r; // / 1.44;
 }
 
 inline double PressureForce(const double &rhoa, const double &rhob, const double &prsa, const double &prsb)
 {
-	return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob) / 1.44;
+	return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob); // / 1.44;
 }
 
 std::array<Point<3, double>, 3> GetDummyPositions(const Point<3, double> &r, const Point<3, double> &normal)
 {
+	// aplies offset to a vector and returns the vectors pointing at the dummy wall particles
+
 	Point<3, double> offset_1 = -0.5 * normal * dp; // offset from wall to first particle
 	Point<3, double> offset_2 = -1.0 * normal * dp; // offset from first to second particle, and from second to third
 	Point<3, double> r1 = r + offset_1;				// first dummy particle
@@ -395,12 +402,12 @@ void fix_mass(particles &vd, CellList &NN)
 				// Key of b particle
 				const unsigned long b = Np.get();
 
-				// if (a == b) skip this particle
-				if (a.getKey() == b)
-				{
-					++Np;
-					continue;
-				};
+				// // if (a == b) skip this particle
+				// if (a.getKey() == b)
+				// {
+				// 	++Np;
+				// 	continue;
+				// };
 
 				// Get the position xb of the particle b
 				const Point<3, double> xb = vd.getPos(b);
@@ -481,7 +488,7 @@ void fix_mass(particles &vd, CellList &NN)
 template <typename CellList>
 void calc_density(particles &vd, CellList &NN)
 {
-	// This function fills the value of velocity_prev for the boundary particles, with the velocity for no slip BC
+	// This function computes the density of particles from the summation of the kernel
 
 	auto part = vd.getDomainIterator();
 
@@ -512,12 +519,12 @@ void calc_density(particles &vd, CellList &NN)
 				// Key of b particle
 				unsigned long b = Np.get();
 
-				// if (a == b) skip this particle
-				if (a.getKey() == b)
-				{
-					++Np;
-					continue;
-				};
+				// // if (a == b) skip this particle
+				// if (a.getKey() == b)
+				// {
+				// 	++Np;
+				// 	continue;
+				// };
 
 				// Get the position xb of the particle b
 				const Point<3, double> xb = vd.getPos(b);
@@ -598,7 +605,7 @@ void calc_density(particles &vd, CellList &NN)
 template <typename CellList>
 void calc_boundary(particles &vd, CellList &NN)
 {
-	// This function fills the value of velocity_prev for the boundary particles, with the velocity for no slip BC
+	// This function fills the value of v_transport for the boundary particles, with the velocity for no slip BC
 
 	auto part = vd.getDomainIterator();
 
@@ -659,7 +666,7 @@ void calc_boundary(particles &vd, CellList &NN)
 				double rhof = vd.getProp<rho>(f);
 
 				// Get the pressure of the fluid particle
-				double Pf = vd.getProp<Pressure>(f);
+				double Pf = vd.getProp<pressure>(f);
 
 				// Get the vector pointing at xb from xf rwf
 				Point<3, double> dr = xb - xf;
@@ -692,20 +699,21 @@ void calc_boundary(particles &vd, CellList &NN)
 			if (sum_W != 0.0)
 			{
 				// Set the velocity of the boundary particle b ( to be used in the momentum equation to impose BC)
-				vd.template getProp<velocity_prev>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0] - sum_vW.get(0) / sum_W;
-				vd.template getProp<velocity_prev>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1] - sum_vW.get(1) / sum_W;
-				vd.template getProp<velocity_prev>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2] - sum_vW.get(2) / sum_W;
+				// We use the v_transport field because boundary particles dont use this array
+				vd.template getProp<v_transport>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0] - sum_vW.get(0) / sum_W;
+				vd.template getProp<v_transport>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1] - sum_vW.get(1) / sum_W;
+				vd.template getProp<v_transport>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2] - sum_vW.get(2) / sum_W;
 				// Set the pressure of the boundary particle b
-				vd.template getProp<Pressure>(b) = sum_pW / sum_W;
+				vd.template getProp<pressure>(b) = sum_pW / sum_W;
 				// Compute density from inverted Eq of state
-				vd.template getProp<rho>(b) = InvEqState(vd.template getProp<Pressure>(b));
+				vd.template getProp<rho>(b) = InvEqState(vd.template getProp<pressure>(b));
 			}
 			else
 			{
-				vd.template getProp<velocity_prev>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0];
-				vd.template getProp<velocity_prev>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1];
-				vd.template getProp<velocity_prev>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2];
-				vd.template getProp<Pressure>(b) = 0.0;
+				vd.template getProp<v_transport>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0];
+				vd.template getProp<v_transport>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1];
+				vd.template getProp<v_transport>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2];
+				vd.template getProp<pressure>(b) = 0.0;
 				vd.template getProp<rho>(b) = rho_zero;
 			}
 		}
@@ -755,7 +763,7 @@ void interact_fluid_boundary_new(particles &vd,
 
 	const double massw = MassBound;
 	const double rhow = vd.getProp<rho>(boundary_key);
-	const double Pw = vd.getProp<Pressure>(boundary_key);
+	const double Pw = vd.getProp<pressure>(boundary_key);
 	const Point<3, double> vw = vd.getProp<velocity>(boundary_key);
 	const Point<3, double> vtf = vd.getProp<v_transport>(fluid_key);
 	const Point<3, double> vdiff_f = vtf - vf;
@@ -873,13 +881,15 @@ void interact_fluid_boundary_new(particles &vd,
 		vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(1) + ViscosityTerm.get(1)) / massf;
 		vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(2) + ViscosityTerm.get(2)) / massf;
 
-		vd.getProp<Background_P>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
-		vd.getProp<Background_P>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
-		vd.getProp<Background_P>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
+		vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
+		vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
+		vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
 
-		// MassBound * (vf.get(0) * (W_dummy[comp]).get(0) + vf.get(1) * (W_dummy[comp]).get(1) + vf.get(2) * (W_dummy[comp]).get(2));
-		// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(vf, DW_dummy[comp]);
-		// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW_dummy[comp]);
+		if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+		{
+			// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(vf, DW);
+			vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW);
+		}
 	}
 }
 
@@ -898,7 +908,7 @@ void interact_fluid_fluid(particles &vd,
 
 	const double massb = MassFluid;
 	const double rhob = vd.getProp<rho>(b_key);
-	const double Pb = vd.getProp<Pressure>(b_key);
+	const double Pb = vd.getProp<pressure>(b_key);
 	const Point<3, double> vb = vd.getProp<velocity>(b_key);
 
 	const double r = sqrt(r2);
@@ -924,12 +934,14 @@ void interact_fluid_fluid(particles &vd,
 	vd.getProp<force>(a_key)[1] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(1) + ViscosityTerm.get(1)) / massa;
 	vd.getProp<force>(a_key)[2] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(2) + ViscosityTerm.get(2)) / massa;
 
-	vd.getProp<Background_P>(a_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massa;
-	vd.getProp<Background_P>(a_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massa;
-	vd.getProp<Background_P>(a_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massa;
+	vd.getProp<force_transport>(a_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massa;
+	vd.getProp<force_transport>(a_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massa;
+	vd.getProp<force_transport>(a_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massa;
 
-	// vd.getProp<drho>(a_key) += (massb) * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
-	// vd.getProp<drho>(a_key) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
+	if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+	{
+		vd.getProp<drho>(a_key) += massb * dotProduct(v_rel, DW);
+	}
 }
 
 void interact_fluid_boundary_old(particles &vd,
@@ -946,9 +958,9 @@ void interact_fluid_boundary_old(particles &vd,
 {
 	const double massb = MassBound;
 	const double rhob = vd.getProp<rho>(boundary_key);
-	const double Pb = vd.getProp<Pressure>(boundary_key);
+	const double Pb = vd.getProp<pressure>(boundary_key);
 	const Point<3, double> vb = vd.getProp<velocity>(boundary_key);
-	const Point<3, double> vb_noslip = vd.getProp<velocity_prev>(boundary_key);
+	const Point<3, double> vb_noslip = vd.getProp<v_transport>(boundary_key);
 
 	const Point<3, double> r_fb = xf - xb;
 	const double r = sqrt(r2);
@@ -974,12 +986,14 @@ void interact_fluid_boundary_old(particles &vd,
 	vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(1) + ViscosityTerm.get(1)) / massf;
 	vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(2) + ViscosityTerm.get(2)) / massf;
 
-	vd.getProp<Background_P>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
-	vd.getProp<Background_P>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
-	vd.getProp<Background_P>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
+	vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
+	vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
+	vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
 
-	// vd.getProp<drho>(a_key) += (massb) * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
-	// vd.getProp<drho>(a_key) += massb * (v_rel.get(0) * DW.get(0) + v_rel.get(1) * DW.get(1) + v_rel.get(2) * DW.get(2));
+	if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+	{
+		vd.getProp<drho>(fluid_key) += massb * dotProduct(v_rel, DW);
+	}
 }
 
 template <typename CellList>
@@ -1011,7 +1025,7 @@ inline void calc_forces(particles &vd, CellList &NN)
 
 			// Get the density and pressure of the of the particle a
 			double rhoa = vd.getProp<rho>(a);
-			double Pa = vd.getProp<Pressure>(a);
+			double Pa = vd.getProp<pressure>(a);
 
 			// Get the Velocity of the particle a
 			Point<3, double> va = vd.getProp<velocity>(a);
@@ -1021,9 +1035,11 @@ inline void calc_forces(particles &vd, CellList &NN)
 			vd.template getProp<force>(a)[1] = gravity_vector.get(1);
 			vd.template getProp<force>(a)[2] = gravity_vector.get(2);
 
-			vd.template getProp<Background_P>(a)[0] = 0.0;
-			vd.template getProp<Background_P>(a)[1] = 0.0;
-			vd.template getProp<Background_P>(a)[2] = 0.0;
+			vd.template getProp<force_transport>(a)[0] = 0.0;
+			vd.template getProp<force_transport>(a)[1] = 0.0;
+			vd.template getProp<force_transport>(a)[2] = 0.0;
+
+			vd.template getProp<drho>(a) = 0.0;
 
 			// Get an iterator over the neighborhood particles of p
 			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
@@ -1150,37 +1166,35 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
 		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
 
-		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<Background_P>(a)[0];
-		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
-		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
+		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
+		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
+		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
 
 		vd.getPos(a)[0] += dt * vd.template getProp<v_transport>(a)[0];
 		vd.getPos(a)[1] += dt * vd.template getProp<v_transport>(a)[1];
 		vd.getPos(a)[2] += dt * vd.template getProp<v_transport>(a)[2];
 
+		if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+			vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+
 		++part;
 	}
-	// v_cl.barrier();
 	vd.map();
-	// v_cl.barrier();
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
-	// v_cl.barrier();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 
-	calc_density(vd, NN);
+	if (DENSITY_TYPE == DENSITY_SUMMATION)
+		calc_density(vd, NN);
+
 	// Calculate pressure from the density
 	EqState(vd);
-	// vd.ghost_get<type, rho, rho_prev, Pressure, drho, force, velocity, velocity_prev, Background_P, v_transport>();
-	// v_cl.barrier();
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
-	// v_cl.barrier();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
-		vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+		vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 	}
 	calc_forces(vd, NN);
-	// v_cl.barrier();
 
 	// particle iterator
 	auto part2 = vd.getDomainIterator();
@@ -1198,20 +1212,21 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 			continue;
 		}
 
-		// vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+		// if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+		// 	vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
 
 		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
 		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
 		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
 
-		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<Background_P>(a)[0];
-		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<Background_P>(a)[1];
-		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<Background_P>(a)[2];
+		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
+		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
+		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
 
 		++part2;
 	}
 
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 
 	// increment the iteration counter
 	cnt++;
@@ -1248,6 +1263,14 @@ void SetFilename(std::string &filename, std::string custom_string = "")
 	{
 		filename += "_Quintic";
 	}
+	if (DENSITY_TYPE == DENSITY_SUMMATION)
+	{
+		filename += "_Summation";
+	}
+	else if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+	{
+		filename += "_Differential";
+	}
 
 	filename += ("_" + custom_string);
 }
@@ -1278,6 +1301,7 @@ int main(int argc, char *argv[])
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
 	size_t sz_aux[3];
 	size_t Np_boundary[3];
+
 	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE || SCENARIO == HYDROSTATIC)
 	{
 		if (SCENARIO == POISEUILLE)
@@ -1528,9 +1552,10 @@ int main(int argc, char *argv[])
 		// rho_p = (P/B + 1)^(1/Gamma) * rho_zero
 		//
 
-		vd.template getLastProp<Pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * fluid_it.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
+		vd.template getLastProp<pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * fluid_it.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
 		vd.template getLastProp<rho>() = rho_zero;
-		vd.template getLastProp<rho_prev>() = rho_zero;
+		vd.template getLastProp<drho>() = 0.0;
+
 		vd.template getLastProp<velocity>()[0] = initial_perturbation * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
 		vd.template getLastProp<velocity>()[1] = 0.0;
 		vd.template getLastProp<velocity>()[2] = initial_perturbation * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
@@ -1540,13 +1565,18 @@ int main(int argc, char *argv[])
 
 		// profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
 
-		vd.template getLastProp<velocity_prev>()[0] = 0.0;
-		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = 0.0;
-
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
 		vd.template getLastProp<force>()[2] = 0.0;
+
+		vd.template getLastProp<force_transport>()[0] = 0.0;
+		vd.template getLastProp<force_transport>()[1] = 0.0;
+		vd.template getLastProp<force_transport>()[2] = 0.0;
+
+		vd.template getLastProp<v_transport>()[0] = 0.0;
+		vd.template getLastProp<v_transport>()[1] = 0.0;
+		vd.template getLastProp<v_transport>()[2] = 0.0;
+
 		// profile_parameter *fluid_it.get().get(0) * (L - fluid_it.get().get(0));
 
 		// next fluid particle
@@ -1598,18 +1628,18 @@ int main(int argc, char *argv[])
 
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<rho>() = rho_zero;
-		vd.template getLastProp<rho_prev>() = rho_zero;
-		vd.template getLastProp<Pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * bound_box.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
+		vd.template getLastProp<pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * bound_box.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
+		vd.template getLastProp<drho>() = 0.0;
+
+		vd.template getLastProp<force>()[0] = 0.0;
+		vd.template getLastProp<force>()[1] = 0.0;
+		vd.template getLastProp<force>()[2] = 0.0;
 
 		if (bound_box.get().get(0) < 0) // bottom wall
 		{
 			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
 			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
 			vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
-
-			vd.template getLastProp<force>()[0] = 0.0;
-			vd.template getLastProp<force>()[1] = 0.0;
-			vd.template getLastProp<force>()[2] = 0.0;
 		}
 		else if (bound_box.get().get(0) > length[0]) // top wall
 		{
@@ -1618,14 +1648,18 @@ int main(int argc, char *argv[])
 			vd.template getLastProp<velocity>()[2] = vw_top.get(2);
 		}
 
-		vd.template getLastProp<velocity_prev>()[0] = 0.0;
-		vd.template getLastProp<velocity_prev>()[1] = 0.0;
-		vd.template getLastProp<velocity_prev>()[2] = 0.0;
+		vd.template getLastProp<force_transport>()[0] = 0.0;
+		vd.template getLastProp<force_transport>()[1] = 0.0;
+		vd.template getLastProp<force_transport>()[2] = 0.0;
+
+		vd.template getLastProp<v_transport>()[0] = 0.0;
+		vd.template getLastProp<v_transport>()[1] = 0.0;
+		vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		++bound_box;
 		// std::cout << "Boundary particle " << count << " at position x=" << vd.getLastPos()[0] << " y=" << vd.getLastPos()[1] << " z=" << vd.getLastPos()[2] << std::endl;
 	}
-	openfpm::vector<std::string> names({"type", "rho", "rho_prev", "pressure", "drho", "force", "velocity", "velocity_prev", "Background_P", "v_transport"});
+	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport", "v_transport", "normal", "curvature"});
 	vd.setPropNames(names);
 
 	vd.map();
@@ -1639,12 +1673,16 @@ int main(int argc, char *argv[])
 	vd.getDecomposition().decompose();
 	vd.map();
 
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 
 	auto NN = vd.getCellList(r_threshold + H);
 
-	// Adjust mass to have the correct density
-	fix_mass(vd, NN);
+	if (DENSITY_TYPE == DENSITY_SUMMATION)
+	{
+		// Adjust mass to have the correct density
+		fix_mass(vd, NN);
+	}
+
 	file << "MassFluid: " << MassFluid << std::endl;
 	file << "MassBoundary: " << MassBound << std::endl;
 
@@ -1656,16 +1694,16 @@ int main(int argc, char *argv[])
 
 	// Compute forces for the first iteration
 
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
 	}
-	vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
 	calc_forces(vd, NN);
 	// sync all to ghost
-	vd.ghost_get<type, rho, drho, Pressure, force, velocity, velocity_prev, Background_P, v_transport>();
+	vd.ghost_get<type, rho, drho, pressure, force, velocity, v_transport, force_transport, v_transport>();
 
 	while (t <= t_end)
 	{
@@ -1701,9 +1739,9 @@ int main(int argc, char *argv[])
 		{
 			// vd.map();
 
-			// vd.deleteGhost();
+			vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			// vd.ghost_get<type, rho, Pressure, velocity, velocity_prev, v_transport>();
+			vd.ghost_get<type, rho, pressure, velocity, v_transport>();
 
 			write++;
 			if (v_cl.getProcessUnitID() == 0)
