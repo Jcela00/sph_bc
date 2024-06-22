@@ -16,6 +16,7 @@
 #define POISEUILLE 0
 #define COUETTE 1
 #define HYDROSTATIC 2
+#define CYLINDER 3
 
 // TYPE OF KERNERL
 #define CUBIC 0
@@ -30,10 +31,10 @@
 const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
-const int BC_TYPE = NO_SLIP;
-const int SCENARIO = POISEUILLE;
+const int BC_TYPE = NEW_NO_SLIP;
+const int SCENARIO = CYLINDER;
 const int KERNEL = QUINTIC;
-const int DENSITY_TYPE = DENSITY_DIFFERENTIAL;
+const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // Output file name, filled later
@@ -87,9 +88,6 @@ double MassBound = MassOld;
 Point<3, double> gravity_vector;
 double gravity;
 
-// Wall Normal
-Point<3, double> normal_bottom_wall = {1.0, 0.0, 0.0};
-
 // Wall velocity
 Point<3, double> vw_top;
 Point<3, double> vw_bottom;
@@ -112,7 +110,7 @@ const double Eta2 = 0.01 * H * H;
 const double initial_perturbation = 0.0;
 
 double Pbackground = 10; // filled later
-const double Bfactor = 10.0;
+const double Bfactor = 5.0;
 
 ////////////////////////////////////////////////////////////////////////////////////
 
@@ -146,16 +144,17 @@ const int force_transport = 6;
 // transport velocity
 const int v_transport = 7;
 // normal vector
-const int normal = 8;
+const int normal_vector = 8;
 // curvature
-const int curvature = 9;
+const int curvature_boundary = 9;
 
 typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[3], double[3], double[3], double[3], double[3], double>> particles;
 //                                       |         |     |        |        |        |           |		     |             |		|
 //                                       |         |     |        |        |        |           |		     |			   |		|
 //                                    type        rho   pressure delta   force     velocity   pb force   v_transport    normal	curvature
 //                                                              density
-
+// TEMPLATE TO SYNC ALL
+// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary>();
 struct ModelCustom
 {
 	template <typename Decomposition, typename vector>
@@ -446,8 +445,7 @@ void fix_mass(particles &vd, CellList &NN)
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
 							// xw.get(0) this is the x coordinate of the wall
-							bool is_bottom_wall = (xb.get(0) < dp ? true : false);
-							Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
+							Point<3, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
 							std::array<Point<3, double>, 3> R_dummy = GetDummyPositions(-1.0 * dr, normal);
@@ -564,8 +562,7 @@ void calc_density(particles &vd, CellList &NN)
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
 							// xw.get(0) this is the x coordinate of the wall
-							bool is_bottom_wall = (xb.get(0) < dp ? true : false);
-							Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
+							Point<3, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
 							std::array<Point<3, double>, 3> R_dummy = GetDummyPositions(-1.0 * dr, normal);
@@ -724,8 +721,7 @@ void calc_boundary(particles &vd, CellList &NN)
 
 // function to know the type of variables currently at auto
 template <class T>
-std::string
-type_name()
+std::string type_name()
 {
 	typedef typename std::remove_reference<T>::type TR;
 	std::unique_ptr<char, void (*)(void *)> own(
@@ -769,13 +765,22 @@ void interact_fluid_boundary_new(particles &vd,
 	const Point<3, double> vdiff_f = vtf - vf;
 
 	// xw.get(0) this is the x coordinate of the wall
-	bool is_bottom_wall = (xw.get(0) < dp ? true : false);
-	Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
+	// bool is_bottom_wall = (xw.get(0) < dp ? true : false);
+	// Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
+	// Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
+	// if (!is_bottom_wall)
+	// {
+	// 	tangential.get(2) = -tangential.get(2);
+	// }
+
+	Point<3, double> normal = vd.getProp<normal_vector>(boundary_key);
 	Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
-	if (!is_bottom_wall)
+	if (tangential.get(2) < 0.0)
 	{
 		tangential.get(2) = -tangential.get(2);
 	}
+
+	double curvature = vd.getProp<curvature_boundary>(boundary_key);
 	Point<3, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid; // Points to wall from fluid
 	// r_fluid_to_wall.get(1) = 0.0;
 
@@ -1180,19 +1185,20 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 		++part;
 	}
 	vd.map();
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	if (DENSITY_TYPE == DENSITY_SUMMATION)
 		calc_density(vd, NN);
 
 	// Calculate pressure from the density
 	EqState(vd);
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
-		vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+		vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 	}
 	calc_forces(vd, NN);
 
@@ -1226,7 +1232,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 		++part2;
 	}
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	// increment the iteration counter
 	cnt++;
@@ -1246,6 +1252,10 @@ void SetFilename(std::string &filename, std::string custom_string = "")
 	else if (SCENARIO == HYDROSTATIC)
 	{
 		filename = "Hydrostatic";
+	}
+	if (SCENARIO == CYLINDER)
+	{
+		filename = "Cylinder";
 	}
 	if (BC_TYPE == NO_SLIP)
 	{
@@ -1280,7 +1290,6 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-	SetFilename(filename, "test");
 	Box<3, double> domain;
 	Box<3, double> fluid_box;
 	Box<3, double> recipient;
@@ -1301,10 +1310,11 @@ int main(int argc, char *argv[])
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
 	size_t sz_aux[3];
 	size_t Np_boundary[3];
+	size_t Np_fluid[3] = {40, 1, 40};
 
-	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE || SCENARIO == HYDROSTATIC)
+	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE || SCENARIO == HYDROSTATIC || SCENARIO == CYLINDER)
 	{
-		if (SCENARIO == POISEUILLE)
+		if (SCENARIO == POISEUILLE || SCENARIO == CYLINDER)
 		{
 			gravity_vector = {0.0, 0.0, 0.1};
 			gravity = sqrt(norm2(gravity_vector));
@@ -1348,7 +1358,6 @@ int main(int argc, char *argv[])
 		}
 
 		// Number of fluid and boundary particles in the x, y and z direction
-		size_t Np_fluid[3] = {40, 1, 20};
 
 		// bc[0] = NON_PERIODIC;
 		// bc[1] = NON_PERIODIC;
@@ -1459,7 +1468,6 @@ int main(int argc, char *argv[])
 	}
 
 	// last position of fluid particles in z coordinate is at
-	// length[2] + 0.5*dp
 	double z_end = length[2] + 0.5 * dp;
 
 	// Fill W_dap
@@ -1477,7 +1485,7 @@ int main(int argc, char *argv[])
 	double L = length[0];
 	double umax;
 
-	if (SCENARIO == POISEUILLE)
+	if (SCENARIO == POISEUILLE || SCENARIO == CYLINDER)
 	{
 		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
 	}
@@ -1494,6 +1502,9 @@ int main(int argc, char *argv[])
 	B = cbar * cbar * rho_zero / gamma_;
 	Pbackground = B * Bfactor;
 	double Re = L * umax / nu;
+
+	std::string reynolds_size_name = "Re" + std::to_string(Re) + "_" + std::to_string(Np_fluid[0]) + "_" + std::to_string(Np_fluid[2]);
+	SetFilename(filename, reynolds_size_name);
 
 	std::string constants_filename = filename + "_Constants_" + ".txt";
 	std::ofstream file(constants_filename);
@@ -1517,33 +1528,112 @@ int main(int argc, char *argv[])
 	file << "CFLnumber: " << CFLnumber << std::endl;
 	file << "BC_TYPE: " << BC_TYPE << std::endl;
 	file << "SCENARIO: " << SCENARIO << std::endl;
+	file << "KERNEL: " << KERNEL << std::endl;
+	file << "DENSITY_TYPE: " << DENSITY_TYPE << std::endl;
 	file << "MassOld: " << MassOld << std::endl;
 	file << "MassFluid_OLD: " << MassFluid << std::endl;
 	file << "MassBoundary_OLD: " << MassBound << std::endl;
 
 	// for each particle inside the fluid box ...
 	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
+	Point<3, double> Cylinder_centre{length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
+	double Cylinder_radius = 3.5 * H;
+
+	if (SCENARIO == CYLINDER)
+	{
+		if (BC_TYPE == NEW_NO_SLIP)
+		{
+			Cylinder_radius += 0.5 * dp;
+
+			double perimeter = 2.0 * M_PI * Cylinder_radius;
+			int Np_cylinder = ceil(perimeter / dp);
+			double dtheta = 2.0 * M_PI / Np_cylinder;
+			double theta = 0.0;
+
+			while (theta < 2 * M_PI)
+			{
+				Point<3, double> cylinder_particle{Cylinder_centre.get(0) + Cylinder_radius * cos(theta), Cylinder_centre.get(1), Cylinder_centre.get(2) + Cylinder_radius * sin(theta)};
+				Point<3, double> normal = {cos(theta), 0.0, sin(theta)};
+				vd.add();
+				vd.getLastPos()[0] = cylinder_particle.get(0);
+				vd.getLastPos()[1] = cylinder_particle.get(1);
+				vd.getLastPos()[2] = cylinder_particle.get(2);
+				vd.template getLastProp<type>() = BOUNDARY;
+				vd.template getLastProp<pressure>() = 0.0;
+				vd.template getLastProp<rho>() = rho_zero;
+				vd.template getLastProp<drho>() = 0.0;
+				vd.template getLastProp<velocity>()[0] = 0.0;
+				vd.template getLastProp<velocity>()[1] = 0.0;
+				vd.template getLastProp<velocity>()[2] = 0.0;
+				vd.template getLastProp<force>()[0] = 0.0;
+				vd.template getLastProp<force>()[1] = 0.0;
+				vd.template getLastProp<force>()[2] = 0.0;
+				vd.template getLastProp<force_transport>()[0] = 0.0;
+				vd.template getLastProp<force_transport>()[1] = 0.0;
+				vd.template getLastProp<force_transport>()[2] = 0.0;
+				vd.template getLastProp<v_transport>()[0] = 0.0;
+				vd.template getLastProp<v_transport>()[1] = 0.0;
+				vd.template getLastProp<v_transport>()[2] = 0.0;
+				vd.template getLastProp<normal_vector>()[0] = normal.get(0);
+				vd.template getLastProp<normal_vector>()[1] = normal.get(1);
+				vd.template getLastProp<normal_vector>()[2] = normal.get(2);
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+				theta += dtheta;
+			}
+		}
+	}
+
+	Sphere<3, double> Cylinder(Cylinder_centre, Cylinder_radius);
+
 	while (fluid_it.isNext())
 	{
 
-		// ... add a particle ...
-		vd.add();
+		Point<3, double> iterator_posion = fluid_it.get();
+
+		if (SCENARIO == CYLINDER)
+		{
+			if (Cylinder.isInside(iterator_posion)) // if inside the cylinder region
+			{
+				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
+				{
+					// ... add a particle ...
+					vd.add();
+					vd.template getLastProp<type>() = BOUNDARY;
+				}
+				else if (BC_TYPE == NEW_NO_SLIP) // not add particle because already added
+				{
+					++fluid_it;
+					continue;
+				}
+			}
+			else // if not inside just add fluid particles as usual
+			{
+				// ... add a particle ...
+				vd.add();
+				vd.template getLastProp<type>() = FLUID;
+			}
+		}
+		else // if no cylinder at all
+		{
+			// ... add a particle ...
+			vd.add();
+			vd.template getLastProp<type>() = FLUID;
+		}
 
 		// ... and set it position ...
-		vd.getLastPos()[0] = fluid_it.get().get(0);
-		vd.getLastPos()[1] = fluid_it.get().get(1);
+		vd.getLastPos()[0] = iterator_posion.get(0);
+		vd.getLastPos()[1] = iterator_posion.get(1);
 
-		if (fluid_it.get().get(2) == z_end)
+		if (iterator_posion.get(2) == z_end)
 		{
-			vd.getLastPos()[2] = fluid_it.get().get(2) - 1e-10 * dp;
+			vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
 		}
 		else
 		{
-			vd.getLastPos()[2] = fluid_it.get().get(2);
+			vd.getLastPos()[2] = iterator_posion.get(2);
 		}
 
 		// and its type.
-		vd.template getLastProp<type>() = FLUID;
 
 		// We also initialize the density of the particle and the hydro-static pressure given by
 		//
@@ -1635,17 +1725,33 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<force>()[1] = 0.0;
 		vd.template getLastProp<force>()[2] = 0.0;
 
-		if (bound_box.get().get(0) < 0) // bottom wall
+		if (bound_box.get().get(0) < dp / 2.0) // bottom wall
 		{
 			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
 			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
 			vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
+			if (BC_TYPE == NEW_NO_SLIP)
+			{
+				vd.template getLastProp<normal_vector>()[0] = 1.0;
+				vd.template getLastProp<normal_vector>()[1] = 0.0;
+				vd.template getLastProp<normal_vector>()[2] = 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+			}
 		}
-		else if (bound_box.get().get(0) > length[0]) // top wall
+		else if (bound_box.get().get(0) > length[0] - dp / 2.0) // top wall
 		{
 			vd.template getLastProp<velocity>()[0] = vw_top.get(0);
 			vd.template getLastProp<velocity>()[1] = vw_top.get(1);
 			vd.template getLastProp<velocity>()[2] = vw_top.get(2);
+			if (BC_TYPE == NEW_NO_SLIP)
+			{
+				vd.template getLastProp<normal_vector>()[0] = -1.0;
+				vd.template getLastProp<normal_vector>()[1] = 0.0;
+				vd.template getLastProp<normal_vector>()[2] = 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+			}
 		}
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
@@ -1664,8 +1770,6 @@ int main(int argc, char *argv[])
 
 	vd.map();
 
-	// vd.write_frame("FIRST", 0, WRITER);
-
 	// Now that we fill the vector with particles
 	ModelCustom md;
 
@@ -1673,15 +1777,15 @@ int main(int argc, char *argv[])
 	vd.getDecomposition().decompose();
 	vd.map();
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	auto NN = vd.getCellList(r_threshold + H);
 
-	if (DENSITY_TYPE == DENSITY_SUMMATION)
-	{
-		// Adjust mass to have the correct density
-		fix_mass(vd, NN);
-	}
+	// if (DENSITY_TYPE == DENSITY_SUMMATION)
+	// {
+	// 	// Adjust mass to have the correct density
+	// 	fix_mass(vd, NN);
+	// }
 
 	file << "MassFluid: " << MassFluid << std::endl;
 	file << "MassBoundary: " << MassBound << std::endl;
@@ -1694,16 +1798,15 @@ int main(int argc, char *argv[])
 
 	// Compute forces for the first iteration
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
 	}
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 	calc_forces(vd, NN);
-	// sync all to ghost
-	vd.ghost_get<type, rho, drho, pressure, force, velocity, v_transport, force_transport, v_transport>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 	while (t <= t_end)
 	{
@@ -1741,7 +1844,7 @@ int main(int argc, char *argv[])
 
 			vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			vd.ghost_get<type, rho, pressure, velocity, v_transport>();
+			vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
 
 			write++;
 			if (v_cl.getProcessUnitID() == 0)
