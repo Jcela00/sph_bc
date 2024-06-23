@@ -16,7 +16,8 @@
 #define POISEUILLE 0
 #define COUETTE 1
 #define HYDROSTATIC 2
-#define CYLINDER 3
+#define CYLINDER_ARRAY 3
+#define CYLINDER_LATTICE 4
 
 // TYPE OF KERNERL
 #define CUBIC 0
@@ -32,100 +33,73 @@ const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CYLINDER;
+const int SCENARIO = CYLINDER_LATTICE;
 const int KERNEL = QUINTIC;
-const int DENSITY_TYPE = DENSITY_DIFFERENTIAL;
+const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
-// Output file name, filled later
+// DECLARATION OF GLOBAL VARIABLES
+// Output file name
 std::string filename;
 
-////////////////////////////////////////////////////////////////////////////////////
-
-//////// SPATIAL CONSTANTS /////////////////////////////////////////////////////////
-// initial spacing between particles dp in the formulas
-const double dp = 0.025;
-
-// Factor relating H (smoothing length) and dp ( particle spacing)
+// Initial particle spacing
+double dp;
+// Factor relating H (smoothing length) and dp (particle spacing)
 const double Hconst = 1.0;
+// Smoothing length
+double H;
+// Size of the kernel support
+double r_threshold;
+// Normalization constant for the kernels
+double Kcubic;
+double Kquintic;
+// Reynolds number
+double Re;
 
-// H, smoothing length
-const double H = Hconst * dp;
-
-const double r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-////////////////////////////////////////////////////////////////////////////////////
-
-//////// EQ OF STATE CONSTANTS //////////////////////////////////////////////////////
-// Eq of state constant, filled later
-double B = 0.0;
-
-// Constant used for the sound speed, number of times the max velocity
-const double coeff_sound = 10.0;
-
-// Sound speed (calculated later)
-double cbar = 0.0;
-
-// gamma in the formulas
-const double gamma_ = 1.0;
-const double xi = 0.0;
-
-////////////////////////////////////////////////////////////////////////////////////
-
-//////// PHYSICAL CONSTANTS ////////////////////////////////////////////////////////
+// maximum velocity
+double umax;
 // Reference density
-const double rho_zero = 1.0;
-
-// Minimum, Maximum Rho allowed
-const double RhoMin = 0.7 * rho_zero;
-const double RhoMax = 1.3 * rho_zero;
-
-// Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
-const double MassOld = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-double MassFluid = MassOld;
-double MassBound = MassOld;
+double rho_zero;
+// Gamma in eq of state
+const double gamma_ = 1.0;
+// Constant used for the sound speed, number of times the max velocity
+double coeff_sound = 10.0;
+// Sound speed
+double cbar;
+// Eq of state constant
+double B;
+// background pressure in eq of state
+const double xi = 0.0;
 
 // Gravity vector and magnitude
 Point<3, double> gravity_vector;
 double gravity;
-
 // Wall velocity
 Point<3, double> vw_top;
 Point<3, double> vw_bottom;
 
-// Tensile correction constant, filled later
-double W_dap = 0.0;
+// Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
+double MassFluid;
+double MassBound;
 
-// Viscosity we want to use, independent of the type of viscosity term
-const double nu = 0.01;
+// Kinematic viscosity
+double nu;
+// Dynamic viscosity
+double eta;
 
-// Viscosity coefficient of the artificial viscosity (alpha) filled later if using artificial viscosity
-double visco = 500;
+// Factor relating Pbackground and B, Pbackground = Bfactor*B
+const double Bfactor = 1.0;
+// Background pressure in the transport force
+double Pbackground;
 
-// Dynamic viscosity, used when using physical viscosity term
-double eta = nu * rho_zero;
-
-// Eta in the formulas
-const double Eta2 = 0.01 * H * H;
-
-const double initial_perturbation = 0.0;
-
-double Pbackground = 10; // filled later
-const double Bfactor = 5.0;
-
-double dxwall = 0.0; // filled later
-
-////////////////////////////////////////////////////////////////////////////////////
-
-//////// TIME CONSTANTS //////////////////////////////////////////////////////////////
 // End simulation time
-const double t_end = 100;
+const double t_end = 1000.0;
 // Constant used to define time integration
-const double CFLnumber = 0.1;
+const double CFLnumber = 0.5;
 // Minimum T
 const double DtMin = 0.00001;
 // Controls otput file frequency, low means less frequent
-const int write_const = 100;
-////////////////////////////////////////////////////////////////////////////////////
+const int write_const = 10;
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
 // Properties
@@ -157,8 +131,8 @@ typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[
 //                                       |         |     |        |        |        |           |		     |			   |		|       |
 //                                    type        rho   pressure delta   force     velocity   pb force   v_transport    normal	curvature   arc_length
 //                                                              density
-// TEMPLATE TO SYNC ALL
-// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary>();
+// TEMPLATE TO COPY PASTE AND	 SYNC ALL
+// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
 struct ModelCustom
 {
 	template <typename Decomposition, typename vector>
@@ -224,10 +198,6 @@ inline double norm_own(const Point<3, double> &v)
 }
 
 // Kernel functions
-// Normalization constant for the kernel
-const double Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-const double Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
-
 inline double Cubic_W(double r)
 {
 	r /= H;
@@ -318,36 +288,6 @@ inline Point<3, double> DWab(const Point<3, double> &dx, const double r)
 		return Grad_Cubic_W(dx, r);
 	else if (KERNEL == QUINTIC)
 		return Grad_Quintic_W(dx, r);
-}
-
-// OLD TENSILE CONSTANTS 0.01:-0.2
-
-inline double Tensile(const double r, const double rhoa, const double rhob, const double prs1, const double prs2)
-{
-	// Evaluate kernel
-	const double wab = Wab(r);
-
-	// Tensile correction.
-	double fab = wab * W_dap;
-	fab *= fab;
-	fab *= fab;					 // fab=fab^4
-	const double epsilon = 0.06; // (Monaghan 1999) for n=4 H = 1.5dp
-	const double tensilp1 = (prs1 / (rhoa * rhoa)) * (prs1 > 0.0 ? epsilon : 0.00);
-	const double tensilp2 = (prs2 / (rhob * rhob)) * (prs2 > 0.0 ? epsilon : 0.00);
-
-	return (fab * (tensilp1 + tensilp2));
-}
-
-inline double Pi_artificial(const Point<3, double> &dr, const double rr2, const Point<3, double> &dv, const double rhoa, const double rhob, const double massb)
-{
-	const double dot = dotProduct(dr, dv);
-	const double dot_rr2 = dot / (rr2 + Eta2);
-
-	const float amubar = H * dot_rr2;
-	const float robar = (rhoa + rhob) * 0.5;
-	const float pi_visc = (-visco * cbar * amubar / robar);
-
-	return pi_visc;
 }
 
 inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double &r, const Point<3, double> &dv, const Point<3, double> &dW)
@@ -1213,9 +1153,13 @@ void SetFilename(std::string &filename, std::string custom_string = "")
 	{
 		filename = "Hydrostatic";
 	}
-	if (SCENARIO == CYLINDER)
+	if (SCENARIO == CYLINDER_ARRAY)
 	{
-		filename = "Cylinder";
+		filename = "CylinderArray";
+	}
+	else if (SCENARIO == CYLINDER_LATTICE)
+	{
+		filename = "CylinderLattice";
 	}
 	if (BC_TYPE == NO_SLIP)
 	{
@@ -1245,314 +1189,412 @@ void SetFilename(std::string &filename, std::string custom_string = "")
 	filename += ("_" + custom_string);
 }
 
-int main(int argc, char *argv[])
+void WriteParameters(size_t Nfluid[3], double length[3])
 {
+	const double Lx = length[0];			// channel height
+	const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
 
-	// initialize the library
-	openfpm_init(&argc, &argv);
-	Box<3, double> domain;
-	Box<3, double> fluid_box;
-	Box<3, double> recipient;
-	Box<3, double> recipient_hole;
+	std::string reynolds_size_name = "Re" + std::to_string(Re) + "_" + std::to_string(Nfluid[0]) + "_" + std::to_string(Nfluid[2]);
+	SetFilename(filename, reynolds_size_name);
+
+	std::string constants_filename = "Constants_" + filename + ".txt";
+	std::ofstream file(constants_filename);
+
+	file << "gravity = {" << gravity_vector.get(0) << ", " << gravity_vector.get(1) << ", " << gravity_vector.get(2) << "}" << std::endl;
+	file << "v_topwall = {" << vw_top.get(0) << ", " << vw_top.get(1) << ", " << vw_top.get(2) << "}" << std::endl;
+	file << "v_bottomwall = {" << vw_bottom.get(0) << ", " << vw_bottom.get(1) << ", " << vw_bottom.get(2) << "}" << std::endl;
+	file << "Lx, Ly, Lz = " << Lx << ", " << length[1] << ", " << Lz << std::endl;
+	file << "dp = " << dp << std::endl;
+	file << "H = " << H << std::endl;
+	file << "Mass = " << MassFluid << std::endl;
+	file << "umax = " << umax << std::endl;
+	file << "nu = " << nu << std::endl;
+	file << "Re =  " << Re << std::endl;
+	file << "rho_0 = " << rho_zero << std::endl;
+	file << "gamma = " << gamma_ << std::endl;
+	file << "xi = " << xi << std::endl;
+	file << "c = " << cbar << std::endl;
+	file << "B = " << B << std::endl;
+	file << "Pbackground = " << Pbackground << std::endl;
+	file << "CFLnumber = " << CFLnumber << std::endl;
+	file << "SCENARIO = " << SCENARIO << std::endl;
+	file << "BC_TYPE = " << BC_TYPE << std::endl;
+	file << "KERNEL = " << KERNEL << std::endl;
+	file << "DENSITY_TYPE = " << DENSITY_TYPE << std::endl;
+}
+
+void AddCylinderNewBC(particles &vd, Point<3, double> Cylinder_centre, double Cylinder_radius)
+{
+	double perimeter = 2.0 * M_PI * Cylinder_radius;
+	int Np_cylinder = ceil(perimeter / dp);
+	double dtheta = 2.0 * M_PI / Np_cylinder;
+	double dxwall = dtheta * Cylinder_radius;
+	double theta = 0.0;
+
+	while (theta < 2.0 * M_PI)
+	{
+		Point<3, double> cylinder_particle{Cylinder_centre.get(0) + Cylinder_radius * cos(theta), Cylinder_centre.get(1), Cylinder_centre.get(2) + Cylinder_radius * sin(theta)};
+		Point<3, double> normal = {cos(theta), 0.0, sin(theta)};
+		vd.add();
+		vd.getLastPos()[0] = cylinder_particle.get(0);
+		vd.getLastPos()[1] = cylinder_particle.get(1);
+		vd.getLastPos()[2] = cylinder_particle.get(2);
+
+		vd.template getLastProp<type>() = BOUNDARY;
+		vd.template getLastProp<pressure>() = 0.0;
+		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<drho>() = 0.0;
+
+		vd.template getLastProp<velocity>()[0] = 0.0;
+		vd.template getLastProp<velocity>()[1] = 0.0;
+		vd.template getLastProp<velocity>()[2] = 0.0;
+
+		vd.template getLastProp<force>()[0] = 0.0;
+		vd.template getLastProp<force>()[1] = 0.0;
+		vd.template getLastProp<force>()[2] = 0.0;
+
+		vd.template getLastProp<force_transport>()[0] = 0.0;
+		vd.template getLastProp<force_transport>()[1] = 0.0;
+		vd.template getLastProp<force_transport>()[2] = 0.0;
+
+		vd.template getLastProp<v_transport>()[0] = 0.0;
+		vd.template getLastProp<v_transport>()[1] = 0.0;
+		vd.template getLastProp<v_transport>()[2] = 0.0;
+
+		vd.template getLastProp<normal_vector>()[0] = normal.get(0);
+		vd.template getLastProp<normal_vector>()[1] = normal.get(1);
+		vd.template getLastProp<normal_vector>()[2] = normal.get(2);
+
+		vd.template getLastProp<curvature_boundary>() = 1.0 / Cylinder_radius;
+		vd.template getLastProp<arc_length>() = dxwall;
+		theta += dtheta;
+	}
+}
+
+particles CreateParticleGeometry()
+{
 
 	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
 	// First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
 	double length[3];
 
-	// Size of the virtual grid that defines where to place the particles
+	// Size of the virtual cartesian grid that defines where to place the particles
 	size_t sz[3];
-
-	// Here we define the boundary conditions of our problem
-	size_t bc[3];
 
 	// In the case of the new bc we need particles at the wall, for this we need sz_aux
 	// We want to put one virtual grid point between each pair of the old ones,
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
 	size_t sz_aux[3];
-	size_t Np_boundary[3];
-	size_t Np_fluid[3] = {40, 1, 60};
 
-	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE || SCENARIO == HYDROSTATIC || SCENARIO == CYLINDER)
+	// Boundary conditions
+	size_t bc[3];
+
+	// Number of boundary particles in each direction
+	size_t Nboundary[3];
+
+	// Number of fluid particles in each direction
+	size_t Nfluid[3];
+
+	if (SCENARIO == POISEUILLE)
 	{
-		if (SCENARIO == POISEUILLE || SCENARIO == CYLINDER)
-		{
-			gravity_vector = {0.0, 0.0, 0.1};
-			gravity = sqrt(norm2(gravity_vector));
-			vw_top = {0.0, 0.0, 0.0};
-			vw_bottom = {0.0, 0.0, 0.0};
-			bc[0] = NON_PERIODIC;
-			bc[1] = NON_PERIODIC;
-			bc[2] = PERIODIC;
-			size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
-			Np_boundary[0] = Nbound_x;
-			Np_boundary[1] = 0;
-			Np_boundary[2] = 0;
-		}
-		else if (SCENARIO == COUETTE)
-		{
-			gravity_vector = {0.0, 0.0, 0.0};
-			gravity = sqrt(norm2(gravity_vector));
-			vw_top = {0.0, 0.0, 1.25};
-			vw_bottom = {0.0, 0.0, 0.0};
-			bc[0] = NON_PERIODIC;
-			bc[1] = NON_PERIODIC;
-			bc[2] = PERIODIC;
-			size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
-			Np_boundary[0] = Nbound_x;
-			Np_boundary[1] = 0;
-			Np_boundary[2] = 0;
-		}
-		else if (SCENARIO == HYDROSTATIC)
-		{
-			gravity_vector = {0.0, 0.0, -0.1};
-			gravity = sqrt(norm2(gravity_vector));
-			vw_top = {0.0, 0.0, 0.0};
-			vw_bottom = {0.0, 0.0, 0.0};
-			bc[0] = NON_PERIODIC;
-			bc[1] = NON_PERIODIC;
-			bc[2] = NON_PERIODIC;
-			size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
-			Np_boundary[0] = Nbound_x;
-			Np_boundary[1] = 0;
-			Np_boundary[2] = Nbound_x;
-		}
+		Nfluid[0] = 40;
+		Nfluid[1] = 1;
+		Nfluid[2] = 20;
+		dp = 1.0 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
-		// Number of fluid and boundary particles in the x, y and z direction
+		rho_zero = 1.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
 
-		// bc[0] = NON_PERIODIC;
-		// bc[1] = NON_PERIODIC;
-		// bc[2] = PERIODIC;
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		// offset to add to the domain box to create the correct particle positions, if non periodic it has to go from -dp/2 - Np_boundary*dp to Lx+dp/2 + Np_boundary*dp
-		double offset_domain[3];
-		// offset to add to the recipient box, if non periodic it has to go from - Np_boundary*dp  to length + Np_boundary*dp
-		double offset_recipient[3];
-		// In case of periodic boundary conditions, we need to add an asymetric offset to the right,top or front of the domain
-		double offset_periodic_fluid[3];
-		double offset_periodic_recipient[3];
+		gravity_vector = {0.0, 0.0, 0.1};
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
 
-		// non periodic situation grid of 5 fluid particles and 3 boundary particles
-		// We need a virtual grid of 5 + 2*(3+1) particles,
-		// therefore the domain is discretized with 13 grid points,
-		// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
-		// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
-		//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
-		// D: domain, o: boundary, x: fluid, --: dp distance
-		// in a periodic situation we have the following
-		// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
-		// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+		Re = umax * 1.0 / nu;
 
-		for (int dim = 0; dim < 3; dim++)
-		{
-			// non periodic, fluid covered by boundary
-			if (bc[dim] == NON_PERIODIC)
-			{
-				length[dim] = dp * Np_fluid[dim];
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = 0;
+	}
+	else if (SCENARIO == COUETTE)
+	{
+		Nfluid[0] = 40;
+		Nfluid[1] = 1;
+		Nfluid[2] = 20;
+		dp = 1.0 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
-				sz[dim] = Np_fluid[dim] + 2 * (Np_boundary[dim] + 1);
-				offset_domain[dim] = (0.5 + Np_boundary[dim]) * dp;
-				offset_periodic_fluid[dim] = 0.0;
-				offset_periodic_recipient[dim] = 0.0;
+		rho_zero = 1.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
 
-				if (Np_boundary[dim] != 0)
-					sz_aux[dim] = 2 * sz[dim] - 1;
-				else // for a direction with no boundary particles we dont need to add anything
-					sz_aux[dim] = sz[dim];
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-				if (BC_TYPE == NEW_NO_SLIP) // Np_boundary should only be 0 or 1 if we are using the new bc
-					offset_recipient[dim] = 0.25 * Np_boundary[dim] * dp;
-				else
-					offset_recipient[dim] = Np_boundary[dim] * dp;
-			}
-			// periodic, open ended
-			else
-			{
-				Np_fluid[dim] -= 1;
-				length[dim] = dp * Np_fluid[dim];
+		gravity_vector = {0.0, 0.0, 0.0};
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 1.25};
+		vw_bottom = {0.0, 0.0, 0.0};
 
-				sz[dim] = Np_fluid[dim] + 2;
-				sz_aux[dim] = sz[dim];
-				offset_domain[dim] = 0.5 * dp;
-				offset_recipient[dim] = 0.0;
-				offset_periodic_fluid[dim] = 0.75 * dp;
-				offset_periodic_recipient[dim] = 0.85 * dp;
-			}
-		}
+		umax = vw_top.get(2);
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+		Re = umax * 1.0 / nu;
 
-		// Define the boxes
-		Box<3, double> box_domain({-offset_domain[0],
-								   -offset_domain[1],
-								   -offset_domain[2]},
-								  {length[0] + offset_domain[0],
-								   length[1] + offset_domain[1],
-								   length[2] + offset_domain[2]});
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = 0;
+	}
+	else if (SCENARIO == HYDROSTATIC)
+	{
+		Nfluid[0] = 40;
+		Nfluid[1] = 1;
+		Nfluid[2] = 20;
+		dp = 1.0 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
-		Box<3, double> box_fluid({0.0,
-								  0.0,
-								  0.0},
-								 {length[0] + offset_periodic_fluid[0],
-								  length[1] + offset_periodic_fluid[1],
-								  length[2] + offset_periodic_fluid[2]});
+		rho_zero = 1.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
 
-		// Box<3, double> box_recipient({-offset_recipient[0],
-		// 							  -offset_recipient[1],
-		// 							  -offset_recipient[2]},
-		// 							 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-		// 							  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
-		// 							  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
-		double offset_recipient_top;
-		if (SCENARIO == HYDROSTATIC)
-		{
-			offset_recipient_top = offset_recipient[2]; // 0.0;
-		}
-		else
-		{
-			offset_recipient_top = offset_recipient[2];
-		}
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		Box<3, double> box_recipient({-offset_recipient[0],
-									  -offset_recipient[1],
-									  -offset_recipient[2]},
-									 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-									  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
-									  length[2] + offset_recipient_top + offset_periodic_recipient[2]});
+		gravity_vector = {0.0, 0.0, 0.1};
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
 
-		// Will only be used in the new bc
-		Box<3, double> box_recipient_hole({offset_recipient[0],
-										   offset_recipient[1],
-										   offset_recipient[2]},
-										  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
-										   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
-										   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
+		umax = 1;
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+		Re = umax * 1.0 / nu;
 
-		domain = box_domain;
-		fluid_box = box_fluid;
-		recipient = box_recipient;
-		recipient_hole = box_recipient_hole;
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = NON_PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = Nbound_x;
+	}
+	else if (SCENARIO == CYLINDER_ARRAY)
+	{
+
+		Nfluid[0] = 40;
+		Nfluid[1] = 1;
+		Nfluid[2] = 60;
+		dp = 4.0 * 0.02 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+
+		rho_zero = 1000.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
+
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+
+		gravity_vector = {0.0, 0.0, 2.5 * 1e-4};
+
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
+
+		umax = 0.01 * sqrt(gravity * 0.02);
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+
+		Re = umax * 0.02 / nu;
+
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = 0;
+	}
+	else if (SCENARIO == CYLINDER_LATTICE)
+	{
+
+		Nfluid[0] = 50;
+		Nfluid[1] = 1;
+		Nfluid[2] = 50;
+		dp = 0.1 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+
+		rho_zero = 1000.0;
+		nu = 1e-6;
+		eta = nu * rho_zero;
+
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+
+		gravity_vector = {0.0, 0.0, 1.5 * 1e-7};
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
+
+		umax = 5e-4;
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+
+		Re = umax * 0.1 / nu;
+
+		bc[0] = PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = 0;
 	}
 
-	// last position of fluid particles in z coordinate is at
-	double z_end = length[2] + 0.5 * dp;
+	// Now define the boxes and the grid of the domain
 
-	// Fill W_dap
-	W_dap = 1.0 / Wab(dp);
+	// We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
+	// offset to add to the domain box to create the correct particle positions
+	double offset_domain[3] = {0.0, 0.0, 0.0};
+	// offset to add to the recipient box, if non periodic it has to go from - Nboundary*dp  to length + Nboundary*dp
+	double offset_recipient[3] = {0.0, 0.0, 0.0};
+	// In case of periodic boundary conditions, we need to add an asymetric offset to the right, top or front of the domain
+	double offset_periodic_fluid[3] = {0.0, 0.0, 0.0};
+	// For the new BC we also need an offset
+	double offset_periodic_recipient[3] = {0.0, 0.0, 0.0};
+
+	// non periodic situation grid of 5 fluid particles and 3 boundary particles
+	// We need a virtual grid of 5 + 2*(3+1) particles,
+	// therefore the domain is discretized with 13 grid points,
+	// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
+	// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
+	//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
+	// D: domain, o: boundary, x: fluid, --: dp distance
+	// in a periodic situation we have the following
+	// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
+	// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+
+	for (int dim = 0; dim < 3; dim++)
+	{
+
+		if (bc[dim] == NON_PERIODIC) // non periodic, fluid covered by boundary
+		{
+			length[dim] = dp * Nfluid[dim];
+			sz[dim] = Nfluid[dim] + 2 * (Nboundary[dim] + 1);
+			offset_domain[dim] = (0.5 + Nboundary[dim]) * dp;
+
+			if (Nboundary[dim] != 0)
+				sz_aux[dim] = 2 * sz[dim] - 1;
+			else // for a direction with no boundary particles we dont need to add anything
+				sz_aux[dim] = sz[dim];
+
+			if (BC_TYPE == NEW_NO_SLIP) // Nboundary should only be 0 or 1 if we are using the new bc
+				offset_recipient[dim] = 0.25 * Nboundary[dim] * dp;
+			else
+				offset_recipient[dim] = Nboundary[dim] * dp;
+		}
+		else // periodic, open ended
+		{
+			Nfluid[dim] -= 1;
+			length[dim] = dp * Nfluid[dim];
+
+			sz[dim] = Nfluid[dim] + 2;
+			sz_aux[dim] = sz[dim];
+			offset_domain[dim] = 0.5 * dp;
+			offset_periodic_fluid[dim] = 0.75 * dp;
+			offset_periodic_recipient[dim] = 0.85 * dp;
+		}
+	}
+
+	// Define the boxes
+	Box<3, double> domain({-offset_domain[0],
+						   -offset_domain[1],
+						   -offset_domain[2]},
+						  {length[0] + offset_domain[0],
+						   length[1] + offset_domain[1],
+						   length[2] + offset_domain[2]});
+
+	Box<3, double> fluid_box({0.0,
+							  0.0,
+							  0.0},
+							 {length[0] + offset_periodic_fluid[0],
+							  length[1] + offset_periodic_fluid[1],
+							  length[2] + offset_periodic_fluid[2]});
+
+	Box<3, double> recipient({-offset_recipient[0],
+							  -offset_recipient[1],
+							  -offset_recipient[2]},
+							 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+							  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
+							  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
+
+	// Will only be used in the new bc
+	Box<3, double> recipient_hole({offset_recipient[0],
+								   offset_recipient[1],
+								   offset_recipient[2]},
+								  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
+								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
 
 	// extended boundary around the domain, and the processor domain
 	Ghost<3, double> g(r_threshold + H);
 
+	// create particle object
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
-	// return an iterator to the fluid particles to add to vd
-	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
-
-	// Fill needed constants
-	double L = length[0];
-	double umax;
+	// Write constants on file
+	WriteParameters(Nfluid, length);
 
 	Point<3, double> Cylinder_centre{length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
 	double Cylinder_radius = 10.0 * H;
 
-	if (SCENARIO == POISEUILLE)
-	{
-		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
-	}
-	else if (SCENARIO == CYLINDER)
-	{
-		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
-	}
-	else if (SCENARIO == COUETTE)
-	{
-		umax = vw_top.get(2);
-	}
-	else if (SCENARIO == HYDROSTATIC)
-	{
-		umax = 1;
-	}
-
-	cbar = coeff_sound * umax;
-	B = cbar * cbar * rho_zero / gamma_;
-	Pbackground = B * Bfactor;
-	double Re = L * umax / nu;
-
-	std::string reynolds_size_name = "Re" + std::to_string(Re) + "_" + std::to_string(Np_fluid[0]) + "_" + std::to_string(Np_fluid[2]);
-	SetFilename(filename, reynolds_size_name);
-
-	std::string constants_filename = filename + "_Constants_" + ".txt";
-	std::ofstream file(constants_filename);
-	file << "gravity_x:  " << gravity_vector.get(0) << std::endl;
-	file << "gravity_y:  " << gravity_vector.get(1) << std::endl;
-	file << "gravity_z:  " << gravity_vector.get(2) << std::endl;
-	file << "Re: " << Re << std::endl;
-	file << "L: " << L << std::endl;
-	file << "nu: " << nu << std::endl;
-	file << "umax: " << umax << std::endl;
-	file << "alpha: " << visco << std::endl;
-	file << "cbar: " << cbar << std::endl;
-	file << "B: " << B << std::endl;
-	file << "Pbackground: " << Pbackground << std::endl;
-	file << "rho_zero: " << rho_zero << std::endl;
-	file << "gamma: " << gamma_ << std::endl;
-	file << "dp: " << dp << std::endl;
-	file << "xi: " << xi << std::endl;
-	file << "H: " << H << std::endl;
-	file << "H/dp: " << H / dp << std::endl;
-	file << "CFLnumber: " << CFLnumber << std::endl;
-	file << "BC_TYPE: " << BC_TYPE << std::endl;
-	file << "SCENARIO: " << SCENARIO << std::endl;
-	file << "KERNEL: " << KERNEL << std::endl;
-	file << "DENSITY_TYPE: " << DENSITY_TYPE << std::endl;
-	file << "MassOld: " << MassOld << std::endl;
-	file << "MassFluid_OLD: " << MassFluid << std::endl;
-	file << "MassBoundary_OLD: " << MassBound << std::endl;
-
-	if (SCENARIO == CYLINDER)
+	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
 	{
 		if (BC_TYPE == NEW_NO_SLIP)
 		{
-
-			double perimeter = 2.0 * M_PI * Cylinder_radius;
-			int Np_cylinder = ceil(perimeter / dp);
-			double dtheta = 2.0 * M_PI / Np_cylinder;
-			dxwall = dtheta * Cylinder_radius;
-			double theta = 0.0;
-
-			while (theta < 2 * M_PI)
-			{
-				Point<3, double> cylinder_particle{Cylinder_centre.get(0) + Cylinder_radius * cos(theta), Cylinder_centre.get(1), Cylinder_centre.get(2) + Cylinder_radius * sin(theta)};
-				Point<3, double> normal = {cos(theta), 0.0, sin(theta)};
-				vd.add();
-				vd.getLastPos()[0] = cylinder_particle.get(0);
-				vd.getLastPos()[1] = cylinder_particle.get(1);
-				vd.getLastPos()[2] = cylinder_particle.get(2);
-				vd.template getLastProp<type>() = BOUNDARY;
-				vd.template getLastProp<pressure>() = 0.0;
-				vd.template getLastProp<rho>() = rho_zero;
-				vd.template getLastProp<drho>() = 0.0;
-				vd.template getLastProp<velocity>()[0] = 0.0;
-				vd.template getLastProp<velocity>()[1] = 0.0;
-				vd.template getLastProp<velocity>()[2] = 0.0;
-				vd.template getLastProp<force>()[0] = 0.0;
-				vd.template getLastProp<force>()[1] = 0.0;
-				vd.template getLastProp<force>()[2] = 0.0;
-				vd.template getLastProp<force_transport>()[0] = 0.0;
-				vd.template getLastProp<force_transport>()[1] = 0.0;
-				vd.template getLastProp<force_transport>()[2] = 0.0;
-				vd.template getLastProp<v_transport>()[0] = 0.0;
-				vd.template getLastProp<v_transport>()[1] = 0.0;
-				vd.template getLastProp<v_transport>()[2] = 0.0;
-				vd.template getLastProp<normal_vector>()[0] = normal.get(0);
-				vd.template getLastProp<normal_vector>()[1] = normal.get(1);
-				vd.template getLastProp<normal_vector>()[2] = normal.get(2);
-				vd.template getLastProp<curvature_boundary>() = 1.0 / Cylinder_radius;
-				vd.template getLastProp<arc_length>() = dxwall;
-				theta += dtheta;
-			}
+			AddCylinderNewBC(vd, Cylinder_centre, Cylinder_radius);
 		}
 	}
 
 	Sphere<3, double> Cylinder(Cylinder_centre, Cylinder_radius);
 	Sphere<3, double> Cylinder_aux(Cylinder_centre, Cylinder_radius + 0.3 * dp);
 	Sphere<3, double> *Cylinder_ptr = nullptr;
+
 	if (BC_TYPE == NEW_NO_SLIP)
 	{
 		Cylinder_ptr = &Cylinder_aux;
@@ -1562,13 +1604,19 @@ int main(int argc, char *argv[])
 		Cylinder_ptr = &Cylinder;
 	}
 
-	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
+	const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
+	const double Lx = length[0] + 0.5 * dp; // channel height
+
+	// return an iterator to the fluid particles to add to vd
+	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
+
 	// for each particle inside the fluid box ...
 	while (fluid_it.isNext())
 	{
 
 		Point<3, double> iterator_posion = fluid_it.get();
-		if (SCENARIO == CYLINDER)
+
+		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
 		{
 			if ((*Cylinder_ptr).isInside(iterator_posion)) // if inside the cylinder region
 			{
@@ -1591,47 +1639,34 @@ int main(int argc, char *argv[])
 				vd.template getLastProp<type>() = FLUID;
 			}
 		}
-		else // if no cylinder at all
+		else // if no cylinder at all just add fluid particles
 		{
 			// ... add a particle ...
 			vd.add();
 			vd.template getLastProp<type>() = FLUID;
 		}
 
-		// ... and set it position ...
-		vd.getLastPos()[0] = iterator_posion.get(0);
-		vd.getLastPos()[1] = iterator_posion.get(1);
-
-		if (iterator_posion.get(2) == z_end)
-		{
-			vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
-		}
+		// Set position
+		// If periodic bc, we substract a small value to the last particle so that its not exactly at the boundary
+		// otherwise we can get holes in the fluid region
+		if (bc[0] == PERIODIC && iterator_posion.get(2) == Lx)
+			vd.getLastPos()[0] = iterator_posion.get(0) - 1e-10 * dp;
 		else
-		{
+			vd.getLastPos()[0] = iterator_posion.get(0);
+		vd.getLastPos()[1] = iterator_posion.get(1);
+		if (iterator_posion.get(2) == Lz)
+			vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
+		else
 			vd.getLastPos()[2] = iterator_posion.get(2);
-		}
 
-		// and its type.
-
-		// We also initialize the density of the particle and the hydro-static pressure given by
-		//
-		// rho_zero*g*h = P
-		//
-		// rho_p = (P/B + 1)^(1/Gamma) * rho_zero
-		//
-
-		vd.template getLastProp<pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * fluid_it.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
+		// Set properties
+		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<drho>() = 0.0;
 
-		vd.template getLastProp<velocity>()[0] = initial_perturbation * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
+		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = initial_perturbation * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
-		// profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
-
-		// initial_perturbation * (-1.0 + (double)2.0 * rand() / RAND_MAX) * (L - std::abs(fluid_it.get().get(0) - L / 2.0));
-
-		// profile_parameter * fluid_it.get().get(0) * (L - fluid_it.get().get(0));
+		vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
@@ -1645,14 +1680,19 @@ int main(int argc, char *argv[])
 		vd.template getLastProp<v_transport>()[1] = 0.0;
 		vd.template getLastProp<v_transport>()[2] = 0.0;
 
-		// profile_parameter *fluid_it.get().get(0) * (L - fluid_it.get().get(0));
+		// Not needed but filled anyway
+		vd.template getLastProp<normal_vector>()[0] = 0.0;
+		vd.template getLastProp<normal_vector>()[1] = 0.0;
+		vd.template getLastProp<normal_vector>()[2] = 0.0;
+
+		vd.template getLastProp<curvature_boundary>() = 0.0;
+		vd.template getLastProp<arc_length>() = 0.0;
 
 		// next fluid particle
 		++fluid_it;
 	}
 
-	// Recipient
-
+	// Now place solid particles
 	openfpm::vector<Box<3, double>> holes;
 
 	if (BC_TYPE == NEW_NO_SLIP)
@@ -1662,54 +1702,64 @@ int main(int argc, char *argv[])
 		sz[1] = sz_aux[1];
 		sz[2] = sz_aux[2];
 	}
-	else
+	else if (BC_TYPE == NO_SLIP)
 	{
 		holes.add(fluid_box);
 	}
+
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 	double epsilon = 0.001;
 
-	while (bound_box.isNext())
+	if (SCENARIO != CYLINDER_LATTICE) // no walls in this scenario
 	{
-		Point<3, double> position = bound_box.get();
-
-		// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
-		// When running on multiple cores, with this we check if particle is outside the recipient box
-		// Another bug places boundary particles in the correct plane, but inside the fluid box;
-		if ((!recipient.isInside((position))))
+		while (bound_box.isNext())
 		{
-			++bound_box;
-			continue;
-		}
+			Point<3, double> position = bound_box.get();
 
-		// if ((fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon)))
-		// {
-		// 	++bound_box;
-		// 	continue;
-		// }
-
-		vd.add();
-
-		vd.getLastPos()[0] = bound_box.get().get(0);
-		vd.getLastPos()[1] = bound_box.get().get(1);
-		vd.getLastPos()[2] = bound_box.get().get(2);
-
-		vd.template getLastProp<type>() = BOUNDARY;
-		vd.template getLastProp<rho>() = rho_zero;
-		vd.template getLastProp<pressure>() = 0.0; // rho_zero * gravity_vector.get(2) * bound_box.get().get(2) - rho_zero * gravity_vector.get(2) * length[2] / 2.0;
-		vd.template getLastProp<drho>() = 0.0;
-
-		vd.template getLastProp<force>()[0] = 0.0;
-		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
-
-		if (bound_box.get().get(0) < dp / 2.0) // bottom wall
-		{
-			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
-			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
-			vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
-			if (BC_TYPE == NEW_NO_SLIP)
+			// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+			// When running on multiple cores, with this we check if particle is outside the recipient box
+			// Another bug places boundary particles in the correct plane, but inside the fluid box;
+			if ((!recipient.isInside((position))))
 			{
+				++bound_box;
+				continue;
+			}
+
+			// if ((fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon)))
+			// {
+			// 	++bound_box;
+			// 	continue;
+			// }
+
+			vd.add();
+
+			vd.getLastPos()[0] = bound_box.get().get(0);
+			vd.getLastPos()[1] = bound_box.get().get(1);
+			vd.getLastPos()[2] = bound_box.get().get(2);
+
+			vd.template getLastProp<type>() = BOUNDARY;
+			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<pressure>() = 0.0;
+			vd.template getLastProp<drho>() = 0.0;
+
+			vd.template getLastProp<force>()[0] = 0.0;
+			vd.template getLastProp<force>()[1] = 0.0;
+			vd.template getLastProp<force>()[2] = 0.0;
+
+			vd.template getLastProp<force_transport>()[0] = 0.0;
+			vd.template getLastProp<force_transport>()[1] = 0.0;
+			vd.template getLastProp<force_transport>()[2] = 0.0;
+
+			vd.template getLastProp<v_transport>()[0] = 0.0;
+			vd.template getLastProp<v_transport>()[1] = 0.0;
+			vd.template getLastProp<v_transport>()[2] = 0.0;
+
+			if (bound_box.get().get(0) < dp / 2.0) // bottom wall
+			{
+				vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
+				vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
+				vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
+
 				vd.template getLastProp<normal_vector>()[0] = 1.0;
 				vd.template getLastProp<normal_vector>()[1] = 0.0;
 				vd.template getLastProp<normal_vector>()[2] = 0.0;
@@ -1718,14 +1768,12 @@ int main(int argc, char *argv[])
 
 				vd.template getLastProp<arc_length>() = dp;
 			}
-		}
-		else if (bound_box.get().get(0) > length[0] - dp / 2.0) // top wall
-		{
-			vd.template getLastProp<velocity>()[0] = vw_top.get(0);
-			vd.template getLastProp<velocity>()[1] = vw_top.get(1);
-			vd.template getLastProp<velocity>()[2] = vw_top.get(2);
-			if (BC_TYPE == NEW_NO_SLIP)
+			else if (bound_box.get().get(0) > length[0] - dp / 2.0) // top wall
 			{
+				vd.template getLastProp<velocity>()[0] = vw_top.get(0);
+				vd.template getLastProp<velocity>()[1] = vw_top.get(1);
+				vd.template getLastProp<velocity>()[2] = vw_top.get(2);
+
 				vd.template getLastProp<normal_vector>()[0] = -1.0;
 				vd.template getLastProp<normal_vector>()[1] = 0.0;
 				vd.template getLastProp<normal_vector>()[2] = 0.0;
@@ -1734,23 +1782,25 @@ int main(int argc, char *argv[])
 
 				vd.template getLastProp<arc_length>() = dp;
 			}
+
+			++bound_box;
 		}
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
-
-		vd.template getLastProp<v_transport>()[0] = 0.0;
-		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
-
-		++bound_box;
-		// std::cout << "Boundary particle " << count << " at position x=" << vd.getLastPos()[0] << " y=" << vd.getLastPos()[1] << " z=" << vd.getLastPos()[2] << std::endl;
 	}
-	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport", "v_transport", "normal", "curvature"});
-	vd.setPropNames(names);
+	return vd;
+}
 
+int main(int argc, char *argv[])
+{
+
+	// initialize the library
+	openfpm_init(&argc, &argv);
+
+	particles vd = CreateParticleGeometry();
 	vd.map();
+	std::cout << "H: " << H << "  dp: " << dp << "  r_threshold: " << r_threshold << std::endl;
+	std::cout << "eta: " << eta << "  nu: " << nu << "  rho_zero: " << rho_zero << std::endl;
+	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport", "v_transport", "normal", "curvature", "arc_length"});
+	vd.setPropNames(names);
 
 	// Now that we fill the vector with particles
 	ModelCustom md;
@@ -1768,10 +1818,6 @@ int main(int argc, char *argv[])
 	// 	// Adjust mass to have the correct density
 	// 	fix_mass(vd, NN);
 	// }
-
-	file << "MassFluid: " << MassFluid << std::endl;
-	file << "MassBoundary: " << MassBound << std::endl;
-	file << "dxwall: " << dxwall << std::endl;
 
 	// Evolve
 	size_t write = 0;

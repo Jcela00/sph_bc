@@ -22,4 +22,4 @@ run: sph_dlb
 .PHONY: clean all run run_test
 
 clean:
-	rm -f *.o *~ core sph_dlb sph_dlb_test *.vtp *.pvtp
+	rm -f *.o *~ core sph_dlb sph_dlb_test *.vtp *.pvtp *.txt
