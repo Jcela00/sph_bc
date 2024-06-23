@@ -34,7 +34,7 @@ const int dimensions = 2;
 const int BC_TYPE = NEW_NO_SLIP;
 const int SCENARIO = CYLINDER;
 const int KERNEL = QUINTIC;
-const int DENSITY_TYPE = DENSITY_SUMMATION;
+const int DENSITY_TYPE = DENSITY_DIFFERENTIAL;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
 
 // Output file name, filled later
@@ -112,6 +112,8 @@ const double initial_perturbation = 0.0;
 double Pbackground = 10; // filled later
 const double Bfactor = 5.0;
 
+double dxwall = 0.0; // filled later
+
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// TIME CONSTANTS //////////////////////////////////////////////////////////////
@@ -122,7 +124,7 @@ const double CFLnumber = 0.1;
 // Minimum T
 const double DtMin = 0.00001;
 // Controls otput file frequency, low means less frequent
-const int write_const = 10;
+const int write_const = 100;
 ////////////////////////////////////////////////////////////////////////////////////
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
@@ -147,11 +149,13 @@ const int v_transport = 7;
 const int normal_vector = 8;
 // curvature
 const int curvature_boundary = 9;
+// arc length wall
+const int arc_length = 10;
 
-typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[3], double[3], double[3], double[3], double[3], double>> particles;
-//                                       |         |     |        |        |        |           |		     |             |		|
-//                                       |         |     |        |        |        |           |		     |			   |		|
-//                                    type        rho   pressure delta   force     velocity   pb force   v_transport    normal	curvature
+typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[3], double[3], double[3], double[3], double[3], double, double>> particles;
+//                                       |         |     |        |        |        |           |		     |             |		|       |
+//                                       |         |     |        |        |        |           |		     |			   |		|       |
+//                                    type        rho   pressure delta   force     velocity   pb force   v_transport    normal	curvature   arc_length
 //                                                              density
 // TEMPLATE TO SYNC ALL
 // vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary>();
@@ -200,9 +204,13 @@ inline void EqState(particles &vd)
 }
 
 // Inverted equation of state, compute density given pressure, particle wise
-inline double InvEqState(const double pressure)
+inline double InvEqState_particle(const double pressure)
 {
 	return rho_zero * std::pow(((pressure - xi) / B + 1.0), 1.0 / gamma_);
+}
+inline double EqState_particle(const double rho)
+{
+	return B * (std::pow(rho / rho_zero, gamma_) - 1.0) + xi;
 }
 
 // Vector utilities
@@ -352,7 +360,7 @@ inline double PressureForce(const double &rhoa, const double &rhob, const double
 	return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob); // / 1.44;
 }
 
-std::array<Point<3, double>, 3> GetDummyPositions(const Point<3, double> &r, const Point<3, double> &normal)
+std::array<Point<3, double>, 3> GetBoundaryPositions(const Point<3, double> &r, const Point<3, double> &normal)
 {
 	// aplies offset to a vector and returns the vectors pointing at the dummy wall particles
 
@@ -448,7 +456,7 @@ void fix_mass(particles &vd, CellList &NN)
 							Point<3, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
-							std::array<Point<3, double>, 3> R_dummy = GetDummyPositions(-1.0 * dr, normal);
+							std::array<Point<3, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 
 							const Point<3, double> r1 = R_dummy[0];
 							const Point<3, double> r2 = R_dummy[1];
@@ -565,7 +573,7 @@ void calc_density(particles &vd, CellList &NN)
 							Point<3, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
-							std::array<Point<3, double>, 3> R_dummy = GetDummyPositions(-1.0 * dr, normal);
+							std::array<Point<3, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 
 							const Point<3, double> r1 = R_dummy[0];
 							const Point<3, double> r2 = R_dummy[1];
@@ -703,7 +711,7 @@ void calc_boundary(particles &vd, CellList &NN)
 				// Set the pressure of the boundary particle b
 				vd.template getProp<pressure>(b) = sum_pW / sum_W;
 				// Compute density from inverted Eq of state
-				vd.template getProp<rho>(b) = InvEqState(vd.template getProp<pressure>(b));
+				vd.template getProp<rho>(b) = InvEqState_particle(vd.template getProp<pressure>(b));
 			}
 			else
 			{
@@ -757,6 +765,9 @@ void interact_fluid_boundary_new(particles &vd,
 								 unsigned long &boundary_key)
 {
 
+	// Points from fluid to wall
+	Point<3, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
+
 	const double massw = MassBound;
 	const double rhow = vd.getProp<rho>(boundary_key);
 	const double Pw = vd.getProp<pressure>(boundary_key);
@@ -764,15 +775,7 @@ void interact_fluid_boundary_new(particles &vd,
 	const Point<3, double> vtf = vd.getProp<v_transport>(fluid_key);
 	const Point<3, double> vdiff_f = vtf - vf;
 
-	// xw.get(0) this is the x coordinate of the wall
-	// bool is_bottom_wall = (xw.get(0) < dp ? true : false);
-	// Point<3, double> normal = (is_bottom_wall ? normal_bottom_wall : -1.0 * normal_bottom_wall);
-	// Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
-	// if (!is_bottom_wall)
-	// {
-	// 	tangential.get(2) = -tangential.get(2);
-	// }
-
+	// Get normal vector
 	Point<3, double> normal = vd.getProp<normal_vector>(boundary_key);
 	Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
 	if (tangential.get(2) < 0.0)
@@ -780,120 +783,77 @@ void interact_fluid_boundary_new(particles &vd,
 		tangential.get(2) = -tangential.get(2);
 	}
 
-	double curvature = vd.getProp<curvature_boundary>(boundary_key);
-	Point<3, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid; // Points to wall from fluid
-	// r_fluid_to_wall.get(1) = 0.0;
-
-	// double vt = (vf.get(0) * tangential.get(0) + vf.get(1) * tangential.get(1) + vf.get(2) * tangential.get(2));
-	// double vn = (vf.get(0) * normal.get(0) + vf.get(1) * normal.get(1) + vf.get(2) * normal.get(2));
+	// get curvature, and arc length
+	double kappa = vd.getProp<curvature_boundary>(boundary_key);
+	double dxwall = vd.getProp<arc_length>(boundary_key);
 
 	// Project va on tangential and normal directions
 	double vt = dotProduct(vf, tangential);
 	double vn = dotProduct(vf, normal);
 
-	double lf = dotProduct(r_fluid_to_wall, normal); // vertical distance from fluid particle to wall
-	lf = (lf < 0.0 ? -1.0 * lf : lf);				 // absolute value
+	// vertical distance from fluid particle to wall
+	double lf = dotProduct(r_fluid_to_wall, normal);
+	lf = (lf < 0.0 ? -1.0 * lf : lf); // absolute value
 
-	std::array<Point<3, double>, 3> r_dummy = GetDummyPositions(r_fluid_to_wall, normal);
+	// Get array of vectors from fluid to boundary particles, get norm, and get normal distance to wall
+	std::array<Point<3, double>, 3> r_boundary = GetBoundaryPositions(r_fluid_to_wall, normal);
+	std::array<double, 3> r_boundary_norm = {sqrt(norm2(r_boundary[0])), sqrt(norm2(r_boundary[1])), sqrt(norm2(r_boundary[2]))};
+	std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
 
-	const Point<3, double> r1 = r_dummy[0]; // Vector from fluid particle to first dummy particle
-	double r1_norm = sqrt(norm2(r1));		// Norm of r1
-	double lw1 = 0.5 * dp;					// Distance from wall to first dummy particle
-
-	const Point<3, double> r2 = r_dummy[1]; // Vector from fluid particle to second dummy particle
-	double r2_norm = sqrt(norm2(r2));		// Norm of r2
-	double lw2 = 1.5 * dp;					// Distance from wall to second dummy particle
-
-	const Point<3, double> r3 = r_dummy[2]; // Vector from fluid particle to third dummy particle
-	double r3_norm = sqrt(norm2(r3));		// Norm of r3
-	double lw3 = 2.5 * dp;					// Distance from wall to third dummy particle
-
-	Point<3, double> v1 = {0.0, 0.0, 0.0}; // Velocity of first dummy particle
-	Point<3, double> v2 = {0.0, 0.0, 0.0}; // Velocity of second dummy particle
-	Point<3, double> v3 = {0.0, 0.0, 0.0}; // Velocity of third dummy particle
-	double p1, p2, p3;					   // Pressure of the dummy particles
-	double rho1, rho2, rho3;			   // Density of the dummy particles
-
-	std::array<double, 3> p_dummy = {0.0, 0.0, 0.0};
-	std::array<double, 3> rho_dummy = {0.0, 0.0, 0.0};
-	std::array<Point<3, double>, 3> DW_dummy = {Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}};
-	std::array<Point<3, double>, 3> v_dummy = {Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}};
+	// Initialize arrays for boundary particles
+	std::array<double, 3> p_boundary = {0.0, 0.0, 0.0};
+	std::array<double, 3> rho_boundary = {0.0, 0.0, 0.0};
+	std::array<Point<3, double>, 3> v_boundary = {Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}};
+	std::array<Point<3, double>, 3> DW_boundary = {Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}};
+	std::array<double, 3> Volume_boundary = {0.0, 0.0, 0.0};
 
 	double g_normal = dotProduct(gravity_vector, normal);
-	int nonzeros = 0;
-	if (r1_norm < r_threshold)
-	{
-		v1 = 2.0 * vw - vt * (lw1 / lf) * tangential - vn * (lw1 / lf) * normal;
-		p1 = Pf + rhof * g_normal * (lf + lw1);
-		rho1 = InvEqState(p1);
 
-		r_dummy[0] = -1.0 * r_dummy[0]; // Force routines use the vector pointing from b to a
-		Point<3, double> DW = DWab(r_dummy[0], r1_norm);
-
-		p_dummy[0] = p1;
-		rho_dummy[0] = rho1;
-		v_dummy[0] = v1;
-		DW_dummy[0] = DW;
-
-		nonzeros++;
-	}
-	else if (r2_norm < r_threshold)
-	{
-		v2 = 2.0 * vw - vt * (lw2 / lf) * tangential - vn * (lw2 / lf) * normal;
-		p2 = Pf + rhof * g_normal * (lf + lw2);
-		rho2 = InvEqState(p2);
-
-		r_dummy[1] = -1.0 * r_dummy[1];
-		Point<3, double> DW = DWab(r_dummy[1], r2_norm);
-
-		p_dummy[1] = p2;
-		rho_dummy[1] = rho2;
-		v_dummy[1] = v2;
-		DW_dummy[1] = DW;
-
-		nonzeros++;
-	}
-	else if (r3_norm < r_threshold)
-	{
-		v3 = 2.0 * vw - vt * (lw3 / lf) * tangential - vn * (lw3 / lf) * normal;
-		p3 = Pf + rhof * g_normal * (lf + lw3);
-		rho3 = InvEqState(p3);
-
-		r_dummy[2] = -1.0 * r_dummy[2];
-		Point<3, double> DW = DWab(r_dummy[2], r3_norm);
-
-		p_dummy[2] = p3;
-		rho_dummy[2] = rho3;
-		v_dummy[2] = v3;
-		DW_dummy[2] = DW;
-
-		nonzeros++;
-	}
-
+	size_t interact_count = 0;
 	const double GradATerm = 0.5 * (rhof * dotProduct(vf, vdiff_f));
 
-	for (size_t layer = 0; layer < nonzeros; layer++)
+	for (int i = 0; i < 3; i++)
 	{
-		Point<3, double> v_rel = vf - v_dummy[layer];
-		Point<3, double> DW = DW_dummy[layer];
-		const double Va2 = (massf / rhof) * (massf / rhof);
-		const double Vb2 = (MassBound / rho_dummy[layer]) * (MassBound / rho_dummy[layer]);
-
-		Point<3, double> ViscosityTerm = Pi_physical(r_dummy[layer], sqrt(norm2(r_dummy[layer])), v_rel, DW_dummy[layer]);
-		double PressureTerm = PressureForce(rhof, rho_dummy[layer], Pf, p_dummy[layer]);
-
-		vd.getProp<force>(fluid_key)[0] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(0) + ViscosityTerm.get(0)) / massf;
-		vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(1) + ViscosityTerm.get(1)) / massf;
-		vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(2) + ViscosityTerm.get(2)) / massf;
-
-		vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
-		vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
-		vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
-
-		if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+		if (r_boundary_norm[i] < r_threshold)
 		{
-			// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(vf, DW);
-			vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW);
+
+			// compute volume of boundary particle, this gives density and pressure
+			Volume_boundary[i] = 0.5 * (2.0 * dp + dp * dp * kappa - 2 * (i + 1) * dp * dp * kappa) * dxwall;
+			// rho_boundary[i] = MassBound / Volume_boundary[i];
+			// p_boundary[i] = EqState_particle(rho_boundary[i]);
+
+			// compute velocity of boundary particle
+			v_boundary[i] = 2.0 * vw - vt * (lwall[i] / lf) * tangential - vn * (lwall[i] / lf) * normal;
+			p_boundary[i] = Pf + rhof * g_normal * (lf + lwall[i]);
+			rho_boundary[i] = InvEqState_particle(p_boundary[i]);
+
+			// flip sing of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+			r_boundary[i] = -1.0 * r_boundary[i];
+
+			// Evaluate kernel gradient
+			DW_boundary[i] = DWab(r_boundary[i], r_boundary_norm[i]);
+			const Point<3, double> DW = DW_boundary[i];
+
+			// Compute forces
+			const Point<3, double> v_rel = vf - v_boundary[i];
+			const double Va2 = (massf / rhof) * (massf / rhof);
+			const double Vb2 = Volume_boundary[i] * Volume_boundary[i];
+
+			const Point<3, double> ViscosityTerm = Pi_physical(r_boundary[i], sqrt(norm2(r_boundary[i])), v_rel, DW_boundary[i]);
+			const double PressureTerm = PressureForce(rhof, rho_boundary[i], Pf, p_boundary[i]);
+			vd.getProp<force>(fluid_key)[0] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(0) + ViscosityTerm.get(0)) / massf;
+			vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(1) + ViscosityTerm.get(1)) / massf;
+			vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * ((GradATerm + PressureTerm) * DW.get(2) + ViscosityTerm.get(2)) / massf;
+
+			vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
+			vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
+			vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
+
+			if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+			{
+				// vd.getProp<drho>(fluid_key) += MassBound * dotProduct(vf, DW);
+				vd.getProp<drho>(fluid_key) += MassBound * dotProduct(v_rel, DW);
+			}
 		}
 	}
 }
@@ -1186,19 +1146,19 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 	}
 	vd.map();
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	if (DENSITY_TYPE == DENSITY_SUMMATION)
 		calc_density(vd, NN);
 
 	// Calculate pressure from the density
 	EqState(vd);
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
-		vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+		vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 	}
 	calc_forces(vd, NN);
 
@@ -1232,7 +1192,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 		++part2;
 	}
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	// increment the iteration counter
 	cnt++;
@@ -1310,7 +1270,7 @@ int main(int argc, char *argv[])
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
 	size_t sz_aux[3];
 	size_t Np_boundary[3];
-	size_t Np_fluid[3] = {40, 1, 40};
+	size_t Np_fluid[3] = {40, 1, 60};
 
 	if (SCENARIO == POISEUILLE || SCENARIO == COUETTE || SCENARIO == HYDROSTATIC || SCENARIO == CYLINDER)
 	{
@@ -1384,10 +1344,11 @@ int main(int argc, char *argv[])
 
 		for (int dim = 0; dim < 3; dim++)
 		{
-			length[dim] = dp * Np_fluid[dim];
 			// non periodic, fluid covered by boundary
 			if (bc[dim] == NON_PERIODIC)
 			{
+				length[dim] = dp * Np_fluid[dim];
+
 				sz[dim] = Np_fluid[dim] + 2 * (Np_boundary[dim] + 1);
 				offset_domain[dim] = (0.5 + Np_boundary[dim]) * dp;
 				offset_periodic_fluid[dim] = 0.0;
@@ -1406,6 +1367,9 @@ int main(int argc, char *argv[])
 			// periodic, open ended
 			else
 			{
+				Np_fluid[dim] -= 1;
+				length[dim] = dp * Np_fluid[dim];
+
 				sz[dim] = Np_fluid[dim] + 2;
 				sz_aux[dim] = sz[dim];
 				offset_domain[dim] = 0.5 * dp;
@@ -1485,7 +1449,14 @@ int main(int argc, char *argv[])
 	double L = length[0];
 	double umax;
 
-	if (SCENARIO == POISEUILLE || SCENARIO == CYLINDER)
+	Point<3, double> Cylinder_centre{length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
+	double Cylinder_radius = 10.0 * H;
+
+	if (SCENARIO == POISEUILLE)
+	{
+		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
+	}
+	else if (SCENARIO == CYLINDER)
 	{
 		umax = gravity_vector.get(2) * L * L / (8.0 * nu);
 	}
@@ -1534,20 +1505,15 @@ int main(int argc, char *argv[])
 	file << "MassFluid_OLD: " << MassFluid << std::endl;
 	file << "MassBoundary_OLD: " << MassBound << std::endl;
 
-	// for each particle inside the fluid box ...
-	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
-	Point<3, double> Cylinder_centre{length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
-	double Cylinder_radius = 3.5 * H;
-
 	if (SCENARIO == CYLINDER)
 	{
 		if (BC_TYPE == NEW_NO_SLIP)
 		{
-			Cylinder_radius += 0.5 * dp;
 
 			double perimeter = 2.0 * M_PI * Cylinder_radius;
 			int Np_cylinder = ceil(perimeter / dp);
 			double dtheta = 2.0 * M_PI / Np_cylinder;
+			dxwall = dtheta * Cylinder_radius;
 			double theta = 0.0;
 
 			while (theta < 2 * M_PI)
@@ -1577,22 +1543,34 @@ int main(int argc, char *argv[])
 				vd.template getLastProp<normal_vector>()[0] = normal.get(0);
 				vd.template getLastProp<normal_vector>()[1] = normal.get(1);
 				vd.template getLastProp<normal_vector>()[2] = normal.get(2);
-				vd.template getLastProp<curvature_boundary>() = 0.0;
+				vd.template getLastProp<curvature_boundary>() = 1.0 / Cylinder_radius;
+				vd.template getLastProp<arc_length>() = dxwall;
 				theta += dtheta;
 			}
 		}
 	}
 
 	Sphere<3, double> Cylinder(Cylinder_centre, Cylinder_radius);
+	Sphere<3, double> Cylinder_aux(Cylinder_centre, Cylinder_radius + 0.3 * dp);
+	Sphere<3, double> *Cylinder_ptr = nullptr;
+	if (BC_TYPE == NEW_NO_SLIP)
+	{
+		Cylinder_ptr = &Cylinder_aux;
+	}
+	else
+	{
+		Cylinder_ptr = &Cylinder;
+	}
 
+	const double profile_parameter = gravity_vector.get(2) / (2.0 * nu);
+	// for each particle inside the fluid box ...
 	while (fluid_it.isNext())
 	{
 
 		Point<3, double> iterator_posion = fluid_it.get();
-
 		if (SCENARIO == CYLINDER)
 		{
-			if (Cylinder.isInside(iterator_posion)) // if inside the cylinder region
+			if ((*Cylinder_ptr).isInside(iterator_posion)) // if inside the cylinder region
 			{
 				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
 				{
@@ -1737,6 +1715,8 @@ int main(int argc, char *argv[])
 				vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
 			}
 		}
 		else if (bound_box.get().get(0) > length[0] - dp / 2.0) // top wall
@@ -1751,6 +1731,8 @@ int main(int argc, char *argv[])
 				vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
 			}
 		}
 
@@ -1777,7 +1759,7 @@ int main(int argc, char *argv[])
 	vd.getDecomposition().decompose();
 	vd.map();
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	auto NN = vd.getCellList(r_threshold + H);
 
@@ -1789,6 +1771,7 @@ int main(int argc, char *argv[])
 
 	file << "MassFluid: " << MassFluid << std::endl;
 	file << "MassBoundary: " << MassBound << std::endl;
+	file << "dxwall: " << dxwall << std::endl;
 
 	// Evolve
 	size_t write = 0;
@@ -1798,15 +1781,15 @@ int main(int argc, char *argv[])
 
 	// Compute forces for the first iteration
 
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	if (BC_TYPE == NO_SLIP)
 	{
 		calc_boundary(vd, NN);
 	}
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 	calc_forces(vd, NN);
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	while (t <= t_end)
 	{
@@ -1844,7 +1827,7 @@ int main(int argc, char *argv[])
 
 			vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary>();
+			vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 			write++;
 			if (v_cl.getProcessUnitID() == 0)
