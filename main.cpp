@@ -18,6 +18,8 @@
 #define HYDROSTATIC 2
 #define CYLINDER_ARRAY 3
 #define CYLINDER_LATTICE 4
+#define CYLINDER_ARRAY_2 5
+#define TEST 6
 
 // TYPE OF KERNERL
 #define CUBIC 0
@@ -33,7 +35,7 @@ const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CYLINDER_LATTICE;
+const int SCENARIO = TEST;
 const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -99,7 +101,7 @@ const double CFLnumber = 0.5;
 // Minimum T
 const double DtMin = 0.00001;
 // Controls otput file frequency, low means less frequent
-const int write_const = 10;
+const int write_const = 500;
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
 // Properties
@@ -144,7 +146,7 @@ struct ModelCustom
 		if (vd.template getProp<type>(p) == FLUID)
 			dec.addComputationCost(v, 4);
 		else
-			dec.addComputationCost(v, 3);
+			dec.addComputationCost(v, 4);
 	}
 
 	template <typename Decomposition>
@@ -1271,7 +1273,7 @@ void AddCylinderNewBC(particles &vd, Point<3, double> Cylinder_centre, double Cy
 	}
 }
 
-particles CreateParticleGeometry()
+particles CreateParticleGeometry(Vcluster<> &v_cl)
 {
 
 	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
@@ -1294,6 +1296,8 @@ particles CreateParticleGeometry()
 
 	// Number of fluid particles in each direction
 	size_t Nfluid[3];
+
+	double Cylinder_radius;
 
 	if (SCENARIO == POISEUILLE)
 	{
@@ -1412,26 +1416,28 @@ particles CreateParticleGeometry()
 		Nfluid[0] = 40;
 		Nfluid[1] = 1;
 		Nfluid[2] = 60;
-		dp = 4.0 * 0.02 / Nfluid[0];
+		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
 		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
 		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Cylinder_radius = 10.0 * H;
 
-		rho_zero = 1000.0;
+		rho_zero = 1.0;
 		nu = 0.1;
 		eta = nu * rho_zero;
 
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 2.5 * 1e-4};
+		gravity_vector = {0.0, 0.0, 0.1};
 
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = 0.01 * sqrt(gravity * 0.02);
+		// umax = 0.01 * sqrt(gravity * 0.02);
+		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
@@ -1452,30 +1458,31 @@ particles CreateParticleGeometry()
 		Nfluid[0] = 50;
 		Nfluid[1] = 1;
 		Nfluid[2] = 50;
-		dp = 0.1 / Nfluid[0];
+		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
 		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
 		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Cylinder_radius = 10.0 * H;
 
-		rho_zero = 1000.0;
-		nu = 1e-6;
+		rho_zero = 1.0;
+		nu = 0.01;
 		eta = nu * rho_zero;
 
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 1.5 * 1e-7};
+		gravity_vector = {0.0, 0.0, 0.1};
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = 5e-4;
+		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
 
-		Re = umax * 0.1 / nu;
+		Re = umax * 0.25 / nu;
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
@@ -1485,7 +1492,85 @@ particles CreateParticleGeometry()
 		Nboundary[1] = 0;
 		Nboundary[2] = 0;
 	}
+	else if (SCENARIO == CYLINDER_ARRAY_2)
+	{
 
+		Nfluid[0] = 50;
+		Nfluid[1] = 1;
+		Nfluid[2] = 150;
+		dp = 2.0 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Cylinder_radius = 10.0 * H;
+
+		rho_zero = 1.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
+
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+
+		gravity_vector = {0.0, 0.0, 75.0};
+
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
+
+		// umax = 0.01 * sqrt(gravity * 0.02);
+		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+
+		Re = umax * 0.5 / nu;
+
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = 0;
+	}
+	if (SCENARIO == TEST)
+	{
+		Nfluid[0] = 40;
+		Nfluid[1] = 1;
+		Nfluid[2] = 40;
+		dp = 1.0 / Nfluid[0];
+		H = Hconst * dp;
+		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+
+		rho_zero = 1.0;
+		nu = 0.1;
+		eta = nu * rho_zero;
+
+		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+
+		gravity_vector = {0.0, 0.0, 0.1};
+		gravity = sqrt(norm2(gravity_vector));
+		vw_top = {0.0, 0.0, 0.0};
+		vw_bottom = {0.0, 0.0, 0.0};
+
+		umax = 1;
+		cbar = coeff_sound * umax;
+		B = gamma_ * cbar * cbar / rho_zero;
+		Pbackground = Bfactor * B;
+		Re = umax * 1.0 / nu;
+
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		bc[2] = NON_PERIODIC;
+		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound_x;
+		Nboundary[1] = 0;
+		Nboundary[2] = Nbound_x;
+	}
 	// Now define the boxes and the grid of the domain
 
 	// We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
@@ -1577,13 +1662,25 @@ particles CreateParticleGeometry()
 	// create particle object
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
+	for (int dim = 0; dim < 3; dim++)
+	{
+		if (bc[dim] == PERIODIC)
+		{
+			Nfluid[dim] += 1;
+			length[dim] += dp;
+		}
+	}
 	// Write constants on file
 	WriteParameters(Nfluid, length);
 
-	Point<3, double> Cylinder_centre{length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
-	double Cylinder_radius = 10.0 * H;
+	Point<3, double> Cylinder_centre = {length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
 
-	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
+	if (SCENARIO == CYLINDER_ARRAY_2)
+	{
+		Cylinder_centre = {length[0] / 2.0, length[1] / 2.0, length[2] / 6.0};
+	}
+
+	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == CYLINDER_ARRAY_2)
 	{
 		if (BC_TYPE == NEW_NO_SLIP)
 		{
@@ -1616,7 +1713,7 @@ particles CreateParticleGeometry()
 
 		Point<3, double> iterator_posion = fluid_it.get();
 
-		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
+		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == CYLINDER_ARRAY_2)
 		{
 			if ((*Cylinder_ptr).isInside(iterator_posion)) // if inside the cylinder region
 			{
@@ -1706,11 +1803,12 @@ particles CreateParticleGeometry()
 	{
 		holes.add(fluid_box);
 	}
+	Box<3, double> hole_get = holes.get(0);
 
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 	double epsilon = 0.001;
 
-	if (SCENARIO != CYLINDER_LATTICE) // no walls in this scenario
+	if (bc[0] != PERIODIC || bc[2] != PERIODIC) // no walls in this scenario
 	{
 		while (bound_box.isNext())
 		{
@@ -1724,8 +1822,12 @@ particles CreateParticleGeometry()
 				++bound_box;
 				continue;
 			}
-
-			// if ((fluid_box.isInside(position) && !(position.get(2) < z_end + epsilon && position.get(2) > z_end - epsilon)))
+			if (hole_get.isInside(position))
+			{
+				++bound_box;
+				continue;
+			}
+			// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
 			// {
 			// 	++bound_box;
 			// 	continue;
@@ -1754,34 +1856,71 @@ particles CreateParticleGeometry()
 			vd.template getLastProp<v_transport>()[1] = 0.0;
 			vd.template getLastProp<v_transport>()[2] = 0.0;
 
-			if (bound_box.get().get(0) < dp / 2.0) // bottom wall
+			vd.template getLastProp<normal_vector>()[0] = 0.0;
+			vd.template getLastProp<normal_vector>()[1] = 0.0;
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
+			if (bound_box.get().get(0) < dp / 4.0) // bottom wall
 			{
 				vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
 				vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
 				vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
 
-				vd.template getLastProp<normal_vector>()[0] = 1.0;
-				vd.template getLastProp<normal_vector>()[1] = 0.0;
-				vd.template getLastProp<normal_vector>()[2] = 0.0;
+				vd.template getLastProp<normal_vector>()[0] += 1.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
 
 				vd.template getLastProp<curvature_boundary>() = 0.0;
 
 				vd.template getLastProp<arc_length>() = dp;
 			}
-			else if (bound_box.get().get(0) > length[0] - dp / 2.0) // top wall
+			else if (bound_box.get().get(0) > length[0] - dp / 4.0) // top wall
 			{
 				vd.template getLastProp<velocity>()[0] = vw_top.get(0);
 				vd.template getLastProp<velocity>()[1] = vw_top.get(1);
 				vd.template getLastProp<velocity>()[2] = vw_top.get(2);
 
-				vd.template getLastProp<normal_vector>()[0] = -1.0;
-				vd.template getLastProp<normal_vector>()[1] = 0.0;
-				vd.template getLastProp<normal_vector>()[2] = 0.0;
+				vd.template getLastProp<normal_vector>()[0] += -1.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
 
 				vd.template getLastProp<curvature_boundary>() = 0.0;
 
 				vd.template getLastProp<arc_length>() = dp;
 			}
+			else if (bound_box.get().get(2) < dp / 4.0) // left
+			{
+				vd.template getLastProp<velocity>()[0] = 0.0;
+				vd.template getLastProp<velocity>()[1] = 0.0;
+				vd.template getLastProp<velocity>()[2] = 0.0;
+
+				vd.template getLastProp<normal_vector>()[0] += 0.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += 1.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+			else if (bound_box.get().get(2) > length[2] - dp / 4.0) // right
+			{
+				vd.template getLastProp<velocity>()[0] = 0.0;
+				vd.template getLastProp<velocity>()[1] = 0.0;
+				vd.template getLastProp<velocity>()[2] = 0.0;
+
+				vd.template getLastProp<normal_vector>()[0] += 0.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += -1.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+			// normalize for corner particles that have normal vector with norm 2
+			Point<3, double> normalvec = vd.template getLastProp<normal_vector>();
+			double norm = sqrt(norm2(normalvec));
+			vd.template getLastProp<normal_vector>()[0] /= norm;
+			vd.template getLastProp<normal_vector>()[1] /= norm;
+			vd.template getLastProp<normal_vector>()[2] /= norm;
 
 			++bound_box;
 		}
@@ -1794,13 +1933,14 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
-
-	particles vd = CreateParticleGeometry();
+	Vcluster<> &v_cl = create_vcluster();
+	particles vd = CreateParticleGeometry(v_cl);
 	vd.map();
-	std::cout << "H: " << H << "  dp: " << dp << "  r_threshold: " << r_threshold << std::endl;
-	std::cout << "eta: " << eta << "  nu: " << nu << "  rho_zero: " << rho_zero << std::endl;
+
 	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport", "v_transport", "normal", "curvature", "arc_length"});
 	vd.setPropNames(names);
+
+	vd.write("FIRST_PARTICLES");
 
 	// Now that we fill the vector with particles
 	ModelCustom md;
@@ -1808,6 +1948,8 @@ int main(int argc, char *argv[])
 	vd.addComputationCosts(md);
 	vd.getDecomposition().decompose();
 	vd.map();
+
+	vd.write("AFETR_DECOMPOSITION");
 
 	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
