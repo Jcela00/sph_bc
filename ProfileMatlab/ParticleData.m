@@ -6,17 +6,21 @@ classdef ParticleData
         dim
         Type
         Density
-        DensityPrev
         Pressure
         DeltaDensity
         Force
         Velocity
         VelMax
         VelMin
-        VelocityPrev
+        ForceTransport
+        VelocityTransport
+        Normal
+        Curvature
+        ArcLength
         Domain
         Position
         Npart
+        NpartFluid
         mass
         dp
         H
@@ -45,20 +49,24 @@ classdef ParticleData
             obj.dim = dim;
             obj.Type = data(:, 1);
             obj.Density = data(:, 2);
-            obj.DensityPrev = data(:, 3);
-            obj.Pressure = data(:, 4);
-            obj.DeltaDensity = data(:, 5);
-            obj.Force = data(:, 6:8);
-            obj.Velocity = data(:, 9:11);
+            obj.Pressure = data(:, 3);
+            obj.DeltaDensity = data(:, 4);
+            obj.Force = data(:, 5:7);
+            obj.Velocity = data(:, 8:10);
             obj.VelMax = max(sqrt(sum(obj.Velocity .^ 2, 2)));
             obj.VelMin = min(sqrt(sum(obj.Velocity .^ 2, 2)));
-            obj.VelocityPrev = data(:, 12:14);
-            obj.Domain = data(:, 15);
-            obj.Position = data(:, 16:18);
+            obj.ForceTransport = data(:, 11:13);
+            obj.VelocityTransport = data(:, 14:16);
+            obj.Normal = data(:, 17:19);
+            obj.Curvature = data(:, 20);
+            obj.ArcLength = data(:, 21);
+            obj.Domain = data(:, 22);
+            obj.Position = data(:, 23:25);
             obj.Npart = length(obj.Type);
             obj.dp = dp;
             obj.dim_self = dim;
             obj.Hconst_self = Hconst;
+            obj.NpartFluid = sum(obj.Type == 1);
 
             if (dim == 2)
                 obj.mass = rho0 * obj.dp ^ 2;
@@ -100,13 +108,12 @@ classdef ParticleData
 
             colorbar;
             clim([obj.VelMin, obj.VelMax]);
-            axis equal;
             xlabel('$z$'); ylabel('$x$');
             title(obj.PlotName);
 
         end
 
-        function ScatterParticlePlot(obj, fig)
+        function ScatterParticlePlot(obj, fig, colormarker, markersize)
             figure(fig);
 
             for k = 1:obj.Npart
@@ -114,19 +121,19 @@ classdef ParticleData
                 if obj.Type(k) == 1
 
                     if (k == 1)
-                        plot(obj.Position(:, 1), obj.Velocity(:, 3), 'o', 'MarkerSize', 2, 'DisplayName', obj.PlotName);
+                        plot(obj.Position(:, 1), obj.Velocity(:, 3), colormarker, 'MarkerSize', markersize, 'DisplayName', obj.PlotName);
                     else
-                        plot(obj.Position(:, 1), obj.Velocity(:, 3), 'o', 'MarkerSize', 2, 'HandleVisibility', 'off');
+                        plot(obj.Position(:, 1), obj.Velocity(:, 3), colormarker, 'MarkerSize', markersize, 'HandleVisibility', 'off');
                     end
 
-                else
+                    % else
 
-                    if (k == 1)
-                        plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), 'o', 'MarkerSize', 2, 'DisplayName', obj.PlotName);
+                    %     if (k == 1)
+                    %         plot(obj.Position(:, 1), obj.VelocityTransport(:, 3), marker, 'MarkerSize', markersize, 'DisplayName', obj.PlotName);
 
-                    else
-                        plot(obj.Position(:, 1), obj.VelocityPrev(:, 3), 'o', 'MarkerSize', 2, 'HandleVisibility', 'off');
-                    end
+                    %     else
+                    %         plot(obj.Position(:, 1), obj.VelocityTransport(:, 3), marker, 'MarkerSize', markersize, 'HandleVisibility', 'off');
+                    %     end
 
                 end
 
@@ -139,17 +146,15 @@ classdef ParticleData
             xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
             particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
             plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
-            axis equal;
 
         end
 
-        function W = kernel(obj, r)
+        function W = kernelCubic(obj, r)
             % Kernel function
             q = r / obj.H;
 
             if (obj.dim == 2)
                 K = 10 / (7 * pi * obj.H ^ 2);
-
             elseif (obj.dim == 3)
                 K = 1 / (pi * obj.H ^ 3);
             end
@@ -164,7 +169,33 @@ classdef ParticleData
 
         end
 
-        function PlotProfile(obj, fig, x_samples, z_coord, switch_var)
+        function W = kernel(obj, r)
+
+            q = r / obj.H;
+
+            if (obj.dim == 2)
+                K = 7.0/478.0 / pi / obj.H / obj.H;
+            elseif (obj.dim == 3)
+                K = 1.0/120.0 / pi / obj.H / obj.H / obj.H
+            end
+
+            tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
+            tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
+            tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
+
+            if (q >= 0.0 && q < 1.0)
+                W = K * (tmp3 - 6.0 * tmp2 + 15.0 * tmp1);
+            elseif (q >= 1.0 && q < 2.0)
+                W = K * (tmp3 - 6.0 * tmp2);
+            elseif (q >= 2.0 && q < 3.0)
+                W = K * tmp3;
+            else
+                W = 0.0;
+            end
+
+        end
+
+        function PlotProfile(obj, fig, x_samples, z_coord)
 
             % Sample positons for profile computation
             x_sample_grid = linspace(obj.PositionLimits(1, 1), obj.PositionLimits(1, 2), x_samples);
@@ -184,14 +215,14 @@ classdef ParticleData
 
                     r = norm(R_grid(i, :) - obj.Position(k, :));
 
-                    if (r < 2 * obj.H)
+                    if (r < 3.0 * obj.H)
                         W = obj.kernel(r);
                         Wnorm = Wnorm + W * obj.mass / obj.Density(k, 1);
 
                         if (obj.Type(k, 1) == 1) % fluid particle
                             velocity_interp(i, :) = velocity_interp(i, :) + obj.mass * obj.Velocity(k, :) * W / obj.Density(k, 1);
-                        else % boundary particle, velocity is stored in VelocityPrev
-                            velocity_interp(i, :) = velocity_interp(i, :) + obj.mass * obj.VelocityPrev(k, :) * W / obj.Density(k, 1);
+                            % else % boundary particle, velocity is stored in VelocityTransport
+                            %     velocity_interp(i, :) = velocity_interp(i, :) + obj.mass * obj.VelocityTransport(k, :) * W / obj.Density(k, 1);
                         end
 
                     end
@@ -212,7 +243,6 @@ classdef ParticleData
             xline(obj.FluidBox(1), 'k', 'HandleVisibility', 'off');
             particle_initial = obj.PositionLimits(1, 1):obj.dp:obj.PositionLimits(1, 2);
             plot(particle_initial, zeros(1, length(particle_initial)), 'bo', 'HandleVisibility', 'off');
-            axis equal;
 
         end
 
@@ -268,7 +298,7 @@ classdef ParticleData
         function ScatterPlotOverTime(obj, fig, filenums)
 
             for k = 1:length(filenums)
-                filenum = filenums(k)
+                filenum = filenums(k);
                 obj = obj.Update(filenum);
                 obj.ScatterParticlePlot(fig);
             end
