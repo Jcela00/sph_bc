@@ -35,7 +35,7 @@ const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CYLINDER_ARRAY;
+const int SCENARIO = HYDROSTATIC;
 const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -202,6 +202,9 @@ inline void normalizeVector(Point<3, double> &v)
 {
 	const double norm = getVectorNorm(v);
 	v = v / norm;
+}
+Point<3, double> getPerpendicularUnit()
+{
 }
 // Kernel functions
 inline double Cubic_W(double r)
@@ -733,10 +736,10 @@ void interact_fluid_boundary_new(particles &vd,
 
 	// Get normal vector
 	Point<3, double> normal = vd.getProp<normal_vector>(boundary_key);
-	Point<3, double> tangential = {normal.get(2), 0.0, normal.get(0)};
-	if (tangential.get(2) < 0.0)
+	Point<3, double> tangential = {normal.get(1), normal.get(0), 0.0};
+	if (tangential.get(1) < 0.0)
 	{
-		tangential.get(2) = -tangential.get(2);
+		tangential.get(1) = -tangential.get(1);
 	}
 
 	// get curvature, and arc length
@@ -1261,8 +1264,8 @@ void AddCylinderNewBC(particles &vd, Point<3, double> Cylinder_centre, double Cy
 
 	while (theta < 2.0 * M_PI)
 	{
-		Point<3, double> cylinder_particle{Cylinder_centre.get(0) + Cylinder_radius * cos(theta), Cylinder_centre.get(1), Cylinder_centre.get(2) + Cylinder_radius * sin(theta)};
-		Point<3, double> normal = {cos(theta), 0.0, sin(theta)};
+		Point<3, double> cylinder_particle{Cylinder_centre.get(0) + Cylinder_radius * cos(theta), Cylinder_centre.get(1) + Cylinder_radius * sin(theta), Cylinder_centre.get(2)};
+		Point<3, double> normal = {cos(theta), sin(theta), 0.0};
 		vd.add();
 		vd.getLastPos()[0] = cylinder_particle.get(0);
 		vd.getLastPos()[1] = cylinder_particle.get(1);
@@ -1328,8 +1331,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	if (SCENARIO == POISEUILLE)
 	{
 		Nfluid[0] = 40;
-		Nfluid[1] = 1;
-		Nfluid[2] = 20;
+		Nfluid[1] = 20;
+		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1343,20 +1346,20 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 0.1};
+		gravity_vector = {0.0, 0.1, 0.0};
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
 		Re = umax * 1.0 / nu;
 
 		bc[0] = NON_PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
@@ -1365,8 +1368,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	else if (SCENARIO == COUETTE)
 	{
 		Nfluid[0] = 40;
-		Nfluid[1] = 1;
-		Nfluid[2] = 20;
+		Nfluid[1] = 20;
+		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1382,18 +1385,18 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		gravity_vector = {0.0, 0.0, 0.0};
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 1.25};
+		vw_top = {0.0, 1.25, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = vw_top.get(2);
+		umax = vw_top.get(1);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
 		Re = umax * 1.0 / nu;
 
 		bc[0] = NON_PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
@@ -1402,8 +1405,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	else if (SCENARIO == HYDROSTATIC)
 	{
 		Nfluid[0] = 40;
-		Nfluid[1] = 1;
-		Nfluid[2] = 40;
+		Nfluid[1] = 40;
+		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1417,7 +1420,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 0.1};
+		gravity_vector = {0.0, 0.1, 0.0};
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
@@ -1433,16 +1436,16 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
-		Nboundary[1] = 0;
-		Nboundary[2] = Nbound_x;
+		Nboundary[1] = Nbound_x;
+		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == CYLINDER_ARRAY)
 	{
 
 		// TESTED PARAMETERS
 		Nfluid[0] = 40;
-		Nfluid[1] = 1;
-		Nfluid[2] = 60;
+		Nfluid[1] = 60;
+		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1457,13 +1460,13 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 0.1};
+		gravity_vector = {0.0, 0.1, 0.0};
 
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
@@ -1471,8 +1474,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		Re = umax * 0.02 / nu;
 
 		bc[0] = NON_PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
@@ -1502,7 +1505,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// vw_top = {0.0, 0.0, 0.0};
 		// vw_bottom = {0.0, 0.0, 0.0};
 
-		// // umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		// // umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		// cbar = 0.1 * std::sqrt(gravity * Cylinder_radius);
 		// B = gamma_ * cbar * cbar / rho_zero;
 		// Pbackground = Bfactor * B;
@@ -1521,8 +1524,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	{
 
 		Nfluid[0] = 96;
-		Nfluid[1] = 1;
-		Nfluid[2] = 144;
+		Nfluid[1] = 144;
+		Nfluid[2] = 1;
 		dp = 4.0 * 0.02 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1537,12 +1540,12 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 0.1};
+		gravity_vector = {0.0, 0.1, 0.0};
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
@@ -1550,8 +1553,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		Re = umax * 0.25 / nu;
 
 		bc[0] = PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
@@ -1561,8 +1564,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	{
 
 		Nfluid[0] = 50;
-		Nfluid[1] = 1;
-		Nfluid[2] = 150;
+		Nfluid[1] = 150;
+		Nfluid[2] = 1;
 		dp = 2.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1577,14 +1580,14 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 1.0};
+		gravity_vector = {0.0, 1.0, 0.0};
 
 		gravity = sqrt(norm2(gravity_vector));
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
 		// umax = 0.01 * sqrt(gravity * 0.02);
-		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
@@ -1592,8 +1595,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		Re = umax * 0.5 / nu;
 
 		bc[0] = NON_PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
@@ -1602,8 +1605,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	else if (SCENARIO == SQUARE)
 	{
 		Nfluid[0] = 40;
-		Nfluid[1] = 1;
-		Nfluid[2] = 40;
+		Nfluid[1] = 40;
+		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
@@ -1622,19 +1625,19 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		vw_top = {0.0, 0.0, 0.0};
 		vw_bottom = {0.0, 0.0, 0.0};
 
-		umax = gravity_vector.get(2) * 1.0 * 1.0 / (8.0 * nu);
+		umax = gravity_vector.get(1) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
 		Pbackground = Bfactor * B;
 		Re = umax * 1.0 / nu;
 
 		bc[0] = NON_PERIODIC;
-		bc[1] = NON_PERIODIC;
-		bc[2] = PERIODIC;
+		bc[1] = PERIODIC;
+		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = 0;
-		Nboundary[2] = Nbound_x;
+		Nboundary[2] = 0;
 	}
 
 	// Now define the boxes and the grid of the domain
@@ -1670,13 +1673,13 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 			offset_domain[dim] = (0.5 + Nboundary[dim]) * dp;
 
 			if (Nboundary[dim] != 0)
-				sz_aux[dim] = 2 * sz[dim] - 1;
+				sz_aux[dim] = 2 * Nfluid[dim] - 1 + 2 * (2 * Nboundary[dim] + 1 + 1);
 			else // for a direction with no boundary particles we dont need to add anything
 				sz_aux[dim] = sz[dim];
 
 			if (BC_TYPE == NEW_NO_SLIP) // Nboundary should only be 0 or 1 if we are using the new bc
 				offset_recipient[dim] = 0.25 * Nboundary[dim] * dp;
-			else
+			else if (BC_TYPE == NO_SLIP)
 				offset_recipient[dim] = Nboundary[dim] * dp;
 		}
 		else // periodic, open ended
@@ -1765,8 +1768,9 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	else if (BC_TYPE == NO_SLIP)
 		Cylinder_ptr = &Cylinder;
 
-	const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
 	const double Lx = length[0] + 0.5 * dp; // channel height
+	const double Ly = length[1] + 0.5 * dp; // channel width
+	const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -1810,12 +1814,17 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// Set position
 		// If periodic bc, we substract a small value to the last particle so that its not exactly at the boundary
 		// otherwise we can get holes in the fluid region
-		if (bc[0] == PERIODIC && iterator_posion.get(2) == Lx)
+		if (bc[0] == PERIODIC && iterator_posion.get(0) == Lx)
 			vd.getLastPos()[0] = iterator_posion.get(0) - 1e-10 * dp;
 		else
 			vd.getLastPos()[0] = iterator_posion.get(0);
-		vd.getLastPos()[1] = iterator_posion.get(1);
-		if (iterator_posion.get(2) == Lz)
+
+		if (bc[1] == PERIODIC && iterator_posion.get(1) == Ly)
+			vd.getLastPos()[1] = iterator_posion.get(1) - 1e-10 * dp;
+		else
+			vd.getLastPos()[1] = iterator_posion.get(1);
+
+		if (bc[2] == PERIODIC && iterator_posion.get(2) == Lz)
 			vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
 		else
 			vd.getLastPos()[2] = iterator_posion.get(2);
@@ -1855,220 +1864,232 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 	// Now place solid particles
 	openfpm::vector<Box<3, double>> holes;
-	size_t sz_aux_x[3];
-
-	size_t sz_aux_z[3];
 
 	if (BC_TYPE == NEW_NO_SLIP)
 	{
 		holes.add(recipient_hole);
-
-		// fine in x direction
-		sz_aux_x[0] = sz_aux[0];
-		sz_aux_x[1] = sz_aux[1];
-		sz_aux_x[2] = sz[2];
-		// fine in z direction
-		sz_aux_z[0] = sz[0];
-		sz_aux_z[1] = sz_aux[1];
-		sz_aux_z[2] = sz_aux[2];
+		sz[0] = sz_aux[0];
+		sz[1] = sz_aux[1];
+		sz[2] = sz_aux[2];
 	}
 	else if (BC_TYPE == NO_SLIP)
-	{
 		holes.add(fluid_box);
 
-		// only one iterator needed actually
-		sz_aux_x[0] = sz[0];
-		sz_aux_x[1] = sz[1];
-		sz_aux_x[2] = sz[2];
-		sz_aux_z[0] = sz[0];
-		sz_aux_z[1] = sz[1];
-		sz_aux_z[2] = sz[2];
-	}
-
 	Box<3, double> hole_get = holes.get(0);
-	PointIteratorSkin<3, double, CartDecomposition<3, double>> bound_box1 = DrawParticles::DrawSkin(vd, sz_aux_x, domain, holes, recipient);
-	PointIteratorSkin<3, double, CartDecomposition<3, double>> bound_box2 = DrawParticles::DrawSkin(vd, sz_aux_z, domain, holes, recipient);
+	PointIteratorSkin<3, double, CartDecomposition<3, double>> bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
-	std::vector<PointIteratorSkin<3, double, CartDecomposition<3, double>>> bound_boxes;
-	if (BC_TYPE == NEW_NO_SLIP)
+	if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
 	{
-		bound_boxes.push_back(bound_box1);
-		bound_boxes.push_back(bound_box2);
-	}
-	else if (BC_TYPE == NO_SLIP)
-	{
-		bound_boxes.push_back(bound_box1);
-	}
 
-	if (bc[0] != PERIODIC || bc[2] != PERIODIC) // no walls in all periodic scenario
-	{
-		for (int twice = 0; twice < bound_boxes.size(); twice++)
+		while (bound_box.isNext())
 		{
-			PointIteratorSkin<3, double, CartDecomposition<3, double>> bound_box = bound_boxes[twice];
-			while (bound_box.isNext())
+			Point<3, double> position = bound_box.get();
+
+			// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+			// When running on multiple cores, with this we check if particle is outside the recipient box
+			// Another bug places boundary particles in the correct plane, but inside the fluid box;
+			if (!recipient.isInside((position)))
 			{
-				Point<3, double> position = bound_box.get();
-
-				// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
-				// When running on multiple cores, with this we check if particle is outside the recipient box
-				// Another bug places boundary particles in the correct plane, but inside the fluid box;
-				if (!recipient.isInside((position)))
-				{
-					++bound_box;
-					continue;
-				}
-				if (hole_get.isInside(position))
-				{
-					++bound_box;
-					continue;
-				}
-				// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
-				// {
-				// 	++bound_box;
-				// 	continue;
-				// }
-
-				vd.add();
-
-				vd.getLastPos()[0] = bound_box.get().get(0);
-				vd.getLastPos()[1] = bound_box.get().get(1);
-				vd.getLastPos()[2] = bound_box.get().get(2);
-
-				vd.template getLastProp<type>() = BOUNDARY;
-				vd.template getLastProp<rho>() = rho_zero;
-				vd.template getLastProp<pressure>() = 0.0;
-				vd.template getLastProp<drho>() = 0.0;
-
-				vd.template getLastProp<force>()[0] = 0.0;
-				vd.template getLastProp<force>()[1] = 0.0;
-				vd.template getLastProp<force>()[2] = 0.0;
-
-				vd.template getLastProp<force_transport>()[0] = 0.0;
-				vd.template getLastProp<force_transport>()[1] = 0.0;
-				vd.template getLastProp<force_transport>()[2] = 0.0;
-
-				vd.template getLastProp<v_transport>()[0] = 0.0;
-				vd.template getLastProp<v_transport>()[1] = 0.0;
-				vd.template getLastProp<v_transport>()[2] = 0.0;
-
-				if (position.get(0) < dp / 4.0) // bottom wall
-				{
-					vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
-					vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
-					vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
-
-					vd.template getLastProp<normal_vector>()[0] = 1.0;
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = 0.0;
-
-					vd.template getLastProp<curvature_boundary>() = 0.0;
-
-					vd.template getLastProp<arc_length>() = dp;
-				}
-				else if (position.get(0) > length[0] - dp / 4.0) // top wall
-				{
-					vd.template getLastProp<velocity>()[0] = vw_top.get(0);
-					vd.template getLastProp<velocity>()[1] = vw_top.get(1);
-					vd.template getLastProp<velocity>()[2] = vw_top.get(2);
-
-					vd.template getLastProp<normal_vector>()[0] = -1.0;
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = 0.0;
-
-					vd.template getLastProp<curvature_boundary>() = 0.0;
-
-					vd.template getLastProp<arc_length>() = dp;
-				}
-				if (position.get(2) < dp / 4.0) // left wall
-				{
-					vd.template getLastProp<velocity>()[0] = 0.0;
-					vd.template getLastProp<velocity>()[1] = 0.0;
-					vd.template getLastProp<velocity>()[2] = 0.0;
-
-					vd.template getLastProp<normal_vector>()[0] = 0.0;
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = 1.0;
-
-					vd.template getLastProp<curvature_boundary>() = 0.0;
-
-					vd.template getLastProp<arc_length>() = dp;
-				}
-				else if (position.get(2) > length[2] - dp / 4.0) // right wall
-				{
-					vd.template getLastProp<velocity>()[0] = 0.0;
-					vd.template getLastProp<velocity>()[1] = 0.0;
-					vd.template getLastProp<velocity>()[2] = 0.0;
-
-					vd.template getLastProp<normal_vector>()[0] = 0.0;
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = -1.0;
-
-					vd.template getLastProp<curvature_boundary>() = 0.0;
-
-					vd.template getLastProp<arc_length>() = dp;
-				}
-
-				// // normalize for corner particles that have normal vector with norm 2
-				// Point<3, double> normalvec = vd.template getLastProp<normal_vector>();
-				// double norm = sqrt(norm2(normalvec));
-				// vd.template getLastProp<normal_vector>()[0] /= norm;
-				// vd.template getLastProp<normal_vector>()[1] /= norm;
-				// vd.template getLastProp<normal_vector>()[2] /= norm;
-
 				++bound_box;
+				continue;
 			}
-		}
-		if (bc[0] != PERIODIC && bc[2] != PERIODIC && BC_TYPE == NEW_NO_SLIP)
-		{
-			// if we are in non-periodic scenario on all walls for the new bc, we need to add the corner particles manually
-			double xcoords[2] = {0.0, length[0]};
-			double zcoords[2] = {0.0, length[2]};
-			double n_vec[2] = {1.0 / sqrt(2), -1.0 / sqrt(2)};
-			//	double n_vec[2] = {1.0, -1.0};
-			for (int i = 0; i < 2; i++)
+
+			if (hole_get.isInside(position))
 			{
-				for (int j = 0; j < 2; j++)
+				++bound_box;
+				continue;
+			}
+			if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
+			{
+				++bound_box;
+				continue;
+			}
+
+			if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC && bc[2] == NON_PERIODIC))
+			{
+				// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
+				double remx = fmod(position.get(0), dp);
+				double remz = fmod(position.get(1), dp);
+				double tol = 0.5 * dp * 10e-2;
+
+				if (remx > tol && remx < dp - tol)
 				{
-					vd.add();
-					vd.getLastPos()[0] = xcoords[i];
-					vd.getLastPos()[1] = length[1] / 2.0;
-					vd.getLastPos()[2] = zcoords[j];
-					vd.template getLastProp<type>() = BOUNDARY;
-					vd.template getLastProp<rho>() = rho_zero;
-					vd.template getLastProp<pressure>() = 0.0;
-					vd.template getLastProp<drho>() = 0.0;
-
-					vd.template getLastProp<force>()[0] = 0.0;
-					vd.template getLastProp<force>()[1] = 0.0;
-					vd.template getLastProp<force>()[2] = 0.0;
-
-					vd.template getLastProp<force_transport>()[0] = 0.0;
-					vd.template getLastProp<force_transport>()[1] = 0.0;
-					vd.template getLastProp<force_transport>()[2] = 0.0;
-
-					vd.template getLastProp<v_transport>()[0] = 0.0;
-					vd.template getLastProp<v_transport>()[1] = 0.0;
-					vd.template getLastProp<v_transport>()[2] = 0.0;
-
-					vd.template getLastProp<normal_vector>()[0] = 0.0;
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = 0.0;
-
-					vd.template getLastProp<velocity>()[0] = 0.0;
-					vd.template getLastProp<velocity>()[1] = 0.0;
-					vd.template getLastProp<velocity>()[2] = 0.0;
-
-					vd.template getLastProp<normal_vector>()[0] = n_vec[i]; // 1.0 * std::pow(-1.0, i);
-					vd.template getLastProp<normal_vector>()[1] = 0.0;
-					vd.template getLastProp<normal_vector>()[2] = n_vec[j];
-					// 0.0;
-
-					vd.template getLastProp<curvature_boundary>() = 0.0;
-
-					vd.template getLastProp<arc_length>() = dp / 2.0;
+					++bound_box;
+					continue;
+				}
+				if (remz > tol && remz < dp - tol)
+				{
+					++bound_box;
+					continue;
 				}
 			}
+			vd.add();
+
+			vd.getLastPos()[0] = bound_box.get().get(0);
+			vd.getLastPos()[1] = bound_box.get().get(1);
+			vd.getLastPos()[2] = bound_box.get().get(2);
+
+			vd.template getLastProp<type>() = BOUNDARY;
+			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<pressure>() = 0.0;
+			vd.template getLastProp<drho>() = 0.0;
+
+			vd.template getLastProp<force>()[0] = 0.0;
+			vd.template getLastProp<force>()[1] = 0.0;
+			vd.template getLastProp<force>()[2] = 0.0;
+
+			vd.template getLastProp<force_transport>()[0] = 0.0;
+			vd.template getLastProp<force_transport>()[1] = 0.0;
+			vd.template getLastProp<force_transport>()[2] = 0.0;
+
+			vd.template getLastProp<v_transport>()[0] = 0.0;
+			vd.template getLastProp<v_transport>()[1] = 0.0;
+			vd.template getLastProp<v_transport>()[2] = 0.0;
+
+			vd.template getLastProp<normal_vector>()[0] = 0.0;
+			vd.template getLastProp<normal_vector>()[1] = 0.0;
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
+
+			if (position.get(0) < dp / 4.0) // bottom wall
+			{
+				vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
+				vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
+				vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
+
+				vd.template getLastProp<normal_vector>()[0] += 1.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+			if (position.get(0) > length[0] - dp / 4.0) // top wall
+			{
+				vd.template getLastProp<velocity>()[0] = vw_top.get(0);
+				vd.template getLastProp<velocity>()[1] = vw_top.get(1);
+				vd.template getLastProp<velocity>()[2] = vw_top.get(2);
+
+				vd.template getLastProp<normal_vector>()[0] += -1.0;
+				vd.template getLastProp<normal_vector>()[1] += 0.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+			if (position.get(1) < dp / 4.0) // left wall
+			{
+				vd.template getLastProp<velocity>()[0] = 0.0;
+				vd.template getLastProp<velocity>()[1] = 0.0;
+				vd.template getLastProp<velocity>()[2] = 0.0;
+
+				vd.template getLastProp<normal_vector>()[0] += 0.0;
+				vd.template getLastProp<normal_vector>()[1] += 1.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+			if (position.get(1) > length[1] - dp / 4.0) // right wall
+			{
+				vd.template getLastProp<velocity>()[0] = 0.0;
+				vd.template getLastProp<velocity>()[1] = 0.0;
+				vd.template getLastProp<velocity>()[2] = 0.0;
+
+				vd.template getLastProp<normal_vector>()[0] += 0.0;
+				vd.template getLastProp<normal_vector>()[1] += -1.0;
+				vd.template getLastProp<normal_vector>()[2] += 0.0;
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+
+				vd.template getLastProp<arc_length>() = dp;
+			}
+
+			// lower left corner
+			if (position.get(0) < dp / 4.0 && position.get(1) < dp / 4.0)
+			{
+
+				vd.template getLastProp<curvature_boundary>() = -0.5 * dp;
+			}
+			// lower right corner
+			if (position.get(0) > length[0] - dp / 4.0 && position.get(1) < dp / 4.0)
+			{
+				vd.template getLastProp<curvature_boundary>() = -0.5 * dp;
+			}
+			// upper left corner
+			if (position.get(0) < dp / 4.0 && position.get(1) > length[1] - dp / 4.0)
+			{
+				vd.template getLastProp<curvature_boundary>() = -0.5 * dp;
+			}
+			// upper right corner
+			if (position.get(0) > length[0] - dp / 4.0 && position.get(1) > length[1] - dp / 4.0)
+			{
+				vd.template getLastProp<curvature_boundary>() = -0.5 * dp;
+			}
+
+			// normalize for corner particles that have normal vector with norm 2
+			Point<3, double> normalvec = vd.template getLastProp<normal_vector>();
+			double norm = getVectorNorm(normalvec);
+			vd.template getLastProp<normal_vector>()[0] /= norm;
+			vd.template getLastProp<normal_vector>()[1] /= norm;
+			vd.template getLastProp<normal_vector>()[2] /= norm;
+
+			++bound_box;
 		}
+
+		// if (bc[0] != PERIODIC && bc[2] != PERIODIC && BC_TYPE == NEW_NO_SLIP)
+		// {
+		// 	// if we are in non-periodic scenario on all walls for the new bc, we need to add the corner particles manually
+		// 	double xcoords[2] = {0.0, length[0]};
+		// 	double zcoords[2] = {0.0, length[2]};
+		// 	double n_vec[2] = {1.0 / sqrt(2), -1.0 / sqrt(2)};
+		// 	//	double n_vec[2] = {1.0, -1.0};
+		// 	for (int i = 0; i < 2; i++)
+		// 	{
+		// 		for (int j = 0; j < 2; j++)
+		// 		{
+		// 			vd.add();
+		// 			vd.getLastPos()[0] = xcoords[i];
+		// 			vd.getLastPos()[1] = length[1] / 2.0;
+		// 			vd.getLastPos()[2] = zcoords[j];
+		// 			vd.template getLastProp<type>() = BOUNDARY;
+		// 			vd.template getLastProp<rho>() = rho_zero;
+		// 			vd.template getLastProp<pressure>() = 0.0;
+		// 			vd.template getLastProp<drho>() = 0.0;
+
+		// 			vd.template getLastProp<force>()[0] = 0.0;
+		// 			vd.template getLastProp<force>()[1] = 0.0;
+		// 			vd.template getLastProp<force>()[2] = 0.0;
+
+		// 			vd.template getLastProp<force_transport>()[0] = 0.0;
+		// 			vd.template getLastProp<force_transport>()[1] = 0.0;
+		// 			vd.template getLastProp<force_transport>()[2] = 0.0;
+
+		// 			vd.template getLastProp<v_transport>()[0] = 0.0;
+		// 			vd.template getLastProp<v_transport>()[1] = 0.0;
+		// 			vd.template getLastProp<v_transport>()[2] = 0.0;
+
+		// 			vd.template getLastProp<normal_vector>()[0] = 0.0;
+		// 			vd.template getLastProp<normal_vector>()[1] = 0.0;
+		// 			vd.template getLastProp<normal_vector>()[2] = 0.0;
+
+		// 			vd.template getLastProp<velocity>()[0] = 0.0;
+		// 			vd.template getLastProp<velocity>()[1] = 0.0;
+		// 			vd.template getLastProp<velocity>()[2] = 0.0;
+
+		// 			vd.template getLastProp<normal_vector>()[0] = n_vec[i]; // 1.0 * std::pow(-1.0, i);
+		// 			vd.template getLastProp<normal_vector>()[1] = 0.0;
+		// 			vd.template getLastProp<normal_vector>()[2] = n_vec[j];
+		// 			// 0.0;
+
+		// 			vd.template getLastProp<curvature_boundary>() = 0.0;
+
+		// 			vd.template getLastProp<arc_length>() = dp / 2.0;
+		// 		}
+		// 	}
+		// }
 	}
 	return vd;
 }
@@ -2084,7 +2105,7 @@ int main(int argc, char *argv[])
 
 	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport", "v_transport", "normal", "curvature", "arc_length"});
 	vd.setPropNames(names);
-
+	vd.write("FIRST");
 	// Now that we fill the vector with particles
 	ModelCustom md;
 
