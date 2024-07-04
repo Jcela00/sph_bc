@@ -13,36 +13,52 @@ dp = 0.025;
 rho0 = 1;
 dim = 2;
 filenum_end = 80;
-Nfluid = [40 1 20];
-Nboundary = [3, 0, 0];
+Nfluid = [60 40 1];
+Nboundary = [1, 0, 0];
 Hconst = 1.0;
 
-% Analytical profile
-tend = 80;
-xfine = linspace(0, 1, 1000);
-ufine_p = prof_a_pouiseuille(xfine, tend);
-ufine_c = prof_a_couette(xfine, tend);
-xsamples = 100; % sample points to evaluate SPH sum
-z_coord = 0.1; % channel z point to evaluate profile
+proc1 = ParticleData('../CSV_Data/1_proc', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+proc4 = ParticleData('../CSV_Data/4_proc', 0, ['4proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-Poiseuille_NEW_BC_Quintic_Differential = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Quintic_Differential_Re1.250000_40_19/file', filenum_end, ['New BC Differential'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-Poiseuille_NEW_BC_Quintic_Summation = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Quintic_Summation_Re1.250000_40_19/file', filenum_end, ['New BC Summation'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-Poiseuille_OLD_BC_Quintic_Differential = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Quintic_Differential_Re1.250000_40_19/file', filenum_end, ['Old BC Differential'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-Poiseuille_OLD_BC_Quintic_Summation = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Quintic_Summation_Re1.250000_40_19/file', filenum_end, ['Old BC Sumation'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-obj1 = Poiseuille_NEW_BC_Quintic_Differential;
-obj2 = Poiseuille_NEW_BC_Quintic_Summation;
-obj3 = Poiseuille_OLD_BC_Quintic_Differential;
-obj4 = Poiseuille_OLD_BC_Quintic_Summation;
+figure; axis equal;
+quiver(proc1.Position(:, 1), proc1.Position(:, 2), proc1.Normal(:, 1), proc1.Normal(:, 2), 4, 'r', 'DisplayName', '1proc');
+hold on;
+quiver(proc4.Position(:, 1), proc4.Position(:, 2), proc4.Normal(:, 1), proc4.Normal(:, 2), 'b', 'DisplayName', '4proc');
+legend;
 
-fig1 = figure; hold on;
-plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical Poiseuille'); legend;
-obj1.ScatterParticlePlot(fig1, 'rs', 10);
-obj3.ScatterParticlePlot(fig1, 'b+', 6);
+[pos1, I1] = sortrows(proc1.Position);
+[pos4, I2] = sortrows(proc4.Position);
+normal1 = proc1.VelocityTransport(I1, :);
+normal4 = proc4.VelocityTransport(I2, :);
+diff = abs(normal1 - normal4);
+figure; axis equal;
+quiver(pos1(:, 1), pos1(:, 2), diff(:, 1), diff(:, 2), 'r', 'DisplayName', 'Difference');
+% % Analytical profile
+% tend = 80;
+% xfine = linspace(0, 1, 1000);
+% ufine_p = prof_a_pouiseuille(xfine, tend);
+% ufine_c = prof_a_couette(xfine, tend);
+% xsamples = 100; % sample points to evaluate SPH sum
+% z_coord = 0.1; % channel z point to evaluate profile
 
-fig2 = figure; hold on;
-plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical Poiseuille'); legend;
-obj2.ScatterParticlePlot(fig2, 'rs', 10);
-obj4.ScatterParticlePlot(fig2, 'b+', 6);
+% Poiseuille_NEW_BC_Quintic_Differential = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Quintic_Differential_Re1.250000_40_19/file', filenum_end, ['New BC Differential'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% Poiseuille_NEW_BC_Quintic_Summation = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Quintic_Summation_Re1.250000_40_19/file', filenum_end, ['New BC Summation'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% Poiseuille_OLD_BC_Quintic_Differential = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Quintic_Differential_Re1.250000_40_19/file', filenum_end, ['Old BC Differential'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% Poiseuille_OLD_BC_Quintic_Summation = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Quintic_Summation_Re1.250000_40_19/file', filenum_end, ['Old BC Sumation'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% obj1 = Poiseuille_NEW_BC_Quintic_Differential;
+% obj2 = Poiseuille_NEW_BC_Quintic_Summation;
+% obj3 = Poiseuille_OLD_BC_Quintic_Differential;
+% obj4 = Poiseuille_OLD_BC_Quintic_Summation;
+
+% fig1 = figure; hold on;
+% plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical Poiseuille'); legend;
+% obj1.ScatterParticlePlot(fig1, 'rs', 10);
+% obj3.ScatterParticlePlot(fig1, 'b+', 6);
+
+% fig2 = figure; hold on;
+% plot(xfine, ufine_p, 'k', 'DisplayName', 'Analytical Poiseuille'); legend;
+% obj2.ScatterParticlePlot(fig2, 'rs', 10);
+% obj4.ScatterParticlePlot(fig2, 'b+', 6);
 
 % error computation
 % Err = zeros(obj1.NpartFluid, 4);
