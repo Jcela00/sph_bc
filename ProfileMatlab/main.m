@@ -12,27 +12,49 @@ set(groot, 'defaultFigurePosition', [1440 0 1440 1440]);
 dp = 0.025;
 rho0 = 1;
 dim = 2;
-filenum_end = 80;
+filenum_end = 100;
 Nfluid = [60 40 1];
 Nboundary = [1, 0, 0];
 Hconst = 1.0;
 
-proc1 = ParticleData('../CSV_Data/1_proc', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-proc4 = ParticleData('../CSV_Data/4_proc', 0, ['4proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+proc1 = ParticleData('../CSV_Data/1prc/file', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+proc2 = ParticleData('../CSV_Data/2prc/file', 0, ['2proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+fig1 = figure; hold on;
+fig2 = figure; hold on;
 
-figure; axis equal;
-quiver(proc1.Position(:, 1), proc1.Position(:, 2), proc1.Normal(:, 1), proc1.Normal(:, 2), 4, 'r', 'DisplayName', '1proc');
-hold on;
-quiver(proc4.Position(:, 1), proc4.Position(:, 2), proc4.Normal(:, 1), proc4.Normal(:, 2), 'b', 'DisplayName', '4proc');
-legend;
+for k = 19:filenum_end
+    proc1 = proc1.Update(k);
+    proc2 = proc2.Update(k);
+    [pos1, I1] = sortrows(proc1.Position);
+    [pos4, I2] = sortrows(proc2.Position);
+    proc1 = proc1.ReorderData(I1);
+    proc2 = proc2.ReorderData(I2);
 
-[pos1, I1] = sortrows(proc1.Position);
-[pos4, I2] = sortrows(proc4.Position);
-normal1 = proc1.VelocityTransport(I1, :);
-normal4 = proc4.VelocityTransport(I2, :);
-diff = abs(normal1 - normal4);
-figure; axis equal;
-quiver(pos1(:, 1), pos1(:, 2), diff(:, 1), diff(:, 2), 'r', 'DisplayName', 'Difference');
+    [objDiff, pack] = CompDiff(proc1, proc2);
+
+    objDiff.plotMagnitude(objDiff.Force, '$Force$', fig1, k)
+
+    PosDiff = abs(proc1.Position - proc2.Position);
+
+    % pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength];
+    disp(['Max Position Difference: ', num2str(max(norm(PosDiff)))]);
+    disp(['Total Error in Density: ', num2str(pack(1))]);
+    disp(['Total Error in Pressure: ', num2str(pack(2))]);
+    disp(['Total Error in Force: ', num2str(pack(3))]);
+    disp(['Total Error in Velocity: ', num2str(pack(4))]);
+    disp(['Total Error in Force Transport: ', num2str(pack(5))]);
+    disp(['Total Error in Velocity Transport: ', num2str(pack(6))]);
+    disp(['Total Error in Normal: ', num2str(pack(7))]);
+    disp(['Total Error in Curvature: ', num2str(pack(8))]);
+    disp(['Total Error in Arc Length: ', num2str(pack(9))]);
+    disp(' ');
+
+    pause()
+    figure(fig1); clf;
+    % figure(fig2); clf;
+
+end
+
 % % Analytical profile
 % tend = 80;
 % xfine = linspace(0, 1, 1000);

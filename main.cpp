@@ -29,12 +29,14 @@
 #define DENSITY_SUMMATION 0
 #define DENSITY_DIFFERENTIAL 1
 
+//
+#define DIM 2
+
 //////// CODE PARAMETERS /////////////////////////////////////////////////////////////
 // Dimensionality of the problem changes the normalizaiton of the kernel
-const int dimensions = 2;
 
 // BC and viscosity we are using in the simulation
-const int BC_TYPE = NO_SLIP;
+const int BC_TYPE = NEW_NO_SLIP;
 const int SCENARIO = CYLINDER_ARRAY;
 const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
@@ -74,11 +76,11 @@ double B;
 const double xi = 0.0;
 
 // Gravity vector and magnitude
-Point<3, double> gravity_vector;
+Point<DIM, double> gravity_vector;
 double gravity;
 // Wall velocity
-Point<3, double> vw_top;
-Point<3, double> vw_bottom;
+Point<DIM, double> vw_top;
+Point<DIM, double> vw_bottom;
 
 // Mass of the fluid and boundary particles M=rho*V, V=dp^3 or V = dp^2
 double MassFluid;
@@ -97,11 +99,11 @@ double Pbackground;
 // End simulation time
 const double t_end = 100.0;
 // Constant used to define time integration
-const double CFLnumber = 0.2;
+const double CFLnumber = 0.1;
 // Minimum T
 const double DtMin = 0.00001;
 // Controls otput file frequency, low means less frequent
-const int write_const = 10;
+int write_const = 10;
 size_t cnt = 0;
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
@@ -129,7 +131,7 @@ const int curvature_boundary = 9;
 // arc length wall
 const int arc_length = 10;
 
-typedef vector_dist<3, double, aggregate<size_t, double, double, double, double[3], double[3], double[3], double[3], double[3], double, double>> particles;
+typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double>> particles;
 //                                       |         |     |        |        |        |           |		     |             |		|       |
 //                                       |         |     |        |        |        |           |		     |			   |		|       |
 //                                    type        rho   pressure delta   force     velocity force_transport   v_transport    normal	curvature   arc_length
@@ -191,43 +193,67 @@ inline double EqState_particle(const double rho)
 }
 
 // Vector utilities
-inline double dotProduct(const Point<3, double> &v, const Point<3, double> &w)
+inline double dotProduct(const Point<DIM, double> &v, const Point<DIM, double> &w)
 {
-	return v.get(0) * w.get(0) + v.get(1) * w.get(1) + v.get(2) * w.get(2);
+	if (DIM == 2)
+		return v.get(0) * w.get(0) + v.get(1) * w.get(1);
+	else if (DIM == 3)
+		return v.get(0) * w.get(0) + v.get(1) * w.get(1) + v.get(2) * w.get(2);
 }
 
-inline std::array<Point<3, double>, 3> dyadicProduct(const Point<3, double> &v, const Point<3, double> &w)
+inline std::array<Point<DIM, double>, DIM> dyadicProduct(const Point<DIM, double> &v, const Point<DIM, double> &w)
 {
-	std::array<Point<3, double>, 3> dyad;
+
+	std::array<Point<DIM, double>, DIM> dyad;
 	dyad[0] = v.get(0) * w;
 	dyad[1] = v.get(1) * w;
-	dyad[2] = v.get(2) * w;
+	if (DIM == 3)
+		dyad[2] = v.get(2) * w;
 	return dyad;
 }
 
-inline Point<3, double> matVec(const std::array<Point<3, double>, 3> &m, const Point<3, double> &v)
+inline Point<DIM, double> matVec(const std::array<Point<DIM, double>, DIM> &m, const Point<DIM, double> &v)
 {
-	Point<3, double> res;
+	Point<DIM, double> res;
 	res.get(0) = dotProduct(m[0], v);
 	res.get(1) = dotProduct(m[1], v);
-	res.get(2) = dotProduct(m[2], v);
+	if (DIM == 3)
+		res.get(2) = dotProduct(m[2], v);
 	return res;
 }
-inline double getVectorNorm(const Point<3, double> &v)
+inline double getVectorNorm(const Point<DIM, double> &v)
 {
-	return sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1) + v.get(2) * v.get(2));
+	if (DIM == 2)
+		return sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1));
+	else if (DIM == 3)
+		return sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1) + v.get(2) * v.get(2));
 }
-inline void normalizeVector(Point<3, double> &v)
+inline void normalizeVector(Point<DIM, double> &v)
 {
+	if (DIM == 2 && (v.get(0) == 0.0 && v.get(1) == 0.0))
+	{
+		v.get(0) = 0.0;
+		v.get(1) = 0.0;
+		return;
+	}
+	else if (DIM == 3 && (v.get(0) == 0.0 && v.get(1) == 0.0 && v.get(2) == 0.0))
+	{
+		v.get(0) = 0.0;
+		v.get(1) = 0.0;
+		v.get(2) = 0.0;
+		return;
+	}
+
 	const double norm = getVectorNorm(v);
 	v = v / norm;
 }
-Point<3, double> getPerpendicularUnit(const Point<3, double> &v)
+Point<DIM, double> getPerpendicularUnit(const Point<DIM, double> &v)
 {
-	Point<3, double> perp;
+	Point<DIM, double> perp;
 	perp.get(0) = -v.get(1);
 	perp.get(1) = v.get(0);
-	perp.get(2) = v.get(2);
+	if (DIM == 3)
+		perp.get(2) = v.get(2);
 	normalizeVector(perp);
 	return perp;
 }
@@ -265,9 +291,9 @@ inline double Wab(double r)
 		return Quintic_W(r);
 }
 
-inline Point<3, double> Grad_Cubic_W(const Point<3, double> &dx, const double r)
+inline Point<DIM, double> Grad_Cubic_W(const Point<DIM, double> &dx, const double r)
 {
-	Point<3, double> DW;
+	Point<DIM, double> DW;
 	const double q = r / H;
 
 	const double c1 = Kcubic * (-3.0 / H);
@@ -282,16 +308,19 @@ inline Point<3, double> Grad_Cubic_W(const Point<3, double> &dx, const double r)
 	else
 		factor = 0.0;
 
-	DW.get(0) = factor * dx.get(0);
-	DW.get(1) = factor * dx.get(1);
-	DW.get(2) = factor * dx.get(2);
+	// DW.get(0) = factor * dx.get(0);
+	// DW.get(1) = factor * dx.get(1);
+	// if (DIM == 3)
+	// 	DW.get(2) = factor * dx.get(2);
+
+	DW = factor * dx;
 
 	return DW;
 }
 
-inline Point<3, double> Grad_Quintic_W(const Point<3, double> &dx, const double r)
+inline Point<DIM, double> Grad_Quintic_W(const Point<DIM, double> &dx, const double r)
 {
-	Point<3, double> DW;
+	Point<DIM, double> DW;
 	const double q = r / H;
 
 	const double tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
@@ -310,13 +339,16 @@ inline Point<3, double> Grad_Quintic_W(const Point<3, double> &dx, const double 
 	else
 		factor = 0.0;
 
-	DW.get(0) = factor * dx.get(0);
-	DW.get(1) = factor * dx.get(1);
-	DW.get(2) = factor * dx.get(2);
+	// DW.get(0) = factor * dx.get(0);
+	// DW.get(1) = factor * dx.get(1);
+	// if (DIM == 3)
+	// 	DW.get(2) = factor * dx.get(2);
+
+	DW = factor * dx;
 
 	return DW;
 }
-inline Point<3, double> DWab(const Point<3, double> &dx, const double r)
+inline Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r)
 {
 	if (KERNEL == CUBIC)
 		return Grad_Cubic_W(dx, r);
@@ -324,27 +356,27 @@ inline Point<3, double> DWab(const Point<3, double> &dx, const double r)
 		return Grad_Quintic_W(dx, r);
 }
 
-inline Point<3, double> Pi_physical(const Point<3, double> &dr, const double &r, const Point<3, double> &dv, const Point<3, double> &dW)
+inline Point<DIM, double> Pi_physical(const Point<DIM, double> &dr, const double &r, const Point<DIM, double> &dv, const Point<DIM, double> &dW)
 {
-	return eta * (dv * dotProduct(dr, dW)) / r / r; // / 1.44;
+	return eta * (dv * dotProduct(dr, dW)) / r / r;
 }
 
 inline double PressureForce(const double &rhoa, const double &rhob, const double &prsa, const double &prsb)
 {
-	return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob); // / 1.44;
+	return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob);
 }
 
-std::array<Point<3, double>, 3> GetBoundaryPositions(const Point<3, double> &r, const Point<3, double> &normal)
+std::array<Point<DIM, double>, 3> GetBoundaryPositions(const Point<DIM, double> &r, const Point<DIM, double> &normal)
 {
 	// aplies offset to a vector and returns the vectors pointing at the dummy wall particles
 
-	Point<3, double> offset_1 = -0.5 * normal * dp; // offset from wall to first particle
-	Point<3, double> offset_2 = -1.0 * normal * dp; // offset from first to second particle, and from second to third
-	Point<3, double> r1 = r + offset_1;				// first dummy particle
-	Point<3, double> r2 = r1 + offset_2;			// second dummy particle
-	Point<3, double> r3 = r2 + offset_2;			// third dummy particle
+	Point<DIM, double> offset_1 = -0.5 * normal * dp; // offset from wall to first particle
+	Point<DIM, double> offset_2 = -1.0 * normal * dp; // offset from first to second particle, and from second to third
+	Point<DIM, double> r1 = r + offset_1;			  // first dummy particle
+	Point<DIM, double> r2 = r1 + offset_2;			  // second dummy particle
+	Point<DIM, double> r3 = r2 + offset_2;			  // third dummy particle
 
-	std::array<Point<3, double>, 3> r_dummy = {r1, r2, r3};
+	std::array<Point<DIM, double>, 3> r_dummy = {r1, r2, r3};
 
 	return r_dummy;
 }
@@ -369,10 +401,10 @@ void calcFluidVec(particles &vd, CellList &NN)
 		if (vd.getProp<type>(a) == BOUNDARY)
 		{
 			// Get the position xa of the particle a
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// initialize sum
-			Point<3, double> r_fluid_sum = {0.0, 0.0, 0.0};
+			Point<DIM, double> r_fluid_sum = {0.0, 0.0};
 			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
 
 			// iterate the neighborhood particles
@@ -384,10 +416,10 @@ void calcFluidVec(particles &vd, CellList &NN)
 				if (vd.getProp<type>(b) == FLUID)
 				{
 					// Get the position xb of the particle b
-					const Point<3, double> xb = vd.getPos(b);
+					const Point<DIM, double> xb = vd.getPos(b);
 
 					// Get the vector pointing at fluid from boundary
-					Point<3, double> dr = xb - xa;
+					Point<DIM, double> dr = xb - xa;
 
 					// take the norm squared of this vector
 					const double r2 = norm2(dr);
@@ -405,9 +437,11 @@ void calcFluidVec(particles &vd, CellList &NN)
 			}
 			normalizeVector(r_fluid_sum);
 			// store in force_transport because we are not using it for boundary particles
-			vd.template getProp<force_transport>(a)[0] = r_fluid_sum.get(0);
-			vd.template getProp<force_transport>(a)[1] = r_fluid_sum.get(1);
-			vd.template getProp<force_transport>(a)[2] = r_fluid_sum.get(2);
+
+			for (int xyz = 0; xyz < DIM; ++xyz)
+			{
+				vd.template getProp<force_transport>(a)[xyz] = r_fluid_sum.get(xyz);
+			}
 		}
 
 		++part;
@@ -434,13 +468,13 @@ void calcNormalVec(particles &vd, CellList &NN)
 		if (vd.getProp<type>(a) == BOUNDARY)
 		{
 			// Get the position xa of the particle a
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// get vector that points at fluid
-			Point<3, double> Rfluid = vd.getProp<force_transport>(a);
+			Point<DIM, double> Rfluid = vd.getProp<force_transport>(a);
 
 			// initialize sum
-			Point<3, double> n_sum = {0.0, 0.0, 0.0};
+			Point<DIM, double> n_sum = (DIM == 2) ? Point<DIM, double>{0.0, 0.0} : Point<DIM, double>{0.0, 0.0, 0.0};
 			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
 
 			// iterate the neighborhood particles
@@ -457,10 +491,10 @@ void calcNormalVec(particles &vd, CellList &NN)
 				if (vd.getProp<type>(b) == BOUNDARY)
 				{
 					// Get the position xb of the particle b
-					const Point<3, double> xb = vd.getPos(b);
+					const Point<DIM, double> xb = vd.getPos(b);
 
 					// Get the vector pointing at b from a
-					const Point<3, double> dr = xa - xb;
+					const Point<DIM, double> dr = xa - xb;
 
 					// take the norm squared of this vector
 					const double r2 = norm2(dr);
@@ -469,7 +503,7 @@ void calcNormalVec(particles &vd, CellList &NN)
 					if (r2 < r_threshold * r_threshold)
 					{
 						// get perpendicular vector to dr
-						Point<3, double> perp = getPerpendicularUnit(dr); // this is normalized
+						Point<DIM, double> perp = getPerpendicularUnit(dr); // this is normalized
 
 						// get scalar product of perp and Rfluid
 						double perp_dot_fluid = dotProduct(perp, Rfluid);
@@ -488,9 +522,11 @@ void calcNormalVec(particles &vd, CellList &NN)
 			}
 			normalizeVector(n_sum);
 			// store in normal vector
-			vd.template getProp<normal_vector>(a)[0] = n_sum.get(0);
-			vd.template getProp<normal_vector>(a)[1] = n_sum.get(1);
-			vd.template getProp<normal_vector>(a)[2] = n_sum.get(2);
+
+			for (int xyz = 0; xyz < DIM; ++xyz)
+			{
+				vd.template getProp<normal_vector>(a)[xyz] = n_sum.get(xyz);
+			}
 		}
 
 		++part;
@@ -517,10 +553,10 @@ void calcCurvature(particles &vd, CellList &NN)
 		if (vd.getProp<type>(a) == BOUNDARY)
 		{
 			// Get the position xa of the particle a
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// get normal of a
-			Point<3, double> normal_a = vd.getProp<normal_vector>(a);
+			Point<DIM, double> normal_a = vd.getProp<normal_vector>(a);
 
 			// initialize sums
 			double K_sum = 0.0;
@@ -544,10 +580,10 @@ void calcCurvature(particles &vd, CellList &NN)
 				if (vd.getProp<type>(b) == BOUNDARY)
 				{
 					// Get the position xb of the particle b
-					const Point<3, double> xb = vd.getPos(b);
+					const Point<DIM, double> xb = vd.getPos(b);
 
 					// Get the vector pointing at a from b
-					const Point<3, double> dr = xa - xb;
+					const Point<DIM, double> dr = xa - xb;
 
 					// take the norm squared of this vector
 					const double r2 = norm2(dr);
@@ -556,14 +592,14 @@ void calcCurvature(particles &vd, CellList &NN)
 					if (r2 < r_threshold * r_threshold)
 					{
 						// get normal vector of b
-						Point<3, double> normal_b = vd.getProp<normal_vector>(b);
+						Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
 
 						// evaluate kernel
 						double W = Wab(sqrt(r2));
 						// evaluate kernel gradient
-						Point<3, double> dW = DWab(dr, sqrt(r2));
+						Point<DIM, double> dW = DWab(dr, sqrt(r2));
 
-						K_sum += dotProduct(normal_b - normal_a, dW);
+						K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
 						w_sum += W;
 					}
 				}
@@ -603,7 +639,7 @@ void fix_mass(particles &vd, CellList &NN)
 		if (vd.getProp<type>(a) == FLUID)
 		{
 			// Get the position xb of the particle a
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// initialize sum
 			double W_sum = 0.0;
@@ -623,10 +659,10 @@ void fix_mass(particles &vd, CellList &NN)
 				// };
 
 				// Get the position xb of the particle b
-				const Point<3, double> xb = vd.getPos(b);
+				const Point<DIM, double> xb = vd.getPos(b);
 
 				// Get the vector pointing at xa from xb
-				const Point<3, double> dr = xa - xb;
+				const Point<DIM, double> dr = xa - xb;
 
 				// take the norm squared of this vector
 				const double r2 = norm2(dr);
@@ -659,14 +695,14 @@ void fix_mass(particles &vd, CellList &NN)
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
 							// xw.get(0) this is the x coordinate of the wall
-							Point<3, double> normal = vd.getProp<normal_vector>(b);
+							Point<DIM, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
-							std::array<Point<3, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+							std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 
-							const Point<3, double> r1 = R_dummy[0];
-							const Point<3, double> r2 = R_dummy[1];
-							const Point<3, double> r3 = R_dummy[2];
+							const Point<DIM, double> r1 = R_dummy[0];
+							const Point<DIM, double> r2 = R_dummy[1];
+							const Point<DIM, double> r3 = R_dummy[2];
 
 							const double W1 = Wab(sqrt(norm2(r1)));
 							const double W2 = Wab(sqrt(norm2(r2)));
@@ -697,6 +733,7 @@ void fix_mass(particles &vd, CellList &NN)
 	MassFluid = newmass;
 	MassBound = newmass;
 }
+
 template <typename CellList>
 void calc_density(particles &vd, CellList &NN)
 {
@@ -719,7 +756,7 @@ void calc_density(particles &vd, CellList &NN)
 			double massa = MassFluid;
 
 			// Get the position xb of the particle a
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// initialize density sum
 			double rho_sum = 0.0;
@@ -739,10 +776,10 @@ void calc_density(particles &vd, CellList &NN)
 				// };
 
 				// Get the position xb of the particle b
-				const Point<3, double> xb = vd.getPos(b);
+				const Point<DIM, double> xb = vd.getPos(b);
 
 				// Get the vector pointing at xa from xb
-				const Point<3, double> dr = xa - xb;
+				const Point<DIM, double> dr = xa - xb;
 
 				// take the norm squared of this vector
 				const double r2 = norm2(dr);
@@ -776,10 +813,10 @@ void calc_density(particles &vd, CellList &NN)
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
 							// xw.get(0) this is the x coordinate of the wall
-							const Point<3, double> normal = vd.getProp<normal_vector>(b);
+							const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
 
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
-							const std::array<Point<3, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+							const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 							const double kappa = vd.getProp<curvature_boundary>(b);
 							const double dxwall = vd.getProp<arc_length>(b);
 
@@ -791,9 +828,9 @@ void calc_density(particles &vd, CellList &NN)
 							const double mass2 = Vol2 * rho_zero;
 							const double mass3 = Vol3 * rho_zero;
 
-							const Point<3, double> r1 = R_dummy[0];
-							const Point<3, double> r2 = R_dummy[1];
-							const Point<3, double> r3 = R_dummy[2];
+							const Point<DIM, double> r1 = R_dummy[0];
+							const Point<DIM, double> r2 = R_dummy[1];
+							const Point<DIM, double> r3 = R_dummy[2];
 
 							const double W1 = Wab(getVectorNorm(r1));
 							const double W2 = Wab(getVectorNorm(r2));
@@ -842,16 +879,14 @@ void calc_boundary(particles &vd, CellList &NN)
 		{
 
 			// Get the position xb of the boundary particle
-			Point<3, double> xb = vd.getPos(b);
+			Point<DIM, double> xb = vd.getPos(b);
 
 			// Get the Velocity of the boundary particle
-			Point<3, double> vb = vd.getProp<velocity>(b);
+			Point<DIM, double> vb = vd.getProp<velocity>(b);
 
 			// initialize sums
-			Point<3, double> sum_vW;
-			sum_vW.get(0) = 0.0;
-			sum_vW.get(1) = 0.0;
-			sum_vW.get(2) = 0.0;
+			Point<DIM, double> sum_vW = (DIM == 2) ? Point<DIM, double>{0.0, 0.0} : Point<DIM, double>{0.0, 0.0, 0.0};
+
 			double sum_pW = 0.0;
 			double sum_W = 0.0;
 
@@ -876,10 +911,10 @@ void calc_boundary(particles &vd, CellList &NN)
 				}
 
 				// Get the position xf of the fluid particle
-				Point<3, double> xf = vd.getPos(f);
+				Point<DIM, double> xf = vd.getPos(f);
 
 				// Get the velocity of the fluid particle
-				Point<3, double> vf = vd.getProp<velocity>(f);
+				Point<DIM, double> vf = vd.getProp<velocity>(f);
 
 				// Get the density of the fluid particle
 				double rhof = vd.getProp<rho>(f);
@@ -888,7 +923,7 @@ void calc_boundary(particles &vd, CellList &NN)
 				double Pf = vd.getProp<pressure>(f);
 
 				// Get the vector pointing at xb from xf rwf
-				Point<3, double> dr = xb - xf;
+				Point<DIM, double> dr = xb - xf;
 
 				// take the norm squared of this vector
 				double r2 = norm2(dr);
@@ -902,9 +937,7 @@ void calc_boundary(particles &vd, CellList &NN)
 					// evaluate kernel
 					double w = Wab(r);
 					// compute v*W
-					sum_vW.get(0) += w * vf.get(0);
-					sum_vW.get(1) += w * vf.get(1);
-					sum_vW.get(2) += w * vf.get(2);
+					sum_vW += w * vf;
 
 					// compute Pf +rhof*(g-a) dot rwf
 					// at the moment a = 0
@@ -919,9 +952,12 @@ void calc_boundary(particles &vd, CellList &NN)
 			{
 				// Set the velocity of the boundary particle b ( to be used in the momentum equation to impose BC)
 				// We use the v_transport field because boundary particles dont use this array
-				vd.template getProp<v_transport>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0] - sum_vW.get(0) / sum_W;
-				vd.template getProp<v_transport>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1] - sum_vW.get(1) / sum_W;
-				vd.template getProp<v_transport>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2] - sum_vW.get(2) / sum_W;
+
+				for (int xyz = 0; xyz < DIM; ++xyz)
+				{
+					vd.template getProp<v_transport>(b)[xyz] = 2.0 * vd.template getProp<velocity>(b)[xyz] - sum_vW.get(xyz) / sum_W;
+				}
+
 				// Set the pressure of the boundary particle b
 				vd.template getProp<pressure>(b) = sum_pW / sum_W;
 				// Compute density from inverted Eq of state
@@ -929,9 +965,12 @@ void calc_boundary(particles &vd, CellList &NN)
 			}
 			else
 			{
-				vd.template getProp<v_transport>(b)[0] = 2.0 * vd.template getProp<velocity>(b)[0];
-				vd.template getProp<v_transport>(b)[1] = 2.0 * vd.template getProp<velocity>(b)[1];
-				vd.template getProp<v_transport>(b)[2] = 2.0 * vd.template getProp<velocity>(b)[2];
+
+				for (int xyz = 0; xyz < DIM; ++xyz)
+				{
+					vd.template getProp<v_transport>(b)[xyz] = 2.0 * vd.template getProp<velocity>(b)[xyz];
+				}
+
 				vd.template getProp<pressure>(b) = 0.0;
 				vd.template getProp<rho>(b) = rho_zero;
 			}
@@ -971,27 +1010,28 @@ void interact_fluid_boundary_new(particles &vd,
 								 const double &massf,
 								 const double &rhof,
 								 const double &Pf,
-								 const Point<3, double> &xf,
-								 const Point<3, double> &vf,
-								 const Point<3, double> &xw,
-								 const Point<3, double> &r_wall_to_fluid,
+								 const Point<DIM, double> &xf,
+								 const Point<DIM, double> &vf,
+								 const Point<DIM, double> &xw,
+								 const Point<DIM, double> &r_wall_to_fluid,
 								 const double &dist2,
 								 unsigned long &boundary_key)
 {
 
 	// Points from fluid to wall
-	Point<3, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
+	Point<DIM, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
 
 	const double massw = MassBound;
 	const double rhow = vd.getProp<rho>(boundary_key);
 	const double Pw = vd.getProp<pressure>(boundary_key);
-	const Point<3, double> vw = vd.getProp<velocity>(boundary_key);
-	const Point<3, double> vtf = vd.getProp<v_transport>(fluid_key);
-	const Point<3, double> vdiff_f = vtf - vf;
+	const Point<DIM, double> vw = vd.getProp<velocity>(boundary_key);
+	const Point<DIM, double> vtf = vd.getProp<v_transport>(fluid_key);
+	const Point<DIM, double> vdiff_f = vtf - vf;
 
 	// Get normal vector
-	Point<3, double> normal = vd.getProp<normal_vector>(boundary_key);
-	Point<3, double> tangential = {normal.get(1), normal.get(0), 0.0};
+	Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
+	Point<DIM, double> tangential = (DIM == 2) ? Point<DIM, double>{normal.get(1), normal.get(0)} : Point<DIM, double>{normal.get(1), normal.get(0), 0.0};
+
 	if (tangential.get(1) < 0.0)
 	{
 		tangential.get(1) = -tangential.get(1);
@@ -1010,20 +1050,20 @@ void interact_fluid_boundary_new(particles &vd,
 	lf = (lf < 0.0 ? -1.0 * lf : lf); // absolute value
 
 	// Get array of vectors from fluid to boundary particles, get norm, and get normal distance to wall
-	std::array<Point<3, double>, 3> r_boundary = GetBoundaryPositions(r_fluid_to_wall, normal);
+	std::array<Point<DIM, double>, 3> r_boundary = GetBoundaryPositions(r_fluid_to_wall, normal);
 	std::array<double, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
 	std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
 
 	// Initialize arrays for boundary particles
-	std::array<double, 3> p_boundary = {0.0, 0.0, 0.0};
-	std::array<double, 3> rho_boundary = {0.0, 0.0, 0.0};
-	std::array<Point<3, double>, 3> v_boundary = {Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}, Point<3, double>{0.0, 0.0, 0.0}};
-	std::array<double, 3> Volume_boundary = {0.0, 0.0, 0.0};
-	std::array<double, 3> Mass_boundary = {0.0, 0.0, 0.0};
+	std::array<double, 3> p_boundary;
+	std::array<double, 3> rho_boundary;
+	std::array<Point<DIM, double>, 3> v_boundary;
+	std::array<double, 3> Volume_boundary;
+	std::array<double, 3> Mass_boundary;
 	double g_normal = dotProduct(gravity_vector, normal);
 
 	size_t interact_count = 0;
-	const std::array<Point<3, double>, 3> Af = dyadicProduct(rhof * vf, vdiff_f);
+	const std::array<Point<DIM, double>, DIM> Af = dyadicProduct(rhof * vf, vdiff_f);
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -1046,26 +1086,24 @@ void interact_fluid_boundary_new(particles &vd,
 			r_boundary[i] = -1.0 * r_boundary[i];
 
 			// Evaluate kernel gradient
-			const Point<3, double> DW = DWab(r_boundary[i], r_boundary_norm[i]);
+			const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i]);
 
 			// Compute forces
-			const Point<3, double> v_rel = vf - v_boundary[i];
+			const Point<DIM, double> v_rel = vf - v_boundary[i];
 			const double Va2 = (massf / rhof) * (massf / rhof);
 			const double Vb2 = (Mass_boundary[i] / rho_boundary[i]) * (Mass_boundary[i] / rho_boundary[i]);
 
 			// const double Vb2 = Volume_boundary[i] * Volume_boundary[i];
 
-			const Point<3, double> ViscosityTerm = Pi_physical(r_boundary[i], getVectorNorm(r_boundary[i]), v_rel, DW);
+			const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], getVectorNorm(r_boundary[i]), v_rel, DW);
 			const double PressureTerm = PressureForce(rhof, rho_boundary[i], Pf, p_boundary[i]);
-			Point<3, double> GradATerm = 0.5 * matVec(Af, DW);
+			Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
 
-			vd.getProp<force>(fluid_key)[0] += (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
-			vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf;
-			vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * (PressureTerm * DW.get(2) + ViscosityTerm.get(2) + GradATerm.get(2)) / massf;
-
-			vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
-			vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
-			vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
+			for (int xyz = 0; xyz < DIM; ++xyz)
+			{
+				vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+				vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+			}
 
 			if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
 			{
@@ -1081,10 +1119,10 @@ void interact_fluid_fluid(particles &vd,
 						  const double &massa,
 						  const double &rhoa,
 						  const double &Pa,
-						  const Point<3, double> &xa,
-						  const Point<3, double> &va,
-						  const Point<3, double> &xb,
-						  const Point<3, double> &r_ab,
+						  const Point<DIM, double> &xa,
+						  const Point<DIM, double> &va,
+						  const Point<DIM, double> &xb,
+						  const Point<DIM, double> &r_ab,
 						  const double &r2,
 						  const unsigned long &b_key)
 {
@@ -1092,43 +1130,41 @@ void interact_fluid_fluid(particles &vd,
 	const double massb = MassFluid;
 	const double rhob = vd.getProp<rho>(b_key);
 	const double Pb = vd.getProp<pressure>(b_key);
-	const Point<3, double> vb = vd.getProp<velocity>(b_key);
+	const Point<DIM, double> vb = vd.getProp<velocity>(b_key);
 
 	const double r = sqrt(r2);
 
-	const Point<3, double> v_rel = va - vb;
+	const Point<DIM, double> v_rel = va - vb;
 
-	const Point<3, double> DW = DWab(r_ab, r);
+	const Point<DIM, double> DW = DWab(r_ab, r);
 
 	const double Va2 = (massa / rhoa) * (massa / rhoa);
 	const double Vb2 = (massb / rhob) * (massb / rhob);
 
-	const Point<3, double> ViscosityTerm = Pi_physical(r_ab, r, v_rel, DW);
+	const Point<DIM, double> ViscosityTerm = Pi_physical(r_ab, r, v_rel, DW);
 	const double PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
 
-	const Point<3, double> vta = vd.getProp<v_transport>(a_key);
-	const Point<3, double> vtb = vd.getProp<v_transport>(b_key);
-	const Point<3, double> vdiff_a = vta - va;
-	const Point<3, double> vdiff_b = vtb - vb;
+	const Point<DIM, double> vta = vd.getProp<v_transport>(a_key);
+	const Point<DIM, double> vtb = vd.getProp<v_transport>(b_key);
+	const Point<DIM, double> vdiff_a = vta - va;
+	const Point<DIM, double> vdiff_b = vtb - vb;
 
 	// double GradATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
-	std::array<Point<3, double>, 3> Aa = dyadicProduct(rhoa * va, vdiff_a);
-	std::array<Point<3, double>, 3> Ab = dyadicProduct(rhob * vb, vdiff_b);
-	std::array<Point<3, double>, 3> SumA;
+	std::array<Point<DIM, double>, DIM> Aa = dyadicProduct(rhoa * va, vdiff_a);
+	std::array<Point<DIM, double>, DIM> Ab = dyadicProduct(rhob * vb, vdiff_b);
+	std::array<Point<DIM, double>, DIM> SumA;
 	SumA[0] = Aa[0] + Ab[0];
 	SumA[1] = Aa[1] + Ab[1];
-	SumA[2] = Aa[2] + Ab[2];
+	if (DIM == 3)
+		SumA[2] = Aa[2] + Ab[2];
 
-	Point<3, double> GradATerm = 0.5 * matVec(SumA, DW);
+	Point<DIM, double> GradATerm = 0.5 * matVec(SumA, DW);
 
-	vd.getProp<force>(a_key)[0] += (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massa;
-	vd.getProp<force>(a_key)[1] += (Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massa;
-	vd.getProp<force>(a_key)[2] += (Va2 + Vb2) * (PressureTerm * DW.get(2) + ViscosityTerm.get(2) + GradATerm.get(2)) / massa;
-
-	vd.getProp<force_transport>(a_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massa;
-	vd.getProp<force_transport>(a_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massa;
-	vd.getProp<force_transport>(a_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massa;
-
+	for (int xyz = 0; xyz < DIM; ++xyz)
+	{
+		vd.getProp<force>(a_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massa;
+		vd.getProp<force_transport>(a_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massa;
+	}
 	if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
 	{
 		vd.getProp<drho>(a_key) += massb * dotProduct(v_rel, DW);
@@ -1140,48 +1176,47 @@ void interact_fluid_boundary_old(particles &vd,
 								 const double &massf,
 								 const double &rhof,
 								 const double &Pf,
-								 const Point<3, double> &xf,
-								 const Point<3, double> &vf,
-								 const Point<3, double> &xb,
-								 const Point<3, double> &r_ab,
+								 const Point<DIM, double> &xf,
+								 const Point<DIM, double> &vf,
+								 const Point<DIM, double> &xb,
+								 const Point<DIM, double> &r_ab,
 								 const double &r2,
 								 unsigned long &boundary_key)
 {
 	const double massb = MassBound;
 	const double rhob = vd.getProp<rho>(boundary_key);
 	const double Pb = vd.getProp<pressure>(boundary_key);
-	const Point<3, double> vb = vd.getProp<velocity>(boundary_key);
-	const Point<3, double> vb_noslip = vd.getProp<v_transport>(boundary_key);
+	const Point<DIM, double> vb = vd.getProp<velocity>(boundary_key);
+	const Point<DIM, double> vb_noslip = vd.getProp<v_transport>(boundary_key);
 
-	const Point<3, double> r_fb = xf - xb;
+	const Point<DIM, double> r_fb = xf - xb;
 	const double r = sqrt(r2);
 
-	const Point<3, double> v_rel = vf - vb;
-	const Point<3, double> v_rel_aux = vf - vb_noslip;
+	const Point<DIM, double> v_rel = vf - vb;
+	const Point<DIM, double> v_rel_aux = vf - vb_noslip;
 
-	const Point<3, double> DW = DWab(r_ab, r);
+	const Point<DIM, double> DW = DWab(r_ab, r);
 
 	const double Va2 = (massf / rhof) * (massf / rhof);
 	const double Vb2 = (massb / rhob) * (massb / rhob);
 
-	const Point<3, double> ViscosityTerm = Pi_physical(r_ab, r, v_rel_aux, DW);
+	const Point<DIM, double> ViscosityTerm = Pi_physical(r_ab, r, v_rel_aux, DW);
 	const double PressureTerm = PressureForce(rhof, rhob, Pf, Pb);
 
-	const Point<3, double> vtf = vd.getProp<v_transport>(fluid_key);
-	const Point<3, double> vdiff_f = vtf - vf;
+	const Point<DIM, double> vtf = vd.getProp<v_transport>(fluid_key);
+	const Point<DIM, double> vdiff_f = vtf - vf;
 	// Boundary particles have no transport velocity difference
 
 	// const double GradATerm = 0.5 * (rhof * dotProduct(vf, vdiff_f));
 	// double GradATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
-	std::array<Point<3, double>, 3> Af = dyadicProduct(rhof * vf, vdiff_f);
-	Point<3, double> GradATerm = 0.5 * matVec(Af, DW);
-	vd.getProp<force>(fluid_key)[0] += (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
-	vd.getProp<force>(fluid_key)[1] += (Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf;
-	vd.getProp<force>(fluid_key)[2] += (Va2 + Vb2) * (PressureTerm * DW.get(2) + ViscosityTerm.get(2) + GradATerm.get(2)) / massf;
+	std::array<Point<DIM, double>, DIM> Af = dyadicProduct(rhof * vf, vdiff_f);
+	Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
 
-	vd.getProp<force_transport>(fluid_key)[0] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(0) / massf;
-	vd.getProp<force_transport>(fluid_key)[1] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(1) / massf;
-	vd.getProp<force_transport>(fluid_key)[2] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(2) / massf;
+	for (int xyz = 0; xyz < DIM; ++xyz)
+	{
+		vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+		vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+	}
 
 	if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
 	{
@@ -1211,7 +1246,7 @@ inline void calc_forces(particles &vd, CellList &NN)
 		{
 
 			// Get the position xp of the particle
-			Point<3, double> xa = vd.getPos(a);
+			Point<DIM, double> xa = vd.getPos(a);
 
 			// Take the mass of the particle dependently if it is FLUID or BOUNDARY
 			double massa = MassFluid;
@@ -1221,16 +1256,18 @@ inline void calc_forces(particles &vd, CellList &NN)
 			double Pa = vd.getProp<pressure>(a);
 
 			// Get the Velocity of the particle a
-			Point<3, double> va = vd.getProp<velocity>(a);
+			Point<DIM, double> va = vd.getProp<velocity>(a);
 
 			// Reset the force counter (0 + gravity)
 			vd.template getProp<force>(a)[0] = gravity_vector.get(0);
 			vd.template getProp<force>(a)[1] = gravity_vector.get(1);
-			vd.template getProp<force>(a)[2] = gravity_vector.get(2);
+			if (DIM == 3)
+				vd.template getProp<force>(a)[2] = gravity_vector.get(2);
 
 			vd.template getProp<force_transport>(a)[0] = 0.0;
 			vd.template getProp<force_transport>(a)[1] = 0.0;
-			vd.template getProp<force_transport>(a)[2] = 0.0;
+			if (DIM == 3)
+				vd.template getProp<force_transport>(a)[2] = 0.0;
 
 			vd.template getProp<drho>(a) = 0.0;
 
@@ -1251,11 +1288,11 @@ inline void calc_forces(particles &vd, CellList &NN)
 				};
 
 				// Get the position xb of the particle
-				Point<3, double> xb = vd.getPos(b);
+				Point<DIM, double> xb = vd.getPos(b);
 
 				// Get the distance between a and b
 				// in fluid - boundary its xf-xb
-				Point<3, double> dr = xa - xb;
+				Point<DIM, double> dr = xa - xb;
 
 				// take the norm (squared) of this vector
 				double r2 = norm2(dr);
@@ -1292,10 +1329,10 @@ void max_acceleration_and_velocity(particles &vd, Vcluster<> &v_cl, double &max_
 	{
 		auto a = part.get();
 
-		Point<3, double> acc(vd.getProp<force>(a));
+		Point<DIM, double> acc(vd.getProp<force>(a));
 		double acc2 = norm2(acc);
 
-		Point<3, double> vel(vd.getProp<velocity>(a));
+		Point<DIM, double> vel(vd.getProp<velocity>(a));
 		double vel2 = norm2(vel);
 
 		if (vel2 >= max_vel)
@@ -1327,6 +1364,8 @@ double calc_deltaT(particles &vd, Vcluster<> &v_cl)
 	double dt = CFLnumber * std::min({dt_u, dt_visc, dt_g});
 	if (dt < DtMin)
 		dt = DtMin;
+
+	dt = 0.000473072;
 	const long int rank = v_cl.getProcessUnitID();
 	v_cl.barrier();
 
@@ -1356,17 +1395,27 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 			continue;
 		}
 
-		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
-		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
-		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
+		for (int xyz = 0; xyz < DIM; ++xyz)
+		{
+			vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
+			vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+			vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
+		}
 
-		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
-		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
-		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
+		// vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
+		// vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
+		// if (DIM == 3)
+		// 	vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
 
-		vd.getPos(a)[0] += dt * vd.template getProp<v_transport>(a)[0];
-		vd.getPos(a)[1] += dt * vd.template getProp<v_transport>(a)[1];
-		vd.getPos(a)[2] += dt * vd.template getProp<v_transport>(a)[2];
+		// vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
+		// vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
+		// if (DIM == 3)
+		// 	vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
+
+		// vd.getPos(a)[0] += dt * vd.template getProp<v_transport>(a)[0];
+		// vd.getPos(a)[1] += dt * vd.template getProp<v_transport>(a)[1];
+		// if (DIM == 3)
+		// 	vd.getPos(a)[2] += dt * vd.template getProp<v_transport>(a)[2];
 
 		if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
 			vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
@@ -1418,14 +1467,20 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 
 		// if (DENSITY_TYPE == DENSITY_DIFFERENTIAL)
 		// 	vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+		for (int xyz = 0; xyz < DIM; ++xyz)
+		{
+			vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
+			vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+		}
+		// vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
+		// vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
+		// if (DIM == 3)
+		// 	vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
 
-		vd.template getProp<velocity>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force>(a)[0];
-		vd.template getProp<velocity>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force>(a)[1];
-		vd.template getProp<velocity>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force>(a)[2];
-
-		vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
-		vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
-		vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
+		// vd.template getProp<v_transport>(a)[0] = vd.template getProp<velocity>(a)[0] + dt_2 * vd.template getProp<force_transport>(a)[0];
+		// vd.template getProp<v_transport>(a)[1] = vd.template getProp<velocity>(a)[1] + dt_2 * vd.template getProp<force_transport>(a)[1];
+		// if (DIM == 3)
+		// 	vd.template getProp<v_transport>(a)[2] = vd.template getProp<velocity>(a)[2] + dt_2 * vd.template getProp<force_transport>(a)[2];
 
 		++part2;
 	}
@@ -1499,7 +1554,8 @@ void WriteParameters(size_t Nfluid[3], double length[3], Vcluster<> &v_cl, std::
 {
 	const double Lx = length[0] + 0.5 * dp; // channel height
 	const double Ly = length[1];			// channel width
-	const double Lz = length[2];			// channel length ( +0.5dp due to periodicity)
+	if (DIM == 3)
+		const double Lz = length[2]; // channel length ( +0.5dp due to periodicity)
 
 	const long int Nprc = v_cl.getProcessingUnits();
 	std::string size_proc_name = std::to_string(Nfluid[0]) + "_" + std::to_string(Nfluid[1]) + "_" + std::to_string(Nprc) + "prc_";
@@ -1508,10 +1564,10 @@ void WriteParameters(size_t Nfluid[3], double length[3], Vcluster<> &v_cl, std::
 	std::string constants_filename = "Constants_" + filename + ".txt";
 	std::ofstream file(constants_filename);
 
-	file << "gravity = {" << gravity_vector.get(0) << ", " << gravity_vector.get(1) << ", " << gravity_vector.get(2) << "}" << std::endl;
-	file << "v_topwall = {" << vw_top.get(0) << ", " << vw_top.get(1) << ", " << vw_top.get(2) << "}" << std::endl;
-	file << "v_bottomwall = {" << vw_bottom.get(0) << ", " << vw_bottom.get(1) << ", " << vw_bottom.get(2) << "}" << std::endl;
-	file << "Lx, Ly, Lz = " << Lx << ", " << Ly << ", " << Lz << std::endl;
+	file << "gravity = {" << gravity_vector.get(0) << ", " << gravity_vector.get(1) << "}" << std::endl;
+	file << "v_topwall = {" << vw_top.get(0) << ", " << vw_top.get(1) << "}" << std::endl;
+	file << "v_bottomwall = {" << vw_bottom.get(0) << ", " << vw_bottom.get(1) << "}" << std::endl;
+	file << "Lx, Ly, Lz = " << Lx << ", " << Ly << std::endl;
 	file << "dp = " << dp << std::endl;
 	file << "H = " << H << std::endl;
 	file << "Mass = " << MassFluid << std::endl;
@@ -1531,7 +1587,7 @@ void WriteParameters(size_t Nfluid[3], double length[3], Vcluster<> &v_cl, std::
 	file << "DENSITY_TYPE = " << DENSITY_TYPE << std::endl;
 }
 
-void AddCylinderNewBC(particles &vd, Point<3, double> CylinderCentre, double CylinderRadius)
+void AddCylinderNewBC(particles &vd, Point<DIM, double> CylinderCentre, double CylinderRadius)
 {
 	const double perimeter = 2.0 * M_PI * CylinderRadius;
 	const int Np_cylinder = ceil(perimeter / dp);
@@ -1540,14 +1596,29 @@ void AddCylinderNewBC(particles &vd, Point<3, double> CylinderCentre, double Cyl
 	double theta = 0.0;
 	int counter = 0;
 
+	Point<DIM, double> Cylinder_particle;
+	Point<DIM, double> normal;
+
 	while (theta < 2.0 * M_PI)
 	{
-		Point<3, double> cylinder_particle{CylinderCentre.get(0) + CylinderRadius * cos(theta), CylinderCentre.get(1) + CylinderRadius * sin(theta), CylinderCentre.get(2)};
-		Point<3, double> normal = {cos(theta), sin(theta), 0.0};
+
+		Cylinder_particle[0] = CylinderCentre.get(0) + CylinderRadius * cos(theta);
+		Cylinder_particle[1] = CylinderCentre.get(1) + CylinderRadius * sin(theta);
+
+		normal[0] = cos(theta);
+		normal[1] = sin(theta);
+
+		if (DIM == 3)
+		{
+			Cylinder_particle[2] = CylinderCentre.get(2);
+			normal[2] = 0.0;
+		}
+
 		vd.add();
-		vd.getLastPos()[0] = cylinder_particle.get(0);
-		vd.getLastPos()[1] = cylinder_particle.get(1);
-		vd.getLastPos()[2] = cylinder_particle.get(2);
+		vd.getLastPos()[0] = Cylinder_particle.get(0);
+		vd.getLastPos()[1] = Cylinder_particle.get(1);
+		if (DIM == 3)
+			vd.getLastPos()[2] = Cylinder_particle.get(2);
 
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<pressure>() = 0.0;
@@ -1556,23 +1627,28 @@ void AddCylinderNewBC(particles &vd, Point<3, double> CylinderCentre, double Cyl
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<v_transport>()[2] = 0.0;
 
-		vd.template getLastProp<normal_vector>()[0] = normal.get(0);
-		vd.template getLastProp<normal_vector>()[1] = normal.get(1);
-		vd.template getLastProp<normal_vector>()[2] = normal.get(2);
+		vd.template getLastProp<force_transport>()[0] = 0.0;
+		vd.template getLastProp<force_transport>()[1] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force_transport>()[2] = 0.0;
+
+		vd.template getLastProp<normal_vector>()[0] = normal[0];
+		vd.template getLastProp<normal_vector>()[1] = normal[1];
+		if (DIM == 3)
+			vd.template getLastProp<normal_vector>()[2] = normal[2];
 
 		vd.template getLastProp<curvature_boundary>() = 1.0 / CylinderRadius;
 		vd.template getLastProp<arc_length>() = dxwall;
@@ -1582,24 +1658,55 @@ void AddCylinderNewBC(particles &vd, Point<3, double> CylinderCentre, double Cyl
 	std::cout << "Added " << counter << " cylinder boundary particles" << std::endl;
 }
 
-void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSideLength)
+void AddSquareNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerSideLength)
 {
 	const double sideLength = (integerSideLength - 1) * dp;
-	const Point<3, double> LowerLeftCorner = {SquareCentre.get(0) - sideLength / 2.0, SquareCentre.get(1) - sideLength / 2.0, SquareCentre.get(2)};
-	const Point<3, double> UpperLeftCorner = {SquareCentre.get(0) - sideLength / 2.0, SquareCentre.get(1) + sideLength / 2.0, SquareCentre.get(2)};
-	const Point<3, double> LowerRightCorner = {SquareCentre.get(0) + sideLength / 2.0, SquareCentre.get(1) - sideLength / 2.0, SquareCentre.get(2)};
+	Point<DIM, double> LowerLeftCorner;
+	Point<DIM, double> UpperLeftCorner;
+	Point<DIM, double> LowerRightCorner;
+	if (DIM == 2)
+	{
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+
+		UpperLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
+		UpperLeftCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+
+		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+	}
+	else if (DIM == 3)
+	{
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerLeftCorner.get(2) = SquareCentre.get(2);
+
+		UpperLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
+		UpperLeftCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+		UpperLeftCorner.get(2) = SquareCentre.get(2);
+
+		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerRightCorner.get(2) = SquareCentre.get(2);
+	}
 
 	// upper and lower walls
 	for (int k = 0; k < integerSideLength; k++)
 	{
-		Point<3, double> Xoffset = {k * dp, 0.0, 0.0};
-		Point<3, double> LowerWall = LowerLeftCorner + Xoffset;
-		Point<3, double> UpperWall = UpperLeftCorner + Xoffset;
+		Point<DIM, double> Xoffset;
+		Xoffset.get(0) = k * dp;
+		Xoffset.get(1) = 0.0;
+		if (DIM == 3)
+			Xoffset.get(2) = 0.0;
+
+		Point<DIM, double> LowerWall = LowerLeftCorner + Xoffset;
+		Point<DIM, double> UpperWall = UpperLeftCorner + Xoffset;
 
 		vd.add();
 		vd.getLastPos()[0] = LowerWall.get(0); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
 		vd.getLastPos()[1] = LowerWall.get(1); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
-		vd.getLastPos()[2] = LowerWall.get(2);
+		if (DIM == 3)
+			vd.getLastPos()[2] = LowerWall.get(2);
 
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<pressure>() = 0.0;
@@ -1608,23 +1715,28 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
 		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force_transport>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		vd.template getLastProp<normal_vector>()[0] = 0.0;
 		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		vd.template getLastProp<normal_vector>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
@@ -1641,23 +1753,28 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
 		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force_transport>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		vd.template getLastProp<normal_vector>()[0] = 0.0;
 		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		vd.template getLastProp<normal_vector>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
@@ -1666,14 +1783,20 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 
 	for (int k = 1; k < integerSideLength - 1; k++)
 	{
-		Point<3, double> Yoffset = {0.0, k * dp, 0.0};
-		Point<3, double> LeftWall = LowerLeftCorner + Yoffset;
-		Point<3, double> RightWall = LowerRightCorner + Yoffset;
+		Point<DIM, double> Yoffset;
+		Yoffset.get(0) = 0.0;
+		Yoffset.get(1) = k * dp;
+		if (DIM == 3)
+			Yoffset.get(2) = 0.0;
+
+		Point<DIM, double> LeftWall = LowerLeftCorner + Yoffset;
+		Point<DIM, double> RightWall = LowerRightCorner + Yoffset;
 
 		vd.add();
 		vd.getLastPos()[0] = LeftWall.get(0);
 		vd.getLastPos()[1] = LeftWall.get(1);
-		vd.getLastPos()[2] = LeftWall.get(2);
+		if (DIM == 3)
+			vd.getLastPos()[2] = LeftWall.get(2);
 
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<pressure>() = 0.0;
@@ -1682,23 +1805,28 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
 		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force_transport>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		vd.template getLastProp<normal_vector>()[0] = 0.0;
 		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		vd.template getLastProp<normal_vector>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
@@ -1706,7 +1834,8 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 		vd.add();
 		vd.getLastPos()[0] = RightWall.get(0);
 		vd.getLastPos()[1] = RightWall.get(1);
-		vd.getLastPos()[2] = RightWall.get(2);
+		if (DIM == 3)
+			vd.getLastPos()[2] = RightWall.get(2);
 
 		vd.template getLastProp<type>() = BOUNDARY;
 		vd.template getLastProp<pressure>() = 0.0;
@@ -1715,23 +1844,28 @@ void AddSquareNewBC(particles &vd, Point<3, double> SquareCentre, int integerSid
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
 		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<force_transport>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		vd.template getLastProp<normal_vector>()[0] = 0.0;
 		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		vd.template getLastProp<normal_vector>()[2] = 0.0;
+		if (DIM == 3)
+			vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
@@ -1743,25 +1877,25 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 	// Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
 	// First particle will always be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
-	double length[3];
+	double length[DIM];
 
 	// Size of the virtual cartesian grid that defines where to place the particles
-	size_t sz[3];
+	size_t sz[DIM];
 
 	// In the case of the new bc we need particles at the wall, for this we need sz_aux
 	// We want to put one virtual grid point between each pair of the old ones,
 	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
-	size_t sz_aux[3];
-	size_t sz_aux_sq[3];
+	size_t sz_aux[DIM];
+	size_t sz_aux_sq[DIM];
 
 	// Boundary conditions
-	size_t bc[3];
+	size_t bc[DIM];
 
 	// Number of boundary particles in each direction
-	size_t Nboundary[3];
+	size_t Nboundary[DIM];
 
 	// Number of fluid particles in each direction
-	size_t Nfluid[3];
+	size_t Nfluid[DIM];
 
 	double CylinderRadius;
 
@@ -1769,24 +1903,32 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	{
 		Nfluid[0] = 20;
 		Nfluid[1] = 40;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.1, 0.0, 0.0};
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
 
 		umax = gravity_vector.get(0) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
@@ -1797,34 +1939,41 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == COUETTE)
 	{
 		Nfluid[0] = 20;
 		Nfluid[1] = 40;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.0, 0.0};
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
+
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 1.25, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
 
 		umax = vw_top.get(1);
 		cbar = coeff_sound * umax;
@@ -1835,34 +1984,40 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == HYDROSTATIC)
 	{
 		Nfluid[0] = 40;
 		Nfluid[1] = 40;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[0];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
 		rho_zero = 1.0;
 		nu = 0.1;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.0, 0.1, 0.0};
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
 
 		umax = 1;
 		cbar = coeff_sound * umax;
@@ -1873,39 +2028,43 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = NON_PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = Nbound_x;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == CYLINDER_ARRAY)
 	{
 
 		// TESTED PARAMETERS
-		Nfluid[0] = 30;
-		Nfluid[1] = 20;
-		Nfluid[2] = 1;
-
+		Nfluid[0] = 60;
+		Nfluid[1] = 40;
 		dp = 1.0 / (double)Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 		CylinderRadius = (Nfluid[1] / 4.0) * H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.1, 0.0, 0.0};
-
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
 
 		umax = 2.4037 * 1e-1; // from previous simulations for nu = 0.01
 		cbar = coeff_sound * umax;
@@ -1917,11 +2076,9 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 
 		// PAPER PARAMETERS
 
@@ -1931,16 +2088,16 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// dp = 4.0 * 0.02 / Nfluid[1];
 		// H = Hconst * dp;
 		// r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		// Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		// Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		// Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		// Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 		// CylinderRadius = (Nfluid[1] / 4.0) * dp;
 
 		// rho_zero = 1000.0;
 		// eta = 0.1;
 		// nu = eta / rho_zero;
 
-		// MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		// MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		// MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		// MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
 		// gravity_vector = {2.5 * 1e-4, 0.0, 0.0};
 		// gravity = getVectorNorm(gravity_vector);
@@ -1969,27 +2126,33 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// TESTED PARAMETERS
 		Nfluid[0] = 50;
 		Nfluid[1] = 50;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 		CylinderRadius = (Nfluid[1] / 5.0) * H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.1, 0.0, 0.0};
-
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
-
 		umax = 6.70602256190743 * 1e-1; // from previous simulations for nu = 0.01
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
@@ -2000,11 +2163,9 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = 0;
-		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == CYLINDER_ARRAY_LONG)
 	{
@@ -2012,26 +2173,34 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// TESTED PARAMETERS
 		Nfluid[0] = 120;
 		Nfluid[1] = 50;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 		CylinderRadius = (Nfluid[1] / 4.0) * H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.1, 0.0, 0.0};
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
 
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
 
 		umax = gravity_vector.get(0) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
@@ -2042,35 +2211,41 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 	}
 	else if (SCENARIO == SQUARE)
 	{
 		Nfluid[0] = 60;
 		Nfluid[1] = 40;
-		Nfluid[2] = 1;
 		dp = 1.0 / Nfluid[1];
 		H = Hconst * dp;
 		r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-		Kcubic = (dimensions == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
-		Kquintic = (dimensions == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+		Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+		Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 
 		rho_zero = 1.0;
 		nu = 0.01;
 		eta = nu * rho_zero;
 
-		MassFluid = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
-		MassBound = rho_zero * (dimensions == 3 ? dp * dp * dp : dp * dp);
+		MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+		MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 
-		gravity_vector = {0.1, 0.0, 0.0};
+		if (DIM == 3)
+		{
+			gravity_vector = {0.1, 0.0, 0.0};
+			vw_top = {0.0, 0.0, 0.0};
+			vw_bottom = {0.0, 0.0, 0.0};
+		}
+		else if (DIM == 2)
+		{
+			gravity_vector = {0.1, 0.0};
+			vw_top = {0.0, 0.0};
+			vw_bottom = {0.0, 0.0};
+		}
+
 		gravity = sqrt(norm2(gravity_vector));
-		vw_top = {0.0, 0.0, 0.0};
-		vw_bottom = {0.0, 0.0, 0.0};
-
 		umax = gravity_vector.get(0) * 1.0 * 1.0 / (8.0 * nu);
 		cbar = coeff_sound * umax;
 		B = gamma_ * cbar * cbar / rho_zero;
@@ -2079,24 +2254,39 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		bc[0] = PERIODIC;
 		bc[1] = NON_PERIODIC;
-		bc[2] = NON_PERIODIC;
 		size_t Nbound_x = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 		Nboundary[0] = 0;
 		Nboundary[1] = Nbound_x;
-		Nboundary[2] = 0;
 	}
 
 	// Now define the boxes and the grid of the domain
 
 	// We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
 	// offset to add to the domain box to create the correct particle positions
-	double offset_domain[3] = {0.0, 0.0, 0.0};
+	double offset_domain[DIM];
+	offset_domain[0] = 0.0;
+	offset_domain[1] = 0.0;
+	if (DIM == 3)
+		offset_domain[2] = 0.0;
+
 	// offset to add to the recipient box, if non periodic it has to go from - Nboundary*dp  to length + Nboundary*dp
-	double offset_recipient[3] = {0.0, 0.0, 0.0};
+	double offset_recipient[DIM];
+	offset_recipient[0] = 0.0;
+	offset_recipient[1] = 0.0;
+	if (DIM == 3)
+		offset_recipient[2] = 0.0;
 	// In case of periodic boundary conditions, we need to add an asymetric offset to the right, top or front of the domain
-	double offset_periodic_fluid[3] = {0.0, 0.0, 0.0};
+	double offset_periodic_fluid[DIM];
+	offset_periodic_fluid[0] = 0.0;
+	offset_periodic_fluid[1] = 0.0;
+	if (DIM == 3)
+		offset_periodic_fluid[2] = 0.0;
 	// For the new BC we also need an offset
-	double offset_periodic_recipient[3] = {0.0, 0.0, 0.0};
+	double offset_periodic_recipient[DIM];
+	offset_periodic_recipient[0] = 0.0;
+	offset_periodic_recipient[1] = 0.0;
+	if (DIM == 3)
+		offset_periodic_recipient[2] = 0.0;
 
 	// non periodic situation grid of 5 fluid particles and 3 boundary particles
 	// We need a virtual grid of 5 + 2*(3+1) particles,
@@ -2109,7 +2299,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
 	// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
 
-	for (int dim = 0; dim < 3; dim++)
+	for (int dim = 0; dim < DIM; dim++)
 	{
 
 		if (bc[dim] == NON_PERIODIC) // non periodic, fluid covered by boundary
@@ -2146,43 +2336,35 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	}
 
 	// Define the boxes
-	Box<3, double> domain({-offset_domain[0],
-						   -offset_domain[1],
-						   -offset_domain[2]},
-						  {length[0] + offset_domain[0],
-						   length[1] + offset_domain[1],
-						   length[2] + offset_domain[2]});
+	Box<DIM, double> domain({-offset_domain[0],
+							 -offset_domain[1]},
+							{length[0] + offset_domain[0],
+							 length[1] + offset_domain[1]});
 
-	Box<3, double> fluid_box({0.0,
-							  0.0,
-							  0.0},
-							 {length[0] + offset_periodic_fluid[0],
-							  length[1] + offset_periodic_fluid[1],
-							  length[2] + offset_periodic_fluid[2]});
+	Box<DIM, double> fluid_box({0.0,
+								0.0},
+							   {length[0] + offset_periodic_fluid[0],
+								length[1] + offset_periodic_fluid[1]});
 
-	Box<3, double> recipient({-offset_recipient[0],
-							  -offset_recipient[1],
-							  -offset_recipient[2]},
-							 {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-							  length[1] + offset_recipient[1] + offset_periodic_recipient[1],
-							  length[2] + offset_recipient[2] + offset_periodic_recipient[2]});
+	Box<DIM, double> recipient({-offset_recipient[0],
+								-offset_recipient[1]},
+							   {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+								length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
 
 	// Will only be used in the new bc
-	Box<3, double> recipient_hole({offset_recipient[0],
-								   offset_recipient[1],
-								   offset_recipient[2]},
-								  {length[0] - offset_recipient[0] + offset_periodic_fluid[0],
-								   length[1] - offset_recipient[1] + offset_periodic_fluid[1],
-								   length[2] - offset_recipient[2] + offset_periodic_fluid[2]});
+	Box<DIM, double> recipient_hole({offset_recipient[0],
+									 offset_recipient[1]},
+									{length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+									 length[1] - offset_recipient[1] + offset_periodic_fluid[1]});
 
 	// extended boundary around the domain, and the processor domain
-	Ghost<3, double> g(r_threshold + H);
+	Ghost<DIM, double> g(r_threshold + H);
 
 	// create particle object
 	particles vd(0, domain, bc, g, DEC_GRAN(512));
 
 	// correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
-	for (int dim = 0; dim < 3; dim++)
+	for (int dim = 0; dim < DIM; dim++)
 	{
 		if (bc[dim] == PERIODIC)
 		{
@@ -2197,21 +2379,25 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	WriteParameters(Nfluid, length, v_cl, customString);
 
 	// Set cylindrical object parameters
-	Point<3, double> CylinderCentre = {length[0] / 2.0, length[1] / 2.0, length[2] / 2.0};
+	Point<DIM, double> CylinderCentre;
+
+	CylinderCentre.get(0) = length[0] / 2.0;
+	CylinderCentre.get(1) = length[1] / 2.0;
+	if (DIM == 3)
+		CylinderCentre.get(2) = length[2] / 2.0;
 
 	// Set square obstacle parameters
 
 	int integerSideLength = 9;
-	Point<3, double> SquareCentre = CylinderCentre;
-	Box<3, double> SquareOutside{{SquareCentre.get(0) - (((double)integerSideLength - 1.0) * dp) / 2.0,
-								  SquareCentre.get(1) - (((double)integerSideLength - 1.0) * dp) / 2.0,
-								  SquareCentre.get(2)},
-								 {SquareCentre.get(0) + (((double)integerSideLength - 1.0) * dp) / 2.0,
-								  SquareCentre.get(1) + (((double)integerSideLength - 1.0) * dp) / 2.0,
-								  SquareCentre.get(2)}};
+	Point<DIM, double> SquareCentre = CylinderCentre;
+	Box<DIM, double> SquareOutside{
+		{SquareCentre.get(0) - (((double)integerSideLength - 1.0) * dp) / 2.0,
+		 SquareCentre.get(1) - (((double)integerSideLength - 1.0) * dp) / 2.0},
+		{SquareCentre.get(0) + (((double)integerSideLength - 1.0) * dp) / 2.0,
+		 SquareCentre.get(1) + (((double)integerSideLength - 1.0) * dp) / 2.0}};
 
-	if (SCENARIO == CYLINDER_ARRAY_LONG)
-		CylinderCentre = {length[0] / 2.0, length[1] / 2.0, length[2] / 6.0};
+	// if (SCENARIO == CYLINDER_ARRAY_LONG)
+	// 	CylinderCentre = {length[0] / 2.0, length[1] / 2.0, length[2] / 6.0};
 
 	if (BC_TYPE == NEW_NO_SLIP && (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == CYLINDER_ARRAY_LONG))
 	{
@@ -2229,9 +2415,9 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		}
 	}
 
-	Sphere<3, double> Cylinder(CylinderCentre, CylinderRadius);
-	Sphere<3, double> Cylinder_aux(CylinderCentre, CylinderRadius + 0.5 * dp);
-	Sphere<3, double> *Cylinder_ptr = nullptr;
+	Sphere<DIM, double> Cylinder(CylinderCentre, CylinderRadius);
+	Sphere<DIM, double> Cylinder_aux(CylinderCentre, CylinderRadius + 0.5 * dp);
+	Sphere<DIM, double> *Cylinder_ptr = nullptr;
 
 	if (BC_TYPE == NEW_NO_SLIP)
 		Cylinder_ptr = &Cylinder_aux;
@@ -2240,7 +2426,8 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 	const double Lx = length[0] + 0.5 * dp; // channel height
 	const double Ly = length[1] + 0.5 * dp; // channel width
-	const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
+	if (DIM == 3)
+		const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -2249,7 +2436,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	while (fluid_it.isNext())
 	{
 
-		Point<3, double> iterator_posion = fluid_it.get();
+		Point<DIM, double> iterator_posion = fluid_it.get();
 
 		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == CYLINDER_ARRAY_LONG)
 		{
@@ -2307,20 +2494,23 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// Set position
 		// If periodic bc, we substract a small value to the last particle so that its not exactly at the boundary
 		// otherwise we can get holes in the fluid region
-		if (bc[0] == PERIODIC && iterator_posion.get(0) == Lx)
-			vd.getLastPos()[0] = iterator_posion.get(0) - 1e-10 * dp;
-		else
-			vd.getLastPos()[0] = iterator_posion.get(0);
+		// if (bc[0] == PERIODIC && iterator_posion.get(0) == Lx)
+		// 	vd.getLastPos()[0] = iterator_posion.get(0) - 1e-10 * dp;
+		// else
+		// 	vd.getLastPos()[0] = iterator_posion.get(0);
 
-		if (bc[1] == PERIODIC && iterator_posion.get(1) == Ly)
-			vd.getLastPos()[1] = iterator_posion.get(1) - 1e-10 * dp;
-		else
-			vd.getLastPos()[1] = iterator_posion.get(1);
+		// if (bc[1] == PERIODIC && iterator_posion.get(1) == Ly)
+		// 	vd.getLastPos()[1] = iterator_posion.get(1) - 1e-10 * dp;
+		// else
+		// 	vd.getLastPos()[1] = iterator_posion.get(1);
 
-		if (bc[2] == PERIODIC && iterator_posion.get(2) == Lz)
-			vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
-		else
-			vd.getLastPos()[2] = iterator_posion.get(2);
+		vd.getLastPos()[0] = iterator_posion.get(0);
+		vd.getLastPos()[1] = iterator_posion.get(1);
+
+		// if (bc[2] == PERIODIC && iterator_posion.get(2) == Lz)
+		// 	vd.getLastPos()[2] = iterator_posion.get(2) - 1e-10 * dp;
+		// else
+		// 	vd.getLastPos()[2] = iterator_posion.get(2);
 
 		// Set properties
 		vd.template getLastProp<pressure>() = 0.0;
@@ -2329,24 +2519,24 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 		vd.template getLastProp<velocity>()[0] = 0.0;
 		vd.template getLastProp<velocity>()[1] = 0.0;
-		vd.template getLastProp<velocity>()[2] = 0.0;
+		// vd.template getLastProp<velocity>()[2] = 0.0;
 
 		vd.template getLastProp<force>()[0] = 0.0;
 		vd.template getLastProp<force>()[1] = 0.0;
-		vd.template getLastProp<force>()[2] = 0.0;
+		// vd.template getLastProp<force>()[2] = 0.0;
 
 		vd.template getLastProp<force_transport>()[0] = 0.0;
 		vd.template getLastProp<force_transport>()[1] = 0.0;
-		vd.template getLastProp<force_transport>()[2] = 0.0;
+		// vd.template getLastProp<force_transport>()[2] = 0.0;
 
 		vd.template getLastProp<v_transport>()[0] = 0.0;
 		vd.template getLastProp<v_transport>()[1] = 0.0;
-		vd.template getLastProp<v_transport>()[2] = 0.0;
+		// vd.template getLastProp<v_transport>()[2] = 0.0;
 
 		// Not needed but filled anyway
 		vd.template getLastProp<normal_vector>()[0] = 0.0;
 		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		vd.template getLastProp<normal_vector>()[2] = 0.0;
+		// vd.template getLastProp<normal_vector>()[2] = 0.0;
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = 0.0;
@@ -2356,26 +2546,26 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	}
 
 	// Now place solid particles
-	openfpm::vector<Box<3, double>> holes;
+	openfpm::vector<Box<DIM, double>> holes;
 
 	if (BC_TYPE == NEW_NO_SLIP)
 	{
 		holes.add(recipient_hole);
 		sz[0] = sz_aux[0];
 		sz[1] = sz_aux[1];
-		sz[2] = sz_aux[2];
+		// sz[2] = sz_aux[2];
 	}
 	else if (BC_TYPE == NO_SLIP)
 		holes.add(fluid_box);
 
-	Box<3, double> hole_get = holes.get(0);
-	PointIteratorSkin<3, double, CartDecomposition<3, double>> bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
+	Box<DIM, double> hole_get = holes.get(0);
+	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
 	if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
 	{
 		while (bound_box.isNext())
 		{
-			Point<3, double> position = bound_box.get();
+			Point<DIM, double> position = bound_box.get();
 
 			// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
 			// When running on multiple cores, with this we check if particle is outside the recipient box
@@ -2397,7 +2587,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 			// 	continue;
 			// }
 
-			if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC && bc[2] == NON_PERIODIC))
+			if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC))
 			{
 				// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
 				double remx = fmod(position.get(0), dp);
@@ -2419,7 +2609,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 			vd.getLastPos()[0] = bound_box.get().get(0);
 			vd.getLastPos()[1] = bound_box.get().get(1);
-			vd.getLastPos()[2] = bound_box.get().get(2);
+			// vd.getLastPos()[2] = bound_box.get().get(2);
 
 			vd.template getLastProp<type>() = BOUNDARY;
 			vd.template getLastProp<rho>() = rho_zero;
@@ -2428,32 +2618,32 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 			vd.template getLastProp<force>()[0] = 0.0;
 			vd.template getLastProp<force>()[1] = 0.0;
-			vd.template getLastProp<force>()[2] = 0.0;
+			// // vd.template getLastProp<force>()[2] = 0.0;
 
 			vd.template getLastProp<force_transport>()[0] = 0.0;
 			vd.template getLastProp<force_transport>()[1] = 0.0;
-			vd.template getLastProp<force_transport>()[2] = 0.0;
+			// // vd.template getLastProp<force_transport>()[2] = 0.0;
 
 			vd.template getLastProp<v_transport>()[0] = 0.0;
 			vd.template getLastProp<v_transport>()[1] = 0.0;
-			vd.template getLastProp<v_transport>()[2] = 0.0;
+			// // vd.template getLastProp<v_transport>()[2] = 0.0;
 
 			if (position.get(1) < dp / 4.0) // bottom wall
 			{
 				vd.template getLastProp<normal_vector>()[0] = 0.0;
 				vd.template getLastProp<normal_vector>()[1] = 1.0;
-				vd.template getLastProp<normal_vector>()[2] = 0.0;
+				// vd.template getLastProp<normal_vector>()[2] = 0.0;
 			}
 			if (position.get(1) > length[1] - dp / 4.0) // top wall
 			{
 				vd.template getLastProp<normal_vector>()[0] = 0.0;
 				vd.template getLastProp<normal_vector>()[1] = -1.0;
-				vd.template getLastProp<normal_vector>()[2] = 0.0;
+				// vd.template getLastProp<normal_vector>()[2] = 0.0;
 			}
 
 			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
 			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
-			vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
+			// vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
 
 			vd.template getLastProp<curvature_boundary>() = 0.0;
 
@@ -2472,11 +2662,19 @@ int main(int argc, char *argv[])
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
+
+	// Evolve
+	size_t write = 0;
+	size_t it = 0;
+	size_t it_reb = 0;
+	double t = 0.0;
+
 	Vcluster<> &v_cl = create_vcluster();
 	const long int Nproc = v_cl.getProcessingUnits();
 	std::string term = std::to_string(Nproc) + "proc";
 	particles vd = CreateParticleGeometry(v_cl);
-	vd.write("AFTER_CREATE" + term);
+	vd.write_frame(filename, write, WRITER);
+	write++;
 	// vd.map();
 	// vd.ghost_get<type, rho, pressure, drho, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
@@ -2486,23 +2684,18 @@ int main(int argc, char *argv[])
 	ModelCustom md;
 	vd.addComputationCosts(md);
 	vd.getDecomposition().decompose();
-	vd.write("AFTER_DEC" + term);
+	vd.write_frame(filename, write, WRITER);
+	write++;
 	vd.map();
-	vd.write("AFTER_DEC_MAP" + term);
+	vd.write_frame(filename, write, WRITER);
+	write++;
 	vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
-	vd.write("AFTER_DEC_MAP_GHOST" + term);
+	vd.write_frame(filename, write, WRITER);
+	write++;
 
 	auto NN = vd.getCellList(r_threshold + 1.0 * H);
 
 	std::cout << "nparticles : " << vd.size_local() << std::endl;
-
-	vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
-
-	// Evolve
-	size_t write = 0;
-	size_t it = 0;
-	size_t it_reb = 0;
-	double t = 0.0;
 
 	vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
 
@@ -2513,24 +2706,26 @@ int main(int argc, char *argv[])
 	}
 	else if (BC_TYPE == NEW_NO_SLIP) // Set up fluid vector and normal vector of the boundary particles
 	{
-		calcFluidVec(vd, NN);
+		// calcFluidVec(vd, NN);
 
+		// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
+
+		// calcNormalVec(vd, NN);
+
+		// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
+
+		// calcCurvature(vd, NN);
 		vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
-
-		calcNormalVec(vd, NN);
-
-		vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
-
-		calcCurvature(vd, NN);
 	}
-	vd.write("AFTER_CALC_NORMAL" + term);
+	vd.write_frame(filename, write, WRITER);
+	write++;
 
 	// Compute forces for the first iteration
 	vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
 	calc_forces(vd, NN);
 	vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
-	vd.write("AFTER_CALC_FORCES" + term);
-
+	vd.write_frame(filename, write, WRITER);
+	write++;
 	while (t <= t_end)
 	{
 		timer it_time;
@@ -2564,10 +2759,14 @@ int main(int argc, char *argv[])
 		t += dt;
 		if (write < t * write_const)
 		{
-			// vd.map();
-			// vd.deleteGhost();
+			if (write > 19)
+				// {
+				// 	write_const = 1000;
+				// }
+				// vd.map();
+				vd.deleteGhost();
 			vd.write_frame(filename, write, WRITER);
-			// vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
+			vd.ghost_get<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 			write++;
 			// if (v_cl.getProcessUnitID() == 0)
