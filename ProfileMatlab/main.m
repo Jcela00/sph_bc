@@ -12,49 +12,116 @@ set(groot, 'defaultFigurePosition', [1440 0 1440 1440]);
 dp = 0.025;
 rho0 = 1;
 dim = 2;
-filenum_end = 100;
+filenum_end = 200;
 Nfluid = [60 40 1];
 Nboundary = [1, 0, 0];
 Hconst = 1.0;
 
-proc1 = ParticleData('../CSV_Data/1prc/file', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-proc2 = ParticleData('../CSV_Data/2prc/file', 0, ['2proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-fig1 = figure; hold on;
-fig2 = figure; hold on;
+%proc1 = ParticleData('../CSV_Data/1prc/file', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+%proc2 = ParticleData('../CSV_Data/2prc/file', 0, ['2proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+triangle = ParticleData('../CSV_Data/Triangle/file', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-for k = 19:filenum_end
-    proc1 = proc1.Update(k);
-    proc2 = proc2.Update(k);
-    [pos1, I1] = sortrows(proc1.Position);
-    [pos4, I2] = sortrows(proc2.Position);
-    proc1 = proc1.ReorderData(I1);
-    proc2 = proc2.ReorderData(I2);
+fig1 = figure;
 
-    [objDiff, pack] = CompDiff(proc1, proc2);
+triangle.plotNormals(fig1); axis equal;
 
-    objDiff.plotMagnitude(objDiff.Force, '$Force$', fig1, k)
+% for k = 0:filenum_end
 
-    PosDiff = abs(proc1.Position - proc2.Position);
+%     proc1 = proc1.Update(k);
+%     proc2 = proc2.Update(k);
+%     [pos1, I1] = sortrows(proc1.Position);
+%     [pos4, I2] = sortrows(proc2.Position);
+%     proc1 = proc1.ReorderData(I1);
+%     proc2 = proc2.ReorderData(I2);
 
-    % pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength];
-    disp(['Max Position Difference: ', num2str(max(norm(PosDiff)))]);
-    disp(['Total Error in Density: ', num2str(pack(1))]);
-    disp(['Total Error in Pressure: ', num2str(pack(2))]);
-    disp(['Total Error in Force: ', num2str(pack(3))]);
-    disp(['Total Error in Velocity: ', num2str(pack(4))]);
-    disp(['Total Error in Force Transport: ', num2str(pack(5))]);
-    disp(['Total Error in Velocity Transport: ', num2str(pack(6))]);
-    disp(['Total Error in Normal: ', num2str(pack(7))]);
-    disp(['Total Error in Curvature: ', num2str(pack(8))]);
-    disp(['Total Error in Arc Length: ', num2str(pack(9))]);
-    disp(' ');
+%     [objDiff, pack] = CompDiff(proc1, proc2);
 
-    pause()
-    figure(fig1); clf;
-    % figure(fig2); clf;
+%     PosDiff = abs(proc1.Position - proc2.Position);
 
-end
+%     error_rho = pack(1);
+%     error_p = pack(2);
+%     error_Force = pack(3);
+%     error_Velocity = pack(4);
+%     error_ForceTransport = pack(5);
+%     error_VelocityTransport = pack(6);
+%     error_Normal = pack(7);
+%     error_Curvature = pack(8);
+%     error_ArcLength = pack(9);
+%     error_InteractCount = pack(10);
+%     number_error = pack(11);
 
+%     if (error_rho ~= 0)
+%         fig1 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Density, '$Density$ ', fig1, k)
+%     end
+
+%     if (error_p ~= 0)
+%         fig2 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Pressure, '$Pressure$ ', fig2, k)
+%     end
+
+%     if (error_Force ~= 0)
+%         fig3 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Force, '$Force$ ', fig3, k)
+%     end
+
+%     if (error_Velocity ~= 0)
+%         fig4 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Velocity, '$Velocity$ ', fig4, k)
+%     end
+
+%     if (error_ForceTransport ~= 0)
+%         fig5 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.ForceTransport, '$Force Transport$ ', fig5, k)
+%     end
+
+%     if (error_VelocityTransport ~= 0)
+%         fig6 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.VelocityTransport, '$Velocity Transport$ ', fig6, k)
+%     end
+
+%     if (error_Normal ~= 0)
+%         fig7 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Normal, '$Normal$ ', fig7, k)
+%     end
+
+%     if (error_Curvature ~= 0)
+%         fig8 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.Curvature, '$Curvature$ ', fig8, k)
+%     end
+
+%     if error_InteractCount ~= 0
+%         fig9 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.InteractCount, '$Interact Count$ ', fig9, k)
+%     end
+
+%     if (error_ArcLength ~= 0)
+%         fig9 = figure; hold on;
+%         objDiff.plotMagnitude(objDiff.ArcLength, '$Arc Length$ ', fig9, k)
+%     end
+
+%     disp(['Time Step: ', num2str(k)]);
+%     % pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength];
+%     disp(['Max Position Difference: ', num2str(max(norm(PosDiff)))]);
+%     disp(['Total Error in Density: ', num2str(error_rho)]);
+%     disp(['Total Error in Pressure: ', num2str(error_p)]);
+%     disp(['Total Error in Force: ', num2str(error_Force)]);
+%     disp(['Total Error in Velocity: ', num2str(error_Velocity)]);
+%     disp(['Total Error in Force Transport: ', num2str(error_ForceTransport)]); ;
+%     disp(['Total Error in Velocity Transport: ', num2str(error_VelocityTransport)]);
+%     disp(['Total Error in Normal: ', num2str(error_Normal)]);
+%     disp(['Total Error in Curvature: ', num2str(error_Curvature)]);
+%     disp(['Total Error in Interact Count: ', num2str(error_InteractCount)]);
+%     % disp(['Total Error in Arc Length: ', num2str(error_Arclength)]);
+%     disp(['Difference in number of particles: ', num2str(number_error)]);
+%     disp(' ');
+
+%     pause()
+
+%     % figure(fig2); clf;
+
+% end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
 % % Analytical profile
 % tend = 80;
 % xfine = linspace(0, 1, 1000);

@@ -18,6 +18,7 @@ classdef ParticleData
         Curvature
         ArcLength
         Domain
+        InteractCount
         Position
         Npart
         NpartFluid
@@ -48,6 +49,7 @@ classdef ParticleData
             obj.Normal = obj.Normal(Isort, :);
             obj.Curvature = obj.Curvature(Isort);
             obj.ArcLength = obj.ArcLength(Isort);
+            obj.InteractCount = obj.InteractCount(Isort);
             obj.Domain = obj.Domain(Isort);
             obj.Position = obj.Position(Isort, :);
         end
@@ -63,6 +65,7 @@ classdef ParticleData
             objDiff.ForceTransport = abs(obj1.ForceTransport - obj2.ForceTransport);
             objDiff.VelocityTransport = abs(obj1.VelocityTransport - obj2.VelocityTransport);
             objDiff.Normal = abs(obj1.Normal - obj2.Normal);
+            objDiff.InteractCount = abs(obj1.InteractCount - obj2.InteractCount);
             objDiff.Curvature = abs(obj1.Curvature - obj2.Curvature);
             objDiff.ArcLength = abs(obj1.ArcLength - obj2.ArcLength);
 
@@ -75,8 +78,27 @@ classdef ParticleData
             totalE_Normal = sum(norm(objDiff.Normal));
             totalE_Curvature = sum(objDiff.Curvature);
             totalE_ArcLength = sum(objDiff.ArcLength);
+            totalE_InteractCount = sum(objDiff.InteractCount);
+            number_error = abs(obj1.Npart - obj2.Npart);
 
-            pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength];
+            pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength, totalE_InteractCount, number_error];
+
+        end
+
+        function plotNormals(obj, fig)
+
+            figure(fig); hold on;
+
+            for k = 1:obj.Npart
+
+                if (obj.Type(k) == 0)
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'Marker', 'o', 'MarkerSize', 6);
+                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+                end
+
+            end
+
+            xlabel('$x$'); ylabel('$y$');
 
         end
 
@@ -129,6 +151,9 @@ classdef ParticleData
             obj.Normal = data(:, 17:19);
             obj.Curvature = data(:, 20);
             obj.ArcLength = data(:, 21);
+            % obj.InteractCount = data(:, 22);
+            % obj.Domain = data(:, 23);
+            % obj.Position = data(:, 24:26);
             obj.Domain = data(:, 22);
             obj.Position = data(:, 23:25);
             obj.Npart = length(obj.Type);
