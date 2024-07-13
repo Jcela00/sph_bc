@@ -34,7 +34,7 @@
 #define DIM 2
 
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = SQUARE;
+const int SCENARIO = TRIANGLE;
 const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -100,6 +100,8 @@ const double DtMin = 0.00001;
 // Controls otput file frequency, low means less frequent
 int write_const = 10;
 size_t cnt = 0;
+
+std::list<unsigned long> obstacle_key_list;
 
 //////// ALIAS FOR THE PARTICLE PROPERTIES //////////////////////////////////////////
 // Properties
@@ -217,10 +219,7 @@ Point<DIM, double> matVec(const std::array<Point<DIM, double>, DIM> &m, const Po
 }
 double getVectorNorm(const Point<DIM, double> &v)
 {
-	if (DIM == 2)
-		return std::sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1));
-	else if (DIM == 3)
-		return std::sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1) + v.get(2) * v.get(2));
+	return sqrt(norm2(v));
 }
 void normalizeVector(Point<DIM, double> &v)
 {
@@ -302,11 +301,6 @@ Point<DIM, double> Grad_Cubic_W(const Point<DIM, double> &dx, const double r)
 	else
 		factor = 0.0;
 
-	// DW.get(0) = factor * dx.get(0);
-	// DW.get(1) = factor * dx.get(1);
-	// if (DIM == 3)
-	// 	DW.get(2) = factor * dx.get(2);
-
 	DW = factor * dx;
 
 	return DW;
@@ -333,11 +327,6 @@ Point<DIM, double> Grad_Quintic_W(const Point<DIM, double> &dx, const double r)
 	else
 		factor = 0.0;
 
-	// DW.get(0) = factor * dx.get(0);
-	// DW.get(1) = factor * dx.get(1);
-	// if (DIM == 3)
-	// 	DW.get(2) = factor * dx.get(2);
-
 	DW = factor * dx;
 
 	return DW;
@@ -362,17 +351,17 @@ double PressureForce(const double &rhoa, const double &rhob, const double &prsa,
 
 std::array<Point<DIM, double>, 3> GetBoundaryPositions(const Point<DIM, double> &r, const Point<DIM, double> &normal)
 {
-	// aplies offset to a vector and returns the vectors pointing at the dummy wall particles
+	// aplies offset to a vector and returns the vectors pointing at the virtual wall particles
+	// r needs to be pointing to the wall particle
 
 	Point<DIM, double> offset_1 = -0.5 * normal * dp; // offset from wall to first particle
 	Point<DIM, double> offset_2 = -1.0 * normal * dp; // offset from first to second particle, and from second to third
-	Point<DIM, double> r1 = r + offset_1;			  // first dummy particle
-	Point<DIM, double> r2 = r1 + offset_2;			  // second dummy particle
-	Point<DIM, double> r3 = r2 + offset_2;			  // third dummy particle
+	std::array<Point<DIM, double>, 3> r_virtual;
+	r_virtual[0] = r + offset_1;
+	r_virtual[1] = r_virtual[0] + offset_2;
+	r_virtual[2] = r_virtual[1] + offset_2;
 
-	std::array<Point<DIM, double>, 3> r_dummy = {r1, r2, r3};
-
-	return r_dummy;
+	return r_virtual;
 }
 
 template <typename CellList>
@@ -547,67 +536,199 @@ void calcCurvature(particles &vd, CellList &NN)
 		// if particle BOUNDARY
 		if (vd.getProp<type>(a) == BOUNDARY)
 		{
-			// Get the position xa of the particle a
-			Point<DIM, double> xa = vd.getPos(a);
 
-			// get normal of a
-			Point<DIM, double> normal_a = vd.getProp<normal_vector>(a);
+			std::list<unsigned long>::iterator findIter = std::find(obstacle_key_list.begin(), obstacle_key_list.end(), a.getKey());
 
-			// initialize sums
-			double K_sum = 0.0;
-			double w_sum = 0.0;
-
-			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
-
-			// iterate the neighborhood particles
-			while (Np.isNext() == true)
+			if (findIter == obstacle_key_list.end()) // if not in list its flat wall
 			{
-				// Key of b particle
-				const unsigned long b = Np.get();
+				// Get the position xa of the particle a
+				Point<DIM, double> xa = vd.getPos(a);
 
-				// if (a == b) skip this particle
-				// if (a.getKey() == b)
-				// {
-				// 	++Np;
-				// 	continue;
-				// }
+				// get normal of a
+				Point<DIM, double> normal_a = vd.getProp<normal_vector>(a);
 
-				if (vd.getProp<type>(b) == BOUNDARY)
+				// initialize sums
+				double K_sum = 0.0;
+				double w_sum = 0.0;
+
+				auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+
+				// iterate the neighborhood particles
+				while (Np.isNext() == true)
 				{
+					// Key of b particle
+					const unsigned long b = Np.get();
+
+					// if (a == b) skip this particle
+					// if (a.getKey() == b)
+					// {
+					// 	++Np;
+					// 	continue;
+					// }
+
+					if (vd.getProp<type>(b) == BOUNDARY)
+					{
+						// Get the position xb of the particle b
+						const Point<DIM, double> xb = vd.getPos(b);
+
+						// Get the vector pointing at a from b
+						const Point<DIM, double> dr = xa - xb;
+
+						// take the norm squared of this vector
+						const double r2 = norm2(dr);
+
+						// If the particles interact ...
+						if (r2 < r_threshold * r_threshold)
+						{
+							// OLD CALCULATION
+							// get normal vector of b
+							// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+
+							// // evaluate kernel
+							// double W = Wab(sqrt(r2));
+							// // evaluate kernel gradient
+							// Point<DIM, double> dW = DWab(dr, sqrt(r2));
+
+							// K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+							// w_sum += W;
+
+							// // NEW CALCULATION
+							if (a.getKey() != b)
+							{
+								Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+								double r = sqrt(r2);
+								double W = Wab(r);
+								Point<DIM, double> eab = -1.0 * dr / r;
+								K_sum += dotProduct(normal_b - normal_a, eab) * W / r;
+								w_sum += W;
+							}
+						}
+					}
+
+					++Np;
+				}
+
+				K_sum = K_sum / w_sum;
+
+				// store in curvature
+				vd.template getProp<curvature_boundary>(a) = K_sum;
+			}
+			else
+			{
+				// Get the position xa of the particle a
+				Point<DIM, double> xa = vd.getPos(a);
+
+				// get normal of a
+				Point<DIM, double> normal_a = vd.getProp<normal_vector>(a);
+
+				// initialize sums
+				double K_sum = 0.0;
+				double w_sum = 0.0;
+
+				// iterate the particles previous to a in the list
+				bool stopleft = true;
+				double accumulated_x_left = 0.0;
+				std::list<unsigned long>::iterator it_left = findIter;
+				Point<DIM, double> r_prev = xa;
+
+				while (stopleft)
+				{
+					std::cout << "in left loop" << std::endl;
+					if (it_left == obstacle_key_list.begin()) // if we are at the begining of the list, left to us is the last element
+					{
+						it_left = obstacle_key_list.end();
+						--it_left;
+					}
+					else
+					{
+						--it_left;
+					}
+					unsigned long b = *it_left;
+
 					// Get the position xb of the particle b
 					const Point<DIM, double> xb = vd.getPos(b);
 
-					// Get the vector pointing at a from b
-					const Point<DIM, double> dr = xa - xb;
-
+					// Get the vector pointing at b from prev
+					const Point<DIM, double> dr = xb - r_prev;
+					r_prev = xb;
 					// take the norm squared of this vector
 					const double r2 = norm2(dr);
+					const double r = sqrt(r2);
+					accumulated_x_left += r;
 
 					// If the particles interact ...
-					if (r2 < r_threshold * r_threshold)
+					if (accumulated_x_left < r_threshold)
 					{
-						// get normal vector of b
 						Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-
-						// evaluate kernel
-						double W = Wab(std::sqrt(r2));
-						// evaluate kernel gradient
-						Point<DIM, double> dW = DWab(dr, std::sqrt(r2));
-
-						K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+						// evaluate kernel at accumulated_x_left
+						double W = Wab(accumulated_x_left);
+						Point<DIM, double> eab = xa - xb;
+						normalizeVector(eab);
+						eab = -1.0 * eab;
+						K_sum += dotProduct(normal_b - normal_a, eab) * W / accumulated_x_left;
 						w_sum += W;
+					}
+					else
+					{
+						stopleft = false;
 					}
 				}
 
-				++Np;
+				// iterate the particles next to a in the list
+				bool stopright = true;
+				double accumulated_x_right = 0.0;
+				std::list<unsigned long>::iterator it_right = findIter;
+				r_prev = xa;
+
+				while (stopright)
+				{
+					std::cout << "in right loop" << std::endl;
+
+					if (it_right == obstacle_key_list.end()) // if we are at the end of the list, right to us is the first element
+					{
+						it_right = obstacle_key_list.begin();
+					}
+					else
+					{
+						++it_right;
+					}
+					unsigned long b = *it_right;
+
+					// Get the position xb of the particle b
+					const Point<DIM, double> xb = vd.getPos(b);
+
+					// Get the vector pointing at b from prev
+					const Point<DIM, double> dr = xb - r_prev;
+					r_prev = xb;
+					// take the norm squared of this vector
+					const double r2 = norm2(dr);
+					const double r = sqrt(r2);
+					accumulated_x_right += r;
+
+					// If the particles interact ...
+					if (accumulated_x_right < r_threshold)
+					{
+						Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+						// evaluate kernel at accumulated_x_right
+						double W = Wab(accumulated_x_right);
+						Point<DIM, double> eab = xa - xb;
+						normalizeVector(eab);
+						eab = -1.0 * eab;
+						K_sum += dotProduct(normal_b - normal_a, eab) * W / accumulated_x_right;
+						w_sum += W;
+					}
+					else
+					{
+						stopright = false;
+					}
+				}
+
+				K_sum = K_sum / w_sum;
+
+				// store in curvature
+				vd.template getProp<curvature_boundary>(a) = K_sum;
 			}
-
-			K_sum = K_sum / w_sum;
-
-			// store in curvature
-			vd.template getProp<curvature_boundary>(a) = K_sum;
 		}
-
 		++part;
 	}
 }
@@ -807,9 +928,9 @@ void calc_density(particles &vd, CellList &NN)
 						}
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
-							// xw.get(0) this is the x coordinate of the wall
 							const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
-
+							// if (dotProduct(normal, dr) > 0.0)
+							// {
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
 							const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 							const double kappa = vd.getProp<curvature_boundary>(b);
@@ -832,6 +953,7 @@ void calc_density(particles &vd, CellList &NN)
 							const double W3 = Wab(getVectorNorm(r3));
 
 							rho_sum += (W1 * mass1 + W2 * mass2 + W3 * mass3);
+							// }
 						}
 					}
 				}
@@ -1609,7 +1731,7 @@ void AddCylinderNewBC(particles &vd, Point<DIM, double> CylinderCentre, double C
 		if (DIM == 3)
 			vd.template getLastProp<normal_vector>()[2] = normal[2];
 
-		vd.template getLastProp<curvature_boundary>() = 1.0 / CylinderRadius;
+		vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / CylinderRadius;
 		vd.template getLastProp<arc_length>() = dxwall;
 		theta += dtheta;
 		counter++;
@@ -1831,32 +1953,34 @@ void AddSquareNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerS
 		vd.template getLastProp<arc_length>() = dp;
 	}
 }
-void AddTriangleNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerSideLength)
+void AddTriangleNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerBaseLength, int integerHeigthLength)
 {
-	const double sideLength = (integerSideLength - 1) * dp;
+	const double baseLength = (integerBaseLength - 1) * dp;
+	const double heigthLength = (integerHeigthLength - 1) * dp;
 	Point<DIM, double> LowerLeftCorner;
 	Point<DIM, double> LowerRightCorner;
+
 	if (DIM == 2)
 	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 
-		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 	}
 	else if (DIM == 3)
 	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 		LowerLeftCorner.get(2) = SquareCentre.get(2);
 
-		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 		LowerRightCorner.get(2) = SquareCentre.get(2);
 	}
 
-	//  lower walls
-	for (int k = 0; k < integerSideLength; k++)
+	// lower wall
+	for (int k = 0; k < integerBaseLength; k++)
 	{
 		Point<DIM, double> Xoffset;
 		Xoffset.get(0) = k * dp;
@@ -1867,47 +1991,25 @@ void AddTriangleNewBC(particles &vd, Point<DIM, double> SquareCentre, int intege
 		Point<DIM, double> LowerWall = LowerLeftCorner + Xoffset;
 
 		vd.add();
-		vd.getLastPos()[0] = LowerWall.get(0); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
-		vd.getLastPos()[1] = LowerWall.get(1); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
-		if (DIM == 3)
-			vd.getLastPos()[2] = LowerWall.get(2);
-
 		vd.template getLastProp<type>() = BOUNDARY;
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = LowerWall.get(xyz); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+			vd.template getLastProp<force>()[xyz] = 0.0;
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+		}
 		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<drho>() = 0.0;
-
-		vd.template getLastProp<velocity>()[0] = 0.0;
-		vd.template getLastProp<velocity>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-		vd.template getLastProp<force>()[0] = 0.0;
-		vd.template getLastProp<force>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force>()[2] = 0.0;
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force_transport>()[2] = 0.0;
-
-		vd.template getLastProp<v_transport>()[0] = 0.0;
-		vd.template getLastProp<v_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<v_transport>()[2] = 0.0;
-
-		vd.template getLastProp<normal_vector>()[0] = 0.0;
-		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<normal_vector>()[2] = 0.0;
-
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
 	}
 
 	// Right wall
-	for (int k = 1; k < integerSideLength; k++)
+	for (int k = 1; k < integerHeigthLength; k++)
 	{
 		Point<DIM, double> Yoffset;
 		Yoffset.get(0) = 0.0;
@@ -1918,101 +2020,74 @@ void AddTriangleNewBC(particles &vd, Point<DIM, double> SquareCentre, int intege
 		Point<DIM, double> RightWall = LowerRightCorner + Yoffset;
 
 		vd.add();
-		vd.getLastPos()[0] = RightWall.get(0);
-		vd.getLastPos()[1] = RightWall.get(1);
-		if (DIM == 3)
-			vd.getLastPos()[2] = RightWall.get(2);
-
 		vd.template getLastProp<type>() = BOUNDARY;
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = RightWall.get(xyz);
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+			vd.template getLastProp<force>()[xyz] = 0.0;
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+		}
 		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<drho>() = 0.0;
-
-		vd.template getLastProp<velocity>()[0] = 0.0;
-		vd.template getLastProp<velocity>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-		vd.template getLastProp<force>()[0] = 0.0;
-		vd.template getLastProp<force>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force>()[2] = 0.0;
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force_transport>()[2] = 0.0;
-
-		vd.template getLastProp<v_transport>()[0] = 0.0;
-		vd.template getLastProp<v_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<v_transport>()[2] = 0.0;
-
-		vd.template getLastProp<normal_vector>()[0] = 0.0;
-		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<normal_vector>()[2] = 0.0;
-
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dp;
 	}
+
 	//  Hypothenuse wall
+	// We want particles spaced roughly by dp
+	const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
+	const int Ndiag = ceil(hypothenuseLength / dp);
+	const double dxwall = hypothenuseLength / Ndiag;
+	// const double theta = atan(heigthLength / baseLength);
+	const double sin_theta = heigthLength / hypothenuseLength;
+	const double cos_theta = baseLength / hypothenuseLength;
 
-	// the hypothenuse has length sqrt(2)*(integerSideLength-1)*dp
-	// we want particles spaced with roughly dp
-	const int Ndiag = ceil(sqrt(2) * (integerSideLength - 1));
-	const double dxwall = sqrt(2) * (integerSideLength - 1) * dp / Ndiag;
-
-	for (int k = 1; k < Ndiag; k++)
+	for (int k = Ndiag - 1; k > 0; k--)
 	{
 
 		Point<DIM, double> Diagoffset;
-		const double spacing_xy = dxwall / sqrt(2);
-		Diagoffset.get(0) = k * spacing_xy;
-		Diagoffset.get(1) = k * spacing_xy;
+		const double spacing_x = dxwall * cos_theta;
+		const double spacing_y = dxwall * sin_theta;
+		Diagoffset.get(0) = k * spacing_x;
+		Diagoffset.get(1) = k * spacing_y;
 		if (DIM == 3)
 			Diagoffset.get(2) = 0.0;
 
 		Point<DIM, double> DiagWall = LowerLeftCorner + Diagoffset;
 
 		vd.add();
-		vd.getLastPos()[0] = DiagWall.get(0);
-		vd.getLastPos()[1] = DiagWall.get(1);
-		if (DIM == 3)
-			vd.getLastPos()[2] = DiagWall.get(2);
-
 		vd.template getLastProp<type>() = BOUNDARY;
-		vd.template getLastProp<pressure>() = 0.0;
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = DiagWall.get(xyz); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+			vd.template getLastProp<force>()[xyz] = 0.0;
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+		}
 		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<drho>() = 0.0;
-
-		vd.template getLastProp<velocity>()[0] = 0.0;
-		vd.template getLastProp<velocity>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<velocity>()[2] = 0.0;
-
-		vd.template getLastProp<force>()[0] = 0.0;
-		vd.template getLastProp<force>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force>()[2] = 0.0;
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<force_transport>()[2] = 0.0;
-
-		vd.template getLastProp<v_transport>()[0] = 0.0;
-		vd.template getLastProp<v_transport>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<v_transport>()[2] = 0.0;
-
-		vd.template getLastProp<normal_vector>()[0] = 0.0;
-		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		if (DIM == 3)
-			vd.template getLastProp<normal_vector>()[2] = 0.0;
-
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dxwall;
+	}
+
+	// at this point the domain should only contain the boundary particles we just added
+	vector_dist_iterator part = vd.getDomainIterator();
+
+	while (part.isNext())
+	{
+		auto a = part.get();
+		if (vd.getProp<type>(a) == BOUNDARY)
+		{
+			obstacle_key_list.push_back(a.getKey());
+		}
+		++part;
 	}
 }
 
@@ -2596,24 +2671,27 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 
 	// Set square obstacle parameters
 
-	int integerSideLength = 9;
-	Point<DIM, double> SquareCentre = CylinderCentre;
-	Box<DIM, double> SquareOutside{
+	const Point<DIM, double> SquareCentre = CylinderCentre;
+	const int integerSideLength = 9;
+	const Box<DIM, double> SquareOutside{
 		{SquareCentre.get(0) - (((double)integerSideLength - 1.0) * dp) / 2.0,
 		 SquareCentre.get(1) - (((double)integerSideLength - 1.0) * dp) / 2.0},
 		{SquareCentre.get(0) + (((double)integerSideLength - 1.0) * dp) / 2.0,
 		 SquareCentre.get(1) + (((double)integerSideLength - 1.0) * dp) / 2.0}};
 
-	Point<DIM, double> TriangleLowerLeft = {SquareCentre.get(0) - (((double)integerSideLength - 1.0) * dp) / 2.0,
-											SquareCentre.get(1) - (((double)integerSideLength - 1.0) * dp) / 2.0};
+	const Point<DIM, double> TriangleCentre = CylinderCentre;
+	const int integerBaseLength = 17;
+	const int integerHeigthLength = 7;
 
-	Point<DIM, double> TriangleUpperRight = {SquareCentre.get(0) + (((double)integerSideLength - 1.0) * dp) / 2.0,
-											 SquareCentre.get(1) + (((double)integerSideLength - 1.0) * dp) / 2.0};
+	const Point<DIM, double> TriangleLowerLeft = {TriangleCentre.get(0) - (((double)integerBaseLength - 1.0) * dp) / 2.0,
+												  TriangleCentre.get(1) - (((double)integerHeigthLength - 1.0) * dp) / 2.0};
 
-	// if (SCENARIO == CYLINDER_ARRAY_LONG)
-	// 	CylinderCentre = {length[0] / 2.0, length[1] / 2.0, length[2] / 6.0};
+	const Point<DIM, double> TriangleUpperRight = {TriangleCentre.get(0) + (((double)integerBaseLength - 1.0) * dp) / 2.0,
+												   TriangleCentre.get(1) + (((double)integerHeigthLength - 1.0) * dp) / 2.0};
 
-	if (BC_TYPE == NEW_NO_SLIP && (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == CYLINDER_ARRAY_LONG))
+	const Box<DIM, double> RectangleOutside{TriangleLowerLeft, TriangleUpperRight}; // Rectangle that contains the triangle
+
+	if (BC_TYPE == NEW_NO_SLIP && (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE))
 	{
 		if (v_cl.getProcessUnitID() == 0) // Add the cylinder as boundary particles only on processor 0
 		{
@@ -2633,7 +2711,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 	{
 		if (v_cl.getProcessUnitID() == 0) // Add the triangle as boundary particles only on processor 0
 		{
-			AddTriangleNewBC(vd, SquareCentre, integerSideLength);
+			AddTriangleNewBC(vd, TriangleCentre, integerBaseLength, integerHeigthLength);
 		}
 	}
 	Sphere<DIM, double> Cylinder(CylinderCentre, CylinderRadius);
@@ -2707,7 +2785,7 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		}
 		else if (SCENARIO == TRIANGLE)
 		{
-			if (SquareOutside.isInside(iterator_position) && !isAvobeLine(TriangleLowerLeft, TriangleUpperRight, iterator_position)) // if inside the triangle obstacle region
+			if (RectangleOutside.isInside(iterator_position) && !isAvobeLine(TriangleLowerLeft, TriangleUpperRight, iterator_position)) // if inside the triangle obstacle region
 			{
 				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
 				{
@@ -2748,42 +2826,28 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 		// else
 		// 	vd.getLastPos()[1] = iterator_position.get(1);
 
-		vd.getLastPos()[0] = iterator_position.get(0);
-		vd.getLastPos()[1] = iterator_position.get(1);
-
 		// if (bc[2] == PERIODIC && iterator_position.get(2) == Lz)
 		// 	vd.getLastPos()[2] = iterator_position.get(2) - 1e-10 * dp;
 		// else
 		// 	vd.getLastPos()[2] = iterator_position.get(2);
 
 		// Set properties
-		vd.template getLastProp<pressure>() = 0.0;
+		vd.template getLastProp<type>() = FLUID;
 		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<drho>() = 0.0;
 
-		vd.template getLastProp<velocity>()[0] = 0.0;
-		vd.template getLastProp<velocity>()[1] = 0.0;
-		// vd.template getLastProp<velocity>()[2] = 0.0;
-
-		vd.template getLastProp<force>()[0] = 0.0;
-		vd.template getLastProp<force>()[1] = 0.0;
-		// vd.template getLastProp<force>()[2] = 0.0;
-
-		vd.template getLastProp<force_transport>()[0] = 0.0;
-		vd.template getLastProp<force_transport>()[1] = 0.0;
-		// vd.template getLastProp<force_transport>()[2] = 0.0;
-
-		vd.template getLastProp<v_transport>()[0] = 0.0;
-		vd.template getLastProp<v_transport>()[1] = 0.0;
-		// vd.template getLastProp<v_transport>()[2] = 0.0;
-
-		// Not needed but filled anyway
-		vd.template getLastProp<normal_vector>()[0] = 0.0;
-		vd.template getLastProp<normal_vector>()[1] = 0.0;
-		// vd.template getLastProp<normal_vector>()[2] = 0.0;
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = iterator_position.get(xyz);
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+		}
 
 		vd.template getLastProp<curvature_boundary>() = 0.0;
-		vd.template getLastProp<arc_length>() = 0.0;
+		vd.template getLastProp<arc_length>() = dp;
 
 		// next fluid particle
 		++fluid_it;
@@ -2851,46 +2915,29 @@ particles CreateParticleGeometry(Vcluster<> &v_cl)
 			}
 			vd.add();
 
-			vd.getLastPos()[0] = bound_box.get().get(0);
-			vd.getLastPos()[1] = bound_box.get().get(1);
-			// vd.getLastPos()[2] = bound_box.get().get(2);
-
 			vd.template getLastProp<type>() = BOUNDARY;
 			vd.template getLastProp<rho>() = rho_zero;
 			vd.template getLastProp<pressure>() = 0.0;
 			vd.template getLastProp<drho>() = 0.0;
 
-			vd.template getLastProp<force>()[0] = 0.0;
-			vd.template getLastProp<force>()[1] = 0.0;
-			// // vd.template getLastProp<force>()[2] = 0.0;
-
-			vd.template getLastProp<force_transport>()[0] = 0.0;
-			vd.template getLastProp<force_transport>()[1] = 0.0;
-			// // vd.template getLastProp<force_transport>()[2] = 0.0;
-
-			vd.template getLastProp<v_transport>()[0] = 0.0;
-			vd.template getLastProp<v_transport>()[1] = 0.0;
-			// // vd.template getLastProp<v_transport>()[2] = 0.0;
-
-			if (position.get(1) < dp / 4.0) // bottom wall
+			for (int xyz = 0; xyz < DIM; xyz++)
 			{
-				vd.template getLastProp<normal_vector>()[0] = 0.0;
-				vd.template getLastProp<normal_vector>()[1] = 1.0;
-				// vd.template getLastProp<normal_vector>()[2] = 0.0;
+				vd.getLastPos()[xyz] = bound_box.get().get(xyz);
+				vd.template getLastProp<force>()[xyz] = 0.0;
+				vd.template getLastProp<force_transport>()[xyz] = 0.0;
+				vd.template getLastProp<v_transport>()[xyz] = 0.0;
+				vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+				if (position.get(1) < dp / 4.0) // bottom wall
+				{
+					vd.template getLastProp<velocity>()[xyz] = vw_bottom.get(xyz);
+				}
+				else if (position.get(1) > length[1] - dp / 4.0) // top wall
+				{
+					vd.template getLastProp<velocity>()[xyz] = vw_top.get(xyz);
+				}
 			}
-			if (position.get(1) > length[1] - dp / 4.0) // top wall
-			{
-				vd.template getLastProp<normal_vector>()[0] = 0.0;
-				vd.template getLastProp<normal_vector>()[1] = -1.0;
-				// vd.template getLastProp<normal_vector>()[2] = 0.0;
-			}
-
-			vd.template getLastProp<velocity>()[0] = vw_bottom.get(0);
-			vd.template getLastProp<velocity>()[1] = vw_bottom.get(1);
-			// vd.template getLastProp<velocity>()[2] = vw_bottom.get(2);
 
 			vd.template getLastProp<curvature_boundary>() = 0.0;
-
 			vd.template getLastProp<arc_length>() = dp;
 
 			++bound_box;
