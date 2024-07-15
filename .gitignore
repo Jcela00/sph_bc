@@ -1,6 +1,7 @@
 VTPDATA
 *.vtp
 *.pvtp
+*.csv
 main.o
 sph_dlb
 main_manual_placement_1proc.cpp
