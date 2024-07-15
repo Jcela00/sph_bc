@@ -20,6 +20,7 @@
 #define CYLINDER_LATTICE 4
 #define SQUARE 5
 #define TRIANGLE 6
+#define CAVITY 7
 
 // TYPE OF KERNERL
 #define CUBIC 0
@@ -33,7 +34,7 @@
 #define DIM 2
 
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CYLINDER_ARRAY;
+const int SCENARIO = CAVITY;
 const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -42,6 +43,7 @@ const int PROBES_ENABLED = 1;  // 0 for disabled, 1 for enabled
 //////// DECLARATION OF GLOBAL PARAMETERS /////////////////////////////////////////////////////////////
 // Output file name
 std::string filename;
+std::string probe_filename;
 // Initial particle spacing
 double dp;
 // Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
@@ -1572,6 +1574,8 @@ void SetFilename(std::string &filename, const size_t Nfluid[DIM], const long int
 		filename = "Square";
 	else if (SCENARIO == TRIANGLE)
 		filename = "Triangle";
+	else if (SCENARIO == CAVITY)
+		filename = "Cavity";
 	// BC name
 	if (BC_TYPE == NO_SLIP)
 		filename += "_OLD_BC";
@@ -1741,9 +1745,10 @@ void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<D
 	}
 }
 
-void AddSquareNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerSideLength)
+void AddSquareNewBC(particles &vd, const Point<DIM, double> SquareCentre, const int integerBaseLength, const int integerHeigthLength)
 {
-	const double sideLength = (integerSideLength - 1) * dp;
+	const double baseLength = (integerBaseLength - 1) * dp;
+	const double heigthLength = (integerHeigthLength - 1) * dp;
 	Point<DIM, double> LowerLeftCorner;
 	Point<DIM, double> LowerRightCorner;
 	Point<DIM, double> UpperLeftCorner;
@@ -1752,47 +1757,47 @@ void AddSquareNewBC(particles &vd, Point<DIM, double> SquareCentre, int integerS
 
 	if (DIM == 2)
 	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 
-		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 
-		UpperLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		UpperLeftCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+		UpperLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		UpperLeftCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
 
-		UpperRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
 	}
 	else if (DIM == 3)
 	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 		LowerLeftCorner.get(2) = SquareCentre.get(2);
 
-		LowerRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - sideLength / 2.0;
+		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
 		LowerRightCorner.get(2) = SquareCentre.get(2);
 
-		UpperLeftCorner.get(0) = SquareCentre.get(0) - sideLength / 2.0;
-		UpperLeftCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+		UpperLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
+		UpperLeftCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
 		UpperLeftCorner.get(2) = SquareCentre.get(2);
 
-		UpperRightCorner.get(0) = SquareCentre.get(0) + sideLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + sideLength / 2.0;
+		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
+		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
 		UpperRightCorner.get(2) = SquareCentre.get(2);
 	}
 
 	Point<DIM, double> Xoffset = {dp, 0.0};
 	Point<DIM, double> Yoffset = {0.0, dp};
 	// Lower wall
-	AddFlatWallNewBC(vd, 0, integerSideLength, LowerLeftCorner, Xoffset, counter, dp);
+	AddFlatWallNewBC(vd, 0, integerBaseLength, LowerLeftCorner, Xoffset, counter, dp);
 	// Right wall
-	AddFlatWallNewBC(vd, 1, integerSideLength - 1, LowerRightCorner, Yoffset, counter, dp);
+	AddFlatWallNewBC(vd, 1, integerHeigthLength - 1, LowerRightCorner, Yoffset, counter, dp);
 	// Upper wall
-	AddFlatWallNewBC(vd, 0, integerSideLength, UpperRightCorner, -1.0 * Xoffset, counter, dp);
+	AddFlatWallNewBC(vd, 0, integerBaseLength, UpperRightCorner, -1.0 * Xoffset, counter, dp);
 	// Left wall
-	AddFlatWallNewBC(vd, 1, integerSideLength - 1, UpperLeftCorner, -1.0 * Yoffset, counter, dp);
+	AddFlatWallNewBC(vd, 1, integerHeigthLength - 1, UpperLeftCorner, -1.0 * Yoffset, counter, dp);
 }
 void AddTriangleNewBC(particles &vd, const Point<DIM, double> SquareCentre, const int integerBaseLength, const int integerHeigthLength)
 {
@@ -2057,8 +2062,9 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		rho_zero = 1.0;
 		nu = 0.01;
 		Bfactor = 1.0;
-		gravity_vector.get(0) = 0.1;
-		umax = vw_top.get(1);
+		// gravity_vector.get(0) = 0.1;
+		vw_top.get(0) = 1.25;
+		umax = vw_top.get(0);
 		t_end = 100.0;
 		write_const = 10;
 	}
@@ -2078,6 +2084,25 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		Bfactor = 1.0;
 		gravity_vector.get(1) = 0.1;
 		umax = 1.0;
+		t_end = 100.0;
+		write_const = 10;
+	}
+	else if (SCENARIO == CAVITY)
+	{
+		Nfluid[0] = 50;
+		Nfluid[1] = 50;
+		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound;
+		Nboundary[1] = Nbound;
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		LengthScale = 1.0;
+		dp = LengthScale / Nfluid[0];
+		rho_zero = 1.0;
+		nu = 0.01;
+		Bfactor = 3.0;
+		vw_top.get(0) = 1.0;
+		umax = vw_top.get(0);
 		t_end = 100.0;
 		write_const = 10;
 	}
@@ -2138,8 +2163,8 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		Bfactor = 3.0;
 		gravity_vector.get(0) = 0.1;
 		umax = 4.1 * 1e-1;
-		t_end = 100.0;
-		write_const = 10;
+		t_end = 40.0;
+		write_const = 100;
 	}
 	else if (SCENARIO == TRIANGLE)
 	{
@@ -2241,23 +2266,6 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 	probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
 	vp = vp_loc;
 
-	if (PROBES_ENABLED)
-	{
-		// we want to place probes  in a vertical line at length[0]/2 at dp spacing and at length[0] - dp
-		Point<DIM, double> Corner1 = {length[0] / 2.0 + dp / 2.0, 0.0};
-		Point<DIM, double> Corner2 = {length[0], 0.0};
-
-		Point<DIM, double> UnitOffset = {0.0, dp};
-		int k0 = 1;
-		int kmax = std::round(length[1] / dp);
-
-		PlaceProbes(vp, k0, kmax, Corner1, UnitOffset);
-		PlaceProbes(vp, k0, kmax, Corner2, UnitOffset);
-
-		openfpm::vector<std::string> names_p({"vx"});
-		vp.setPropNames(names_p);
-	}
-
 	// correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
 	for (int dim = 0; dim < DIM; dim++)
 	{
@@ -2270,49 +2278,35 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 
 	// Write constants on file
 	std::string customString = "";
-
 	WriteParameters(Nfluid, v_cl, customString);
+
+	// place probes
+	if (PROBES_ENABLED)
+	{
+		// we want to place probes  in a vertical line at length[0]/2 at dp spacing and at length[0] - dp
+		Point<DIM, double> HalfLength = {length[0] / 2.0, 0.0};
+		Point<DIM, double> FullLength = {length[0], 0.0};
+		Point<DIM, double> HalfHeight = {0.0, length[1] / 2.0};
+
+		Point<DIM, double> HorizontalOffset = {dp, 0.0};
+		Point<DIM, double> VerticalOffset = {0.0, dp};
+		int k0 = 0;
+		int kendLength = std::round(length[0] / dp) + 1;
+		int kendHeight = std::round(length[1] / dp) + 1;
+
+		PlaceProbes(vp, k0, kendLength, HalfHeight, HorizontalOffset);
+		PlaceProbes(vp, k0, kendHeight, HalfLength, VerticalOffset);
+
+		openfpm::vector<std::string> names_p({"vx"});
+		vp.setPropNames(names_p);
+
+		probe_filename = "probes_" + filename;
+	}
 
 	// Set cylindrical object parameters
 	Point<DIM, double> CylinderCentre;
-
 	CylinderCentre.get(0) = length[0] / 2.0;
 	CylinderCentre.get(1) = length[1] / 2.0;
-	if (DIM == 3)
-		CylinderCentre.get(2) = length[2] / 2.0;
-
-	// Set square obstacle parameters
-
-	const Point<DIM, double> SquareCentre = CylinderCentre;
-	const int integerSideLength = 9;
-	const Box<DIM, double> SquareOutside{
-		{SquareCentre.get(0) - (((double)integerSideLength - 1.0) * dp) / 2.0,
-		 SquareCentre.get(1) - (((double)integerSideLength - 1.0) * dp) / 2.0},
-		{SquareCentre.get(0) + (((double)integerSideLength - 1.0) * dp) / 2.0,
-		 SquareCentre.get(1) + (((double)integerSideLength - 1.0) * dp) / 2.0}};
-
-	const Point<DIM, double> TriangleCentre = CylinderCentre;
-	const int integerBaseLength = 9;
-	const int integerHeigthLength = 9;
-
-	const Point<DIM, double> TriangleLowerLeft = {TriangleCentre.get(0) - (((double)integerBaseLength - 1.0) * dp) / 2.0,
-												  TriangleCentre.get(1) - (((double)integerHeigthLength - 1.0) * dp) / 2.0};
-
-	const Point<DIM, double> TriangleUpperRight = {TriangleCentre.get(0) + (((double)integerBaseLength - 1.0) * dp) / 2.0,
-												   TriangleCentre.get(1) + (((double)integerHeigthLength - 1.0) * dp) / 2.0};
-
-	const Box<DIM, double> RectangleOutside{TriangleLowerLeft, TriangleUpperRight}; // Rectangle that contains the triangle
-
-	// Add the obstacle as marker particles only on processor 0
-	if (BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
-	{
-		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
-			AddCylinderNewBC(vd, CylinderCentre, CylinderRadius);
-		if (SCENARIO == SQUARE)
-			AddSquareNewBC(vd, SquareCentre, integerSideLength);
-		if (SCENARIO == TRIANGLE)
-			AddTriangleNewBC(vd, TriangleCentre, integerBaseLength, integerHeigthLength);
-	}
 
 	Sphere<DIM, double> Cylinder(CylinderCentre, CylinderRadius);
 	Sphere<DIM, double> Cylinder_aux(CylinderCentre, CylinderRadius + 0.5 * dp);
@@ -2323,10 +2317,28 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 	else if (BC_TYPE == NO_SLIP)
 		Cylinder_ptr = &Cylinder;
 
-	const double Lx = length[0] + 0.5 * dp; // channel height
-	const double Ly = length[1] + 0.5 * dp; // channel width
-	if (DIM == 3)
-		const double Lz = length[2] + 0.5 * dp; // channel length ( +0.5dp due to periodicity)
+	// Set square/triangle obstacle parameters
+	const Point<DIM, double> RectangleCentre = CylinderCentre;
+	const int integerBaseLength = 17;
+	const int integerHeigthLength = 9;
+
+	const Point<DIM, double> RectangleLowerLeft = {RectangleCentre.get(0) - (((double)integerBaseLength - 1.0) * dp) / 2.0,
+												   RectangleCentre.get(1) - (((double)integerHeigthLength - 1.0) * dp) / 2.0};
+
+	const Point<DIM, double> RectangleUpperRight = {RectangleCentre.get(0) + (((double)integerBaseLength - 1.0) * dp) / 2.0,
+													RectangleCentre.get(1) + (((double)integerHeigthLength - 1.0) * dp) / 2.0};
+	const Box<DIM, double> RectangleOutside{RectangleLowerLeft, RectangleUpperRight};
+
+	// Add the obstacle as marker particles only on processor 0
+	if (BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
+	{
+		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
+			AddCylinderNewBC(vd, CylinderCentre, CylinderRadius);
+		if (SCENARIO == SQUARE)
+			AddSquareNewBC(vd, RectangleCentre, integerBaseLength, integerHeigthLength);
+		if (SCENARIO == TRIANGLE)
+			AddTriangleNewBC(vd, RectangleCentre, integerBaseLength, integerHeigthLength);
+	}
 
 	// return an iterator to the fluid particles to add to vd
 	auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
@@ -2362,7 +2374,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		}
 		else if (SCENARIO == SQUARE)
 		{
-			if (SquareOutside.isInside(iterator_position)) // if inside the square obstacle region
+			if (RectangleOutside.isInside(iterator_position)) // if inside the square obstacle region
 			{
 				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
 				{
@@ -2385,7 +2397,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		}
 		else if (SCENARIO == TRIANGLE)
 		{
-			if (RectangleOutside.isInside(iterator_position) && !isAvobeLine(TriangleLowerLeft, TriangleUpperRight, iterator_position)) // if inside the triangle obstacle region
+			if (RectangleOutside.isInside(iterator_position) && !isAvobeLine(RectangleLowerLeft, RectangleUpperRight, iterator_position)) // if inside the triangle obstacle region
 			{
 				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
 				{
@@ -2434,7 +2446,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		++fluid_it;
 	}
 
-	// Now place solid particles
+	// Now place solid walls
 	openfpm::vector<Box<DIM, double>> holes;
 
 	if (BC_TYPE == NEW_NO_SLIP)
@@ -2564,9 +2576,8 @@ int main(int argc, char *argv[])
 	vp.map();
 	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
-	vd.deleteGhost();
 	auto NN = vd.getCellList(r_threshold);
-	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
+	// vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 	// vd.updateCellList(NN);
 
 	if (BC_TYPE == NO_SLIP) // set up boundary particle velocity
@@ -2583,7 +2594,6 @@ int main(int argc, char *argv[])
 		calcCurvature(vd, NN, v_cl);
 		vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 	}
-
 	// Evolve
 	size_t write = 0;
 	size_t it = 0;
@@ -2632,10 +2642,11 @@ int main(int argc, char *argv[])
 			if (PROBES_ENABLED)
 			{
 				vd.map();
+				vp.map();
 				vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 				vd.updateCellList(NN);
 				sensor_scalar_magnitude(vd, vp, v_cl, NN);
-				vp.write_frame("probes", write, WRITER);
+				vp.write_frame(probe_filename, write, WRITER);
 			}
 
 			vd.deleteGhost();
