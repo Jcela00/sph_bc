@@ -21,10 +21,12 @@
 #define SQUARE 5
 #define TRIANGLE 6
 #define CAVITY 7
+#define STEP 8
+#define TRIANGLE_SYM 9
 
 // TYPE OF KERNERL
-#define CUBIC 0
-#define QUINTIC 1
+// #define CUBIC 0
+// #define QUINTIC 1
 
 // TYPE OF DENSITY COMPUTATION
 #define DENSITY_SUMMATION 0
@@ -34,16 +36,16 @@
 #define DIM 2
 
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CAVITY;
-const int KERNEL = QUINTIC;
+const int SCENARIO = CYLINDER_LATTICE;
+// const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
-const int PROBES_ENABLED = 1;  // 0 for disabled, 1 for enabled
+int PROBES_ENABLED = 0;		   // 0 for disabled, 1 for enabled
 
 //////// DECLARATION OF GLOBAL PARAMETERS /////////////////////////////////////////////////////////////
 // Output file name
 std::string filename;
-std::string probe_filename;
+std::vector<std::string> probe_filenames;
 // Initial particle spacing
 double dp;
 // Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
@@ -224,7 +226,7 @@ Point<DIM, double> matVec(const std::array<Point<DIM, double>, DIM> &m, const Po
 		res.get(2) = dotProduct(m[2], v);
 	return res;
 }
-double getVectorNorm(const Point<DIM, double> &v)
+inline double getVectorNorm(const Point<DIM, double> &v)
 {
 	return sqrt(norm2(v));
 }
@@ -258,17 +260,53 @@ Point<DIM, double> getPerpendicularUnit(const Point<DIM, double> &v)
 	return perp;
 }
 // Kernel functions
-double Cubic_W(double r)
-{
-	r /= H;
-	if (r >= 0.0 && r < 1.0)
-		return Kcubic * (1.0 - 1.5 * r * r + 0.75 * r * r * r);
-	else if (r >= 1.0 && r < 2.0)
-		return Kcubic * (0.25 * (2.0 - r) * (2.0 - r) * (2.0 - r));
-	else
-		return 0.0;
-}
-double Quintic_W(double r)
+// double Cubic_W(double r, const double sl)
+// {
+// 	r /= sl;
+// 	if (r >= 0.0 && r < 1.0)
+// 		return Kcubic * (1.0 - 1.5 * r * r + 0.75 * r * r * r);
+// 	else if (r >= 1.0 && r < 2.0)
+// 		return Kcubic * (0.25 * (2.0 - r) * (2.0 - r) * (2.0 - r));
+// 	else
+// 		return 0.0;
+// }
+
+// Point<DIM, double> Grad_Cubic_W(const Point<DIM, double> &dx, const double r, const double sl)
+// {
+// 	Point<DIM, double> DW;
+// 	const double q = r / sl;
+
+// 	const double c1 = Kcubic * (-3.0 / H);
+// 	const double d1 = Kcubic * (9.0 / 4.0 / H);
+// 	const double c2 = Kcubic * (-3.0 / 4.0 / H);
+
+// 	double factor;
+// 	if (q > 0.0 && q < 1.0)
+// 		factor = c1 * q + d1 * q * q / r;
+// 	else if (q >= 1.0 && q < 2.0)
+// 		factor = c2 * (2.0 - q) * (2.0 - q) / r;
+// 	else
+// 		factor = 0.0;
+
+// 	DW = factor * dx;
+
+// 	return DW;
+// }
+// double Wab(double r, const double sl)
+// {
+// 	if (KERNEL == CUBIC)
+// 		return Cubic_W(r, sl);
+// 	else if (KERNEL == QUINTIC)
+// 		return Quintic_W(r, sl);
+// }
+// Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r)
+// {
+// 	if (KERNEL == CUBIC)
+// 		return Grad_Cubic_W(dx, r);
+// 	else if (KERNEL == QUINTIC)
+// 		return Grad_Quintic_W(dx, r);
+// }
+double Wab(double r)
 {
 	r /= H;
 	const double tmp3 = (3.0 - r) * (3.0 - r) * (3.0 - r) * (3.0 - r) * (3.0 - r);
@@ -283,37 +321,8 @@ double Quintic_W(double r)
 	else
 		return 0.0;
 }
-double Wab(double r)
-{
-	if (KERNEL == CUBIC)
-		return Cubic_W(r);
-	else if (KERNEL == QUINTIC)
-		return Quintic_W(r);
-}
 
-Point<DIM, double> Grad_Cubic_W(const Point<DIM, double> &dx, const double r)
-{
-	Point<DIM, double> DW;
-	const double q = r / H;
-
-	const double c1 = Kcubic * (-3.0 / H);
-	const double d1 = Kcubic * (9.0 / 4.0 / H);
-	const double c2 = Kcubic * (-3.0 / 4.0 / H);
-
-	double factor;
-	if (q > 0.0 && q < 1.0)
-		factor = c1 * q + d1 * q * q / r;
-	else if (q >= 1.0 && q < 2.0)
-		factor = c2 * (2.0 - q) * (2.0 - q) / r;
-	else
-		factor = 0.0;
-
-	DW = factor * dx;
-
-	return DW;
-}
-
-Point<DIM, double> Grad_Quintic_W(const Point<DIM, double> &dx, const double r)
+Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r)
 {
 	Point<DIM, double> DW;
 	const double q = r / H;
@@ -337,13 +346,6 @@ Point<DIM, double> Grad_Quintic_W(const Point<DIM, double> &dx, const double r)
 	DW = factor * dx;
 
 	return DW;
-}
-Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r)
-{
-	if (KERNEL == CUBIC)
-		return Grad_Cubic_W(dx, r);
-	else if (KERNEL == QUINTIC)
-		return Grad_Quintic_W(dx, r);
 }
 
 Point<DIM, double> Pi_physical(const Point<DIM, double> &dr, const double &r, const Point<DIM, double> &dv, const Point<DIM, double> &dW)
@@ -418,7 +420,7 @@ void calcFluidVec(particles &vd, CellList &NN)
 					if (r2 < r_threshold * r_threshold)
 					{
 						normalizeVector(dr);
-						double W = Wab(std::sqrt(r2));
+						double W = Wab(sqrt(r2));
 						r_fluid_sum += dr * W;
 					}
 				}
@@ -534,42 +536,41 @@ void calcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl)
 {
 	// This function computes the curvature of the boundary particles from the divergence of the normal vector
 
-	// const double max_curvature = 1.0 / (3.0 * dp);
+	// // previous step, find the maxcounter in the particles. (stored  in pressure of marker particles)
+	// auto part1 = vd.getDomainIterator();
 
-	// previous step, find the maxcounter in the particles. (stored  in pressure of marker particles)
-	auto part1 = vd.getDomainIterator();
+	// double max_counter = -1e10;
+	// // For each particle ...
+	// while (part1.isNext())
+	// {
+	// 	// Key of the particle a
+	// 	vect_dist_key_dx a = part1.get();
 
-	// const double max_curvature = 1.0 / (3.0 * dp);
+	// 	// if particle BOUNDARY
+	// 	if (vd.getProp<type>(a) == BOUNDARY)
+	// 	{
+	// 		if (vd.getProp<pressure>(a) > max_counter)
+	// 		{
+	// 			max_counter = vd.getProp<pressure>(a);
+	// 		}
+	// 	}
+	// 	++part1;
+	// }
+	// unsigned int max_counter_int = (int)std::round(max_counter);
 
-	double max_counter = -1e10;
-	// For each particle ...
-	while (part1.isNext())
-	{
-		// Key of the particle a
-		vect_dist_key_dx a = part1.get();
+	// v_cl.max(max_counter_int);
+	// v_cl.execute();
 
-		// if particle BOUNDARY
-		if (vd.getProp<type>(a) == BOUNDARY)
-		{
-			if (vd.getProp<pressure>(a) > max_counter)
-			{
-				max_counter = vd.getProp<pressure>(a);
-			}
-		}
-		++part1;
-	}
-	unsigned int max_counter_int = (int)std::round(max_counter);
-
-	v_cl.max(max_counter_int);
-	v_cl.execute();
-
-	std::cout << "max counter: " << max_counter_int << std::endl;
+	// std::cout << "max counter: " << max_counter_int << std::endl;
 
 	// Now the real calculation
 	auto part = vd.getDomainIterator();
 
 	// Update the cell-list
 	vd.updateCellList(NN);
+
+	const double max_curvature = 1.0 / (3.0 * dp);
+
 	// For each particle ...
 	while (part.isNext())
 	{
@@ -591,111 +592,120 @@ void calcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl)
 
 			auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
 
-			if (vd.getProp<pressure>(a) == 0.0) // flat wall
+			// if (vd.getProp<pressure>(a) == 0.0) // flat wall
+			// {
+			// iterate the neighborhood particles
+			while (Np.isNext() == true)
 			{
-				// iterate the neighborhood particles
-				while (Np.isNext() == true)
+				// Key of b particle
+				const unsigned long b = Np.get();
+
+				if (vd.getProp<type>(b) == BOUNDARY)
 				{
-					// Key of b particle
-					const unsigned long b = Np.get();
+					// Get the position xb of the particle b
+					const Point<DIM, double> xb = vd.getPos(b);
 
-					if (vd.getProp<type>(b) == BOUNDARY)
+					// Get the vector pointing at a from b
+					const Point<DIM, double> dr = xa - xb;
+
+					// take the norm squared of this vector
+					const double r2 = norm2(dr);
+
+					// If the particles interact ...
+					if (r2 < r_threshold * r_threshold)
 					{
-						// Get the position xb of the particle b
-						const Point<DIM, double> xb = vd.getPos(b);
+						// OLD CALCULATION
+						// get normal vector of b
+						// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
 
-						// Get the vector pointing at a from b
-						const Point<DIM, double> dr = xa - xb;
+						// // evaluate kernel
+						// double W = Wab(sqrt(r2));
+						// // evaluate kernel gradient
+						// Point<DIM, double> dW = DWab(dr, sqrt(r2));
 
-						// take the norm squared of this vector
-						const double r2 = norm2(dr);
+						// K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+						// w_sum += W;
 
-						// If the particles interact ...
-						if (r2 < r_threshold * r_threshold)
+						// // NEW CALCULATION
+						if (a.getKey() != b)
 						{
-							// OLD CALCULATION
-							// get normal vector of b
-							// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+							Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+							double r = sqrt(r2);
+							double W = Wab(r);
+							Point<DIM, double> eab = -1.0 * dr / r;
+							double local_k = dotProduct(normal_b - normal_a, eab) / r;
 
-							// // evaluate kernel
-							// double W = Wab(sqrt(r2));
-							// // evaluate kernel gradient
-							// Point<DIM, double> dW = DWab(dr, sqrt(r2));
-
-							// K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
-							// w_sum += W;
-
-							// // NEW CALCULATION
-							if (a.getKey() != b)
+							if (local_k > max_curvature)
 							{
-								Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-								double r = sqrt(r2);
-								double W = Wab(r);
-								Point<DIM, double> eab = -1.0 * dr / r;
-								K_sum += dotProduct(normal_b - normal_a, eab) * W / r;
-								w_sum += W;
+								local_k = max_curvature;
 							}
+
+							K_sum += local_k * W;
+							w_sum += W;
 						}
 					}
-
-					++Np;
 				}
+
+				++Np;
 			}
-			else // obstacle
-			{
-				// iterate the neighborhood particles
-				while (Np.isNext() == true)
-				{
-					// Key of b particle
-					const unsigned long b = Np.get();
+			// }
+			// else // obstacle
+			// {
+			// 	// iterate the neighborhood particles
+			// 	while (Np.isNext() == true)
+			// 	{
+			// 		// Key of b particle
+			// 		const unsigned long b = Np.get();
 
-					if (vd.getProp<type>(b) == BOUNDARY)
-					{
-						// Get the position xb of the particle b
-						const Point<DIM, double> xb = vd.getPos(b);
+			// 		if (vd.getProp<type>(b) == BOUNDARY)
+			// 		{
+			// 			// Get the position xb of the particle b
+			// 			const Point<DIM, double> xb = vd.getPos(b);
 
-						// Get the vector pointing at a from b
-						Point<DIM, double> dr = xa - xb;
+			// 			// Get the vector pointing at a from b
+			// 			Point<DIM, double> dr = xa - xb;
 
-						// take the norm squared of this vector
-						const double r2 = norm2(dr);
-						const double r = sqrt(r2);
-						// the distance between the two particles is the clock distance
-						const unsigned int counter_a = (int)std::round(vd.getProp<pressure>(a));
-						const unsigned int counter_b = (int)std::round(vd.getProp<pressure>(b));
+			// 			// take the norm squared of this vector
+			// 			const double r2 = norm2(dr);
+			// 			const double r = sqrt(r2);
+			// 			// the distance between the two particles is the clock distance
+			// 			const unsigned int counter_a = (int)std::round(vd.getProp<pressure>(a));
+			// 			const unsigned int counter_b = (int)std::round(vd.getProp<pressure>(b));
 
-						const unsigned int clock_dist = clockDifference(counter_a, counter_b, max_counter_int);
-						const double rclk = clock_dist * vd.getProp<arc_length>(a);
-						// If the particles interact ...
-						if (rclk < r_threshold)
-						{
-							// OLD CALCULATION
-							// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+			// 			const unsigned int clock_dist = clockDifference(counter_a, counter_b, max_counter_int);
+			// 			const double rclk = clock_dist * vd.getProp<arc_length>(a);
+			// 			// If the particles interact ...
+			// 			if (rclk < r_threshold)
+			// 			{
+			// 				// OLD CALCULATION
+			// 				// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
 
-							// double W = Wab(rclk);
-							// normalizeVector(dr);
-							// dr = rclk * dr;
-							// Point<DIM, double> dW = DWab(dr, rclk);
+			// 				// double W = Wab(rclk);
+			// 				// normalizeVector(dr);
+			// 				// dr = rclk * dr;
+			// 				// Point<DIM, double> dW = DWab(dr, rclk);
 
-							// K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
-							// w_sum += W;
+			// 				// K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+			// 				// w_sum += W;
 
-							// NEW CALCULATION
+			// 				// NEW CALCULATION
 
-							if (a.getKey() != b)
-							{
-								Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-								double W = Wab(rclk);
-								Point<DIM, double> eab = -1.0 * dr / r;
-								K_sum += dotProduct(normal_b - normal_a, eab) * W / rclk;
-								w_sum += W;
-							}
-						}
-					}
+			// 				if (a.getKey() != b)
+			// 				{
+			// 					Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+			// 					double W = Wab(rclk);
+			// 					Point<DIM, double> eab = -1.0 * dr / r;
+			// 					double local_k = dotProduct(normal_b - normal_a, eab) / rclk;
 
-					++Np;
-				}
-			}
+			// 					K_sum += local_k * W;
+			// 					w_sum += W;
+			// 				}
+			// 			}
+			// 		}
+
+			// 		++Np;
+			// 	}
+			// }
 
 			K_sum = K_sum / w_sum;
 			// store in curvature
@@ -901,8 +911,9 @@ void calc_density(particles &vd, CellList &NN)
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
 							const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
-							// if (dotProduct(normal, dr) > 0.0)
+							// if (dotProduct(normal, dr) > -0.3)
 							// {
+
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
 							const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 							const double kappa = vd.getProp<curvature_boundary>(b);
@@ -1103,7 +1114,6 @@ void interact_fluid_boundary_new(particles &vd,
 								 const Point<DIM, double> &vf,
 								 const Point<DIM, double> &xw,
 								 const Point<DIM, double> &r_wall_to_fluid,
-								 const double &dist2,
 								 unsigned long &boundary_key,
 								 bool accumulate_force,
 								 double &cylinder_force)
@@ -1123,10 +1133,10 @@ void interact_fluid_boundary_new(particles &vd,
 	Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
 	Point<DIM, double> tangential = (DIM == 2) ? Point<DIM, double>{normal.get(1), normal.get(0)} : Point<DIM, double>{normal.get(1), normal.get(0), 0.0};
 
-	if (tangential.get(1) < 0.0)
-	{
-		tangential.get(1) = -tangential.get(1);
-	}
+	// if (tangential.get(1) < 0.0)
+	// {
+	// 	tangential.get(1) = -tangential.get(1);
+	// }
 
 	// get curvature, and arc length
 	double kappa = vd.getProp<curvature_boundary>(boundary_key);
@@ -1135,6 +1145,7 @@ void interact_fluid_boundary_new(particles &vd,
 	// Project va on tangential and normal directions
 	double vt = dotProduct(vf, tangential);
 	double vn = dotProduct(vf, normal);
+	double vwt = dotProduct(vw, tangential);
 
 	// vertical distance from fluid particle to wall
 	double lf = dotProduct(r_fluid_to_wall, normal);
@@ -1155,7 +1166,7 @@ void interact_fluid_boundary_new(particles &vd,
 
 	size_t interact_count = 0;
 	const std::array<Point<DIM, double>, DIM> Af = dyadicProduct(rhof * vf, vdiff_f);
-
+	lf = std::max(lf, 0.05 * dp);
 	for (int i = 0; i < 3; i++)
 	{
 		if (r_boundary_norm[i] < r_threshold)
@@ -1167,10 +1178,13 @@ void interact_fluid_boundary_new(particles &vd,
 
 			// rho_boundary[i] = MassBound / Volume_boundary[i];
 			// p_boundary[i] = EqState_particle(rho_boundary[i]);
-
 			// compute velocity of boundary particle
-			v_boundary[i] = 2.0 * vw - vt * (lwall[i] / lf) * tangential - vn * (lwall[i] / lf) * normal;
-			p_boundary[i] = Pf + rhof * g_normal * (lf + lwall[i]);
+			// v_boundary[i] = 2.0 * vw - vt * (lwall[i] / lf) * tangential + vn * (lwall[i] / lf) * normal;
+			v_boundary[i] = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
+
+			// p_boundary[i] = std::max(0.0, Pf + rhof * g_normal * (lf + lwall[i])); // if negative set to 0
+			p_boundary[i] = Pf + rhof * g_normal * (lf + lwall[i]); // if negative set to 0
+
 			rho_boundary[i] = InvEqState_particle(p_boundary[i]);
 
 			// flip sing of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
@@ -1182,8 +1196,9 @@ void interact_fluid_boundary_new(particles &vd,
 			// Compute forces
 			const Point<DIM, double> v_rel = vf - v_boundary[i];
 			const double Va2 = (massf / rhof) * (massf / rhof);
-			const double Vb2 = (Mass_boundary[i] / rho_boundary[i]) * (Mass_boundary[i] / rho_boundary[i]);
+			const double Vb2 = (Mass_boundary[i] / rho_zero) * (Mass_boundary[i] / rho_zero);
 
+			// const double Vb2 = (Mass_boundary[i] / rho_boundary[i]) * (Mass_boundary[i] / rho_boundary[i]);
 			// const double Vb2 = Volume_boundary[i] * Volume_boundary[i];
 
 			const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], getVectorNorm(r_boundary[i]), v_rel, DW);
@@ -1384,7 +1399,7 @@ void calc_forces(particles &vd, CellList &NN, double &cylinder_force, bool calc_
 				Point<DIM, double> xb = vd.getPos(b);
 
 				// Get the distance between a and b
-				// in fluid - boundary its xf-xb
+				// in fluid - boundary its xf-xb i.e. vector pointing at fluid from boundary
 				Point<DIM, double> dr = xa - xb;
 
 				// take the norm (squared) of this vector
@@ -1408,9 +1423,9 @@ void calc_forces(particles &vd, CellList &NN, double &cylinder_force, bool calc_
 							interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, accumulate_force, cylinder_force);
 						else if (BC_TYPE == NEW_NO_SLIP)
 						{
-							// Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-							// if (dotProduct(normal_b, dr) > 0.0)
-							interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, accumulate_force, cylinder_force);
+							Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+							// if (dotProduct(normal_b, dr) > -0.3)
+							interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, accumulate_force, cylinder_force);
 						}
 					}
 					else
@@ -1574,18 +1589,22 @@ void SetFilename(std::string &filename, const size_t Nfluid[DIM], const long int
 		filename = "Square";
 	else if (SCENARIO == TRIANGLE)
 		filename = "Triangle";
+	else if (SCENARIO == TRIANGLE_SYM)
+		filename = "TriangleSym";
 	else if (SCENARIO == CAVITY)
 		filename = "Cavity";
+	else if (SCENARIO == STEP)
+		filename = "Step";
 	// BC name
 	if (BC_TYPE == NO_SLIP)
 		filename += "_OLD_BC";
 	else if (BC_TYPE == NEW_NO_SLIP)
 		filename += "_NEW_BC";
 	// Kernel name
-	if (KERNEL == CUBIC)
-		filename += "_Cubic";
-	else if (KERNEL == QUINTIC)
-		filename += "_Quintic";
+	// if (KERNEL == CUBIC)
+	// 	filename += "_Cubic";
+	// else if (KERNEL == QUINTIC)
+	// 	filename += "_Quintic";
 	// Density name
 	if (DENSITY_TYPE == DENSITY_SUMMATION)
 		filename += "_Summation";
@@ -1626,6 +1645,12 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 		scenario_str = "Square";
 	else if (SCENARIO == TRIANGLE)
 		scenario_str = "Triangle";
+	else if (SCENARIO == TRIANGLE_SYM)
+		scenario_str = "TriangleSym";
+	else if (SCENARIO == CAVITY)
+		scenario_str = "Cavity";
+	else if (SCENARIO == STEP)
+		scenario_str = "Step";
 
 	std::string BC_str = "";
 	if (BC_TYPE == NO_SLIP)
@@ -1633,11 +1658,11 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 	else if (BC_TYPE == NEW_NO_SLIP)
 		BC_str = "NewBC";
 
-	std::string kernel_str = "";
-	if (KERNEL == CUBIC)
-		kernel_str = "Cubic";
-	else if (KERNEL == QUINTIC)
-		kernel_str = "Quintic";
+	// std::string kernel_str = "";
+	// if (KERNEL == CUBIC)
+	// 	kernel_str = "Cubic";
+	// else if (KERNEL == QUINTIC)
+	// 	kernel_str = "Quintic";
 
 	std::string density_str = "";
 	if (DENSITY_TYPE == DENSITY_SUMMATION)
@@ -1664,60 +1689,11 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 	file << "CFLnumber = " << CFLnumber << std::endl;
 	file << "SCENARIO = " << scenario_str << std::endl;
 	file << "BC_TYPE = " << BC_str << std::endl;
-	file << "KERNEL = " << kernel_str << std::endl;
+	// file << "KERNEL = " << kernel_str << std::endl;
 	file << "DENSITY_TYPE = " << density_str << std::endl;
 }
 
-void AddCylinderNewBC(particles &vd, const Point<DIM, double> CylinderCentre, const double CylinderRadius)
-{
-	const double perimeter = 2.0 * M_PI * CylinderRadius;
-	const int Np_cylinder = ceil(perimeter / dp);
-	const double dtheta = 2.0 * M_PI / Np_cylinder;
-	const double dxwall = dtheta * CylinderRadius;
-	double theta = 0.0;
-	unsigned int counter = 1;
-
-	Point<DIM, double> Cylinder_particle;
-	Point<DIM, double> normal;
-
-	// while (theta < 2.0 * M_PI)
-	for (int k = 0; k < Np_cylinder; k++)
-	{
-
-		Cylinder_particle[0] = CylinderCentre.get(0) + CylinderRadius * cos(theta);
-		Cylinder_particle[1] = CylinderCentre.get(1) + CylinderRadius * sin(theta);
-
-		// normal[0] = cos(theta);
-		// normal[1] = sin(theta);
-
-		if (DIM == 3)
-		{
-			Cylinder_particle[2] = CylinderCentre.get(2);
-			// normal[2] = 0.0;
-		}
-
-		vd.add();
-		vd.template getLastProp<type>() = BOUNDARY;
-		for (int xyz = 0; xyz < DIM; xyz++)
-		{
-			vd.getLastPos()[xyz] = Cylinder_particle.get(xyz); // + ((double)rand() / RAND_MAX - 0.5) * dp;
-			vd.template getLastProp<velocity>()[xyz] = 0.0;
-			vd.template getLastProp<force>()[xyz] = 0.0;
-			vd.template getLastProp<force_transport>()[xyz] = 0.0;
-			vd.template getLastProp<v_transport>()[xyz] = 0.0;
-			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-		}
-
-		vd.template getLastProp<pressure>() = (double)counter;
-		vd.template getLastProp<rho>() = rho_zero;
-		vd.template getLastProp<drho>() = 0.0;
-		vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / CylinderRadius;
-		vd.template getLastProp<arc_length>() = dxwall;
-		theta += dtheta;
-		counter++;
-	}
-}
-void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<DIM, double> Corner, const Point<DIM, double> UnitOffset, unsigned int &counter, const double dx)
+void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<DIM, double> Corner, const Point<DIM, double> UnitOffset, const double dx)
 {
 	for (int k = k0; k < kmax; k++)
 	{
@@ -1735,141 +1711,46 @@ void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<D
 			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
 		}
 
-		vd.template getLastProp<pressure>() = (double)counter;
+		vd.template getLastProp<pressure>() = 0.0;
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<drho>() = 0.0;
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dx;
-
-		counter++;
 	}
-}
-
-void AddSquareNewBC(particles &vd, const Point<DIM, double> SquareCentre, const int integerBaseLength, const int integerHeigthLength)
-{
-	const double baseLength = (integerBaseLength - 1) * dp;
-	const double heigthLength = (integerHeigthLength - 1) * dp;
-	Point<DIM, double> LowerLeftCorner;
-	Point<DIM, double> LowerRightCorner;
-	Point<DIM, double> UpperLeftCorner;
-	Point<DIM, double> UpperRightCorner;
-	unsigned int counter = 1;
-
-	if (DIM == 2)
-	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-
-		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-
-		UpperLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		UpperLeftCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-
-		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-	}
-	else if (DIM == 3)
-	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-		LowerLeftCorner.get(2) = SquareCentre.get(2);
-
-		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-		LowerRightCorner.get(2) = SquareCentre.get(2);
-
-		UpperLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		UpperLeftCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-		UpperLeftCorner.get(2) = SquareCentre.get(2);
-
-		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-		UpperRightCorner.get(2) = SquareCentre.get(2);
-	}
-
-	Point<DIM, double> Xoffset = {dp, 0.0};
-	Point<DIM, double> Yoffset = {0.0, dp};
-	// Lower wall
-	AddFlatWallNewBC(vd, 0, integerBaseLength, LowerLeftCorner, Xoffset, counter, dp);
-	// Right wall
-	AddFlatWallNewBC(vd, 1, integerHeigthLength - 1, LowerRightCorner, Yoffset, counter, dp);
-	// Upper wall
-	AddFlatWallNewBC(vd, 0, integerBaseLength, UpperRightCorner, -1.0 * Xoffset, counter, dp);
-	// Left wall
-	AddFlatWallNewBC(vd, 1, integerHeigthLength - 1, UpperLeftCorner, -1.0 * Yoffset, counter, dp);
-}
-void AddTriangleNewBC(particles &vd, const Point<DIM, double> SquareCentre, const int integerBaseLength, const int integerHeigthLength)
-{
-	const double baseLength = (integerBaseLength - 1) * dp;
-	const double heigthLength = (integerHeigthLength - 1) * dp;
-	Point<DIM, double> LowerLeftCorner;
-	Point<DIM, double> LowerRightCorner;
-	Point<DIM, double> UpperRightCorner;
-	unsigned int counter = 1;
-
-	if (DIM == 2)
-	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-
-		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-
-		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-	}
-	else if (DIM == 3)
-	{
-		LowerLeftCorner.get(0) = SquareCentre.get(0) - baseLength / 2.0;
-		LowerLeftCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-		LowerLeftCorner.get(2) = SquareCentre.get(2);
-
-		LowerRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		LowerRightCorner.get(1) = SquareCentre.get(1) - heigthLength / 2.0;
-		LowerRightCorner.get(2) = SquareCentre.get(2);
-
-		UpperRightCorner.get(0) = SquareCentre.get(0) + baseLength / 2.0;
-		UpperRightCorner.get(1) = SquareCentre.get(1) + heigthLength / 2.0;
-		UpperRightCorner.get(2) = SquareCentre.get(2);
-	}
-
-	Point<DIM, double> Xoffset = {dp, 0.0};
-	Point<DIM, double> Yoffset = {0.0, dp};
-
-	// Lower wall
-	AddFlatWallNewBC(vd, 0, integerBaseLength, LowerLeftCorner, Xoffset, counter, dp);
-	// Right wall
-	AddFlatWallNewBC(vd, 1, integerHeigthLength, LowerRightCorner, Yoffset, counter, dp);
-
-	// We want particles spaced roughly by dp
-	const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
-	const int Ndiag = ceil(hypothenuseLength / dp);	 // integer number of particles that can fit in the diagonal
-	const double dxwall = hypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
-	const double sin_theta = heigthLength / hypothenuseLength;
-	const double cos_theta = baseLength / hypothenuseLength;
-	Point<DIM, double> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
-
-	//  Hypothenuse wall
-	AddFlatWallNewBC(vd, 1, Ndiag, UpperRightCorner, -1.0 * Diagoffset, counter, dxwall);
 }
 
 bool isAvobeLine(Point<DIM, double> P, Point<DIM, double> Q, Point<DIM, double> EvalPoint)
 {
 	// P,Q two points forming a line, EvalPoint the point to check if it is above the line or not
+	// with a small epsilon to avoid particles to be very close to the line
 	double slope = (Q.get(1) - P.get(1)) / (Q.get(0) - P.get(0));
-	// we evaluate y-y1 - m(x-x1)
+	// we compare y- y1 + m(x-x1)
 	// =0 means the point is in the line
 	// >0 means the point is above the line
 	// <0 means the point is below the line
-	double eval = EvalPoint.get(1) - P.get(1) - slope * (EvalPoint.get(0) - P.get(0));
-	double epsilon = 0.01 * dp;
-	if (eval > epsilon)
+	double yline = P.get(1) + slope * (EvalPoint.get(0) - P.get(0));
+	double epsilon = 0.5 * dp;
+	if (EvalPoint.get(1) > yline + epsilon)
 		return true;
 	else
 		return false;
 }
-
+bool isBelowLine(Point<DIM, double> P, Point<DIM, double> Q, Point<DIM, double> EvalPoint)
+{
+	// P,Q two points forming a line, EvalPoint the point to check if it is above the line or not
+	// with a small epsilon to avoid particles to be very close to the line
+	double slope = (Q.get(1) - P.get(1)) / (Q.get(0) - P.get(0));
+	// we compare y- y1 + m(x-x1)
+	// =0 means the point is in the line
+	// >0 means the point is above the line
+	// <0 means the point is below the line
+	double yline = P.get(1) + slope * (EvalPoint.get(0) - P.get(0));
+	double epsilon = 0.5 * dp;
+	if (EvalPoint.get(1) < yline - epsilon)
+		return true;
+	else
+		return false;
+}
 void PlaceProbes(probe_particles &probes, const int k0, const int kmax,
 				 const Point<DIM, double> Corner, const Point<DIM, double> UnitOffset)
 {
@@ -1884,12 +1765,293 @@ void PlaceProbes(probe_particles &probes, const int k0, const int kmax,
 		probes.template getLastProp<0>() = 0.0;
 	}
 }
+class Obstacle
+{
+private:
+public:
+	virtual bool isInside(Point<DIM, double> P) = 0;
+	virtual void AddObstacle(particles &vd) = 0;
+};
+
+class EmptyObstacle : public Obstacle
+{
+public:
+	bool isInside(Point<DIM, double> P) override
+	{
+		return false;
+	}
+	void AddObstacle(particles &vd) override
+	{
+	}
+};
+
+class CylinderObstacle : public Obstacle
+{
+private:
+	const Point<DIM, double> Centre_;
+	const double Radius_;
+	const Sphere<DIM, double> Cylinder_;
+
+public:
+	CylinderObstacle(Point<DIM, double> Centre, double Radius) : Centre_(Centre), Radius_(Radius), Cylinder_(Centre, Radius) {}
+
+	bool isInside(Point<DIM, double> P) override
+	{
+		return Cylinder_.isInside(P);
+	}
+	void AddObstacle(particles &vd)
+	{
+		const double perimeter = 2.0 * M_PI * Radius_;
+		const int Np_cylinder = ceil(perimeter / dp);
+		const double dtheta = 2.0 * M_PI / Np_cylinder;
+		const double dxwall = dtheta * Radius_;
+		double theta = 0.0;
+
+		Point<DIM, double> Cylinder_particle;
+		Point<DIM, double> normal;
+
+		for (int k = 0; k < Np_cylinder; k++)
+		{
+
+			Cylinder_particle[0] = Centre_.get(0) + Radius_ * cos(theta);
+			Cylinder_particle[1] = Centre_.get(1) + Radius_ * sin(theta);
+
+			// normal[0] = cos(theta);
+			// normal[1] = sin(theta);
+
+			if (DIM == 3)
+			{
+				Cylinder_particle[2] = Centre_.get(2);
+				// normal[2] = 0.0;
+			}
+
+			vd.add();
+			vd.template getLastProp<type>() = BOUNDARY;
+			for (int xyz = 0; xyz < DIM; xyz++)
+			{
+				vd.getLastPos()[xyz] = Cylinder_particle.get(xyz); // + ((double)rand() / RAND_MAX - 0.5) * dp;
+				vd.template getLastProp<velocity>()[xyz] = 0.0;
+				vd.template getLastProp<force>()[xyz] = 0.0;
+				vd.template getLastProp<force_transport>()[xyz] = 0.0;
+				vd.template getLastProp<v_transport>()[xyz] = 0.0;
+				vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+			}
+
+			vd.template getLastProp<pressure>() = 0.0;
+			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<drho>() = 0.0;
+			vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
+			vd.template getLastProp<arc_length>() = dxwall;
+			theta += dtheta;
+		}
+	}
+};
+
+class RectangleObstacle : public Obstacle
+{
+private:
+	const Point<DIM, double> Centre_;
+	const unsigned int BaseLength_;
+	const unsigned int HeigthLength_;
+	Box<DIM, double> Rectangle_;
+
+	Point<DIM, double> LowerLeft_;
+	Point<DIM, double> LowerRight_;
+	Point<DIM, double> UpperLeft_;
+	Point<DIM, double> UpperRight_;
+
+public:
+	RectangleObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	{
+		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+
+		Rectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
+	}
+	bool isInside(Point<DIM, double> P) override
+	{
+		return Rectangle_.isInside(P);
+	}
+
+	void AddObstacle(particles &vd)
+	{
+		const double baseLength = (BaseLength_ - 1) * dp;
+		const double heigthLength = (HeigthLength_ - 1) * dp;
+
+		Point<DIM, double> Xoffset = {dp, 0.0};
+		Point<DIM, double> Yoffset = {0.0, dp};
+		// Lower wall
+		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp);
+		// Right wall
+		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, LowerRight_, Yoffset, dp);
+		// Upper wall
+		AddFlatWallNewBC(vd, 0, BaseLength_, UpperRight_, -1.0 * Xoffset, dp);
+		// Left wall
+		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, UpperLeft_, -1.0 * Yoffset, dp);
+	}
+};
+
+class TriangleObstacle : public Obstacle
+{
+private:
+	const Point<DIM, double> Centre_;
+	const unsigned int BaseLength_;
+	const unsigned int HeigthLength_;
+	Box<DIM, double> ContainingRectangle_;
+	Point<DIM, double> LowerLeft_;
+	Point<DIM, double> LowerRight_;
+	Point<DIM, double> UpperRight_;
+
+public:
+	TriangleObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	{
+		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+
+		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
+	}
+
+	bool isInside(Point<DIM, double> P) override
+	{
+		return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P));
+	}
+
+	void AddObstacle(particles &vd)
+	{
+		const double baseLength = (BaseLength_ - 1) * dp;
+		const double heigthLength = (HeigthLength_ - 1) * dp;
+
+		const Point<DIM, double> Xoffset = {dp, 0.0};
+		const Point<DIM, double> Yoffset = {0.0, dp};
+
+		// Lower wall
+		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp);
+		// Right wall
+		AddFlatWallNewBC(vd, 1, HeigthLength_, LowerRight_, Yoffset, dp);
+
+		// We want particles spaced roughly by dp
+		const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
+		const int Ndiag = ceil(hypothenuseLength / dp);	 // integer number of particles that can fit in the diagonal
+		const double dxwall = hypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
+		const double sin_theta = heigthLength / hypothenuseLength;
+		const double cos_theta = baseLength / hypothenuseLength;
+		const Point<DIM, double> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
+
+		//  Hypothenuse wall
+		AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall);
+	}
+};
+
+class TriangleSymObstacle : public Obstacle
+{
+private:
+	const Point<DIM, double> Centre_;
+	const unsigned int BaseLength_;
+	const unsigned int HeigthLength_;
+	Box<DIM, double> ContainingRectangle_;
+
+	Point<DIM, double> LowerLeft_;
+	Point<DIM, double> UpperRight_;
+	Point<DIM, double> LowerRight_;
+	Point<DIM, double> TriangleTip_;
+
+public:
+	TriangleSymObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	{
+		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		TriangleTip_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										  Centre.get(1)};
+
+		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
+	}
+	bool isInside(Point<DIM, double> P) override
+	{
+		return (ContainingRectangle_.isInside(P) && !isAvobeLine(TriangleTip_, UpperRight_, P) && !isBelowLine(TriangleTip_, LowerRight_, P));
+	}
+
+	void AddObstacle(particles &vd)
+	{
+		const double baseLength = (BaseLength_ - 1) * dp;
+		const double heigthLength = (HeigthLength_ - 1) * dp;
+
+		Point<DIM, double> Xoffset = {dp, 0.0};
+		Point<DIM, double> Yoffset = {0.0, dp};
+
+		// Lower right wall
+		AddFlatWallNewBC(vd, 0, HeigthLength_, LowerRight_, Yoffset, dp);
+		// Right wall
+		AddFlatWallNewBC(vd, 0, HeigthLength_ - 1, UpperRight_, -1.0 * Yoffset, dp);
+
+		// We want particles spaced roughly by dp
+		const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
+		const int Ndiag = ceil(hypothenuseLength / dp);	 // integer number of particles that can fit in the diagonal
+		const double dxwall = hypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
+		const double sin_theta = heigthLength / hypothenuseLength;
+		const double cos_theta = baseLength / hypothenuseLength;
+		const Point<DIM, double> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
+		Point<DIM, double> DiagoffsetNW = Diagoffset;
+		DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
+		//  Hypothenuse upper wall
+		AddFlatWallNewBC(vd, 1, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall);
+		// Hypothenuse lower wall
+		AddFlatWallNewBC(vd, 1, Ndiag, LowerRight_, DiagoffsetNW, dxwall);
+	}
+};
+void interact_probe_boundary_new(particles &vd,
+								 vect_dist_key_dx probekey,
+								 const Point<DIM, double> &r_wall_to_probe,
+								 unsigned long &boundary_key,
+								 const int component,
+								 double &W_sum,
+								 double &magnitude_tmp)
+{
+	Point<DIM, double> r_probe_to_wall = -1.0 * r_wall_to_probe;
+
+	Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
+	// get curvature, and arc length
+	double kappa = vd.getProp<curvature_boundary>(boundary_key);
+	double dxwall = vd.getProp<arc_length>(boundary_key);
+
+	std::array<Point<DIM, double>, 3> r_boundary = GetBoundaryPositions(r_probe_to_wall, normal);
+	std::array<double, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
+	std::array<double, 3> Volume_boundary;
+	std::array<double, 3> Mass_boundary;
+
+	for (int i = 0; i < 3; i++)
+	{
+		if (r_boundary_norm[i] < r_threshold)
+		{
+			// compute volume of boundary particle, this gives density and pressure
+			Volume_boundary[i] = 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall;
+			double ker = Wab(r_boundary_norm[i]) * Volume_boundary[i];
+			W_sum += ker;
+			magnitude_tmp += vd.getProp<velocity>(boundary_key)[component] * ker;
+		}
+	}
+}
 
 template <typename CellList>
-inline void sensor_scalar_magnitude(particles &vd,
-									probe_particles &probes,
-									Vcluster<> &v_cl,
-									CellList &NN)
+inline void sensor_velocity_comp(particles &vd,
+								 probe_particles &probes,
+								 Vcluster<> &v_cl,
+								 CellList &NN,
+								 const int component,
+								 Obstacle *obstacle_ptr)
 {
 
 	auto it = probes.getDomainIterator();
@@ -1899,49 +2061,74 @@ inline void sensor_scalar_magnitude(particles &vd,
 		auto probekey = it.get();
 		Point<DIM, double> xp = probes.getPos(probekey);
 
-		float magnitude_tmp = 0.0;
-		float W_sum = 0.0;
+		double magnitude_tmp = 0.0;
+		double W_sum = 0.0;
 
-		// get the iterator over the neighbohood particles of the probes position
-		auto itg = NN.getNNIterator(NN.getCell(xp));
-		while (itg.isNext())
+		if (obstacle_ptr->isInside(xp)) // if probe is inside the obstacle it gets a 0 value
 		{
-			auto q = itg.get();
-
-			// Only the fluid particles are important
-			if (vd.template getProp<type>(q) != FLUID)
+			probes.getProp<0>(probekey) = 0.0;
+			++it;
+			continue;
+		}
+		else
+		{
+			// get the iterator over the neighbohood particles of the probes position
+			auto itg = NN.getNNIterator(NN.getCell(xp));
+			while (itg.isNext())
 			{
+				// get key of the particle
+				auto q = itg.get();
+
+				// Get the position of the neighborhood particle q
+				Point<DIM, double> xq = vd.getPos(q);
+				Point<DIM, double> dr = xp - xq;
+				// Calculate the distance
+				double r = getVectorNorm(dr);
+
+				if (vd.template getProp<type>(q) == BOUNDARY)
+				{
+
+					if (BC_TYPE == NEW_NO_SLIP)
+					{
+						if (r < 0.01 * dp) // if probe is placed on top of a wall particle
+						{
+							W_sum = 1.0;
+							magnitude_tmp = vd.template getProp<velocity>(q)[component];
+							break;
+						}
+						// interact_probe_boundary_new(vd, probekey, dr, q, component, W_sum, magnitude_tmp);
+					}
+					// else if (BC_TYPE == NO_SLIP)
+					// {
+					// 	double ker = Wab(r) * (MassBound / rho_zero);
+					// 	W_sum += ker;
+					// 	magnitude_tmp += vd.template getProp<v_transport>(q)[component] * ker;
+					// }
+				}
+				else if (vd.template getProp<type>(q) == FLUID)
+				{
+					double rhoq = vd.template getProp<rho>(q);
+					double ker = Wab(r) * (MassFluid / rhoq);
+
+					// Also keep track of the calculation of the summed kernel
+					W_sum += ker;
+
+					// Add the total magnitude contribution
+					magnitude_tmp += vd.template getProp<velocity>(q)[component] * ker;
+				}
+				// next neighborhood particle
 				++itg;
-				continue;
 			}
 
-			// Get the position of the neighborhood particle q
-			Point<DIM, double> xq = vd.getPos(q);
+			// We calculate the magnitude normalizing with W_sum
+			if (W_sum == 0.0)
+				magnitude_tmp = 0.0;
+			else
+				magnitude_tmp = 1.0 / W_sum * magnitude_tmp;
 
-			// Calculate the contribution of the particle to the pressure
-			// of the probe
-			double r = getVectorNorm(xp - xq);
-			double rhoq = vd.template getProp<rho>(q);
-			double ker = Wab(r) * (MassFluid / rho_zero);
-
-			// Also keep track of the calculation of the summed kernel
-			W_sum += ker;
-
-			// Add the total pressure contribution
-			magnitude_tmp += vd.template getProp<velocity>(q)[0] * ker;
-
-			// next neighborhood particle
-			++itg;
+			probes.getProp<0>(probekey) = magnitude_tmp;
+			++it;
 		}
-
-		// We calculate the pressure normalizing with W_sum
-		if (W_sum == 0.0)
-			magnitude_tmp = 0.0;
-		else
-			magnitude_tmp = 1.0 / W_sum * magnitude_tmp;
-
-		probes.getProp<0>(probekey) = magnitude_tmp;
-		++it;
 	}
 }
 
@@ -1981,7 +2168,7 @@ void computeAverageVelocity(particles &vd, Vcluster<> &v_cl, double t, std::ofst
 	}
 }
 
-void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl)
+void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr)
 {
 	// Size of the virtual cartesian grid that defines where to place the particles
 	size_t sz[DIM];
@@ -2047,6 +2234,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = gravity_vector.get(0) * LengthScale * LengthScale / (8.0 * nu);
 		t_end = 100.0;
 		write_const = 10;
+		PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == COUETTE)
 	{
@@ -2067,6 +2255,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = vw_top.get(0);
 		t_end = 100.0;
 		write_const = 10;
+		PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == HYDROSTATIC)
 	{
@@ -2086,6 +2275,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = 1.0;
 		t_end = 100.0;
 		write_const = 10;
+		PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == CAVITY)
 	{
@@ -2105,6 +2295,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = vw_top.get(0);
 		t_end = 100.0;
 		write_const = 10;
+		PROBES_ENABLED = 1;
 	}
 	else if (SCENARIO == CYLINDER_ARRAY)
 	{
@@ -2126,6 +2317,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = 2.5e-3;
 		t_end = 1000.0;
 		write_const = 1;
+		PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == CYLINDER_LATTICE)
 	{
@@ -2143,9 +2335,11 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		Bfactor = 3.0;
 		gravity_vector.get(0) = 1.5 * 1e-7;
 		// umax = 6.70602256190743 * 1e-1; // from previous simulations for nu = 0.01
-		umax = 5 * 1e-5;
+		// umax = 5 * 1e-5;
+		umax = 1.2e-4;
 		t_end = 10000.0;
 		write_const = 0.1;
+		PROBES_ENABLED = 1;
 	}
 	else if (SCENARIO == SQUARE)
 	{
@@ -2165,6 +2359,7 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = 4.1 * 1e-1;
 		t_end = 40.0;
 		write_const = 100;
+		PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == TRIANGLE)
 	{
@@ -2184,11 +2379,33 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 		umax = 4.4913182520272316 * 1e-1; // from previous simulations for nu = 0.01
 		t_end = 100.0;
 		write_const = 10;
+		PROBES_ENABLED = 0;
+	}
+	else if (SCENARIO == TRIANGLE_SYM)
+	{
+		Nfluid[0] = 60;
+		Nfluid[1] = 40;
+		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = 0;
+		Nboundary[1] = Nbound;
+		bc[0] = PERIODIC;
+		bc[1] = NON_PERIODIC;
+		LengthScale = 1.0;
+		dp = LengthScale / (double)Nfluid[1];
+		rho_zero = 1.0;
+		nu = 0.01;
+		Bfactor = 3.0;
+		gravity_vector.get(0) = 0.1;
+		umax = 5.3 * 1e-1; // from previous simulations for nu = 0.01
+		t_end = 100.0;
+		write_const = 10;
+		PROBES_ENABLED = 0;
 	}
 
 	H = Hconst * dp;
-	r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-	Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+	// r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+	r_threshold = 3.0 * H;
+	// Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
 	Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
 	MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
 	MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
@@ -2260,11 +2477,6 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 	// create particle object
 	particles vd_loc(0, domain, bc, g, DEC_GRAN(512));
 	vd = vd_loc;
-	// create probe object
-	Ghost<DIM, double> gp(0);
-	size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
-	probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
-	vp = vp_loc;
 
 	// correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
 	for (int dim = 0; dim < DIM; dim++)
@@ -2277,30 +2489,83 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 	}
 
 	// Write constants on file
-	std::string customString = "";
+	std::string customString = "newumax";
 	WriteParameters(Nfluid, v_cl, customString);
 
 	// place probes
 	if (PROBES_ENABLED)
 	{
-		// we want to place probes  in a vertical line at length[0]/2 at dp spacing and at length[0] - dp
-		Point<DIM, double> HalfLength = {length[0] / 2.0, 0.0};
-		Point<DIM, double> FullLength = {length[0], 0.0};
+		// we want to place probes  in a vertical line at this locations
+		Point<DIM, double> EndChannel = {length[0] - dp, 0.0};
+		Point<DIM, double> HalfChannel = {length[0] / 2.0, 0.0};
 		Point<DIM, double> HalfHeight = {0.0, length[1] / 2.0};
 
-		Point<DIM, double> HorizontalOffset = {dp, 0.0};
+		std::vector<Point<DIM, double>> ProbePoints;
+		std::vector<int> ProbeComponents;
+
 		Point<DIM, double> VerticalOffset = {0.0, dp};
+		Point<DIM, double> HorizontalOffset = {dp, 0.0};
+		std::vector<Point<DIM, double>> Offsets;
+
 		int k0 = 0;
-		int kendLength = std::round(length[0] / dp) + 1;
-		int kendHeight = std::round(length[1] / dp) + 1;
+		int kendHeight = Nfluid[1] + 1;
+		int kendWidth = Nfluid[0] + 1;
+		std::vector<int> maxIters;
 
-		PlaceProbes(vp, k0, kendLength, HalfHeight, HorizontalOffset);
-		PlaceProbes(vp, k0, kendHeight, HalfLength, VerticalOffset);
+		if (SCENARIO == CAVITY)
+		{
+			ProbePoints.push_back(HalfChannel);
+			ProbePoints.push_back(HalfHeight);
 
-		openfpm::vector<std::string> names_p({"vx"});
-		vp.setPropNames(names_p);
+			ProbeComponents.push_back(0); // measure x velocity
+			ProbeComponents.push_back(1); // measure y velocity
 
-		probe_filename = "probes_" + filename;
+			Offsets.push_back(VerticalOffset);
+			Offsets.push_back(HorizontalOffset);
+
+			maxIters.push_back(kendHeight);
+			maxIters.push_back(kendWidth);
+		}
+		else
+		{
+			ProbePoints.push_back(HalfChannel);
+			ProbePoints.push_back(EndChannel);
+
+			ProbeComponents.push_back(0); // measure x velocity
+			ProbeComponents.push_back(0); // measure x velocity
+
+			Offsets.push_back(VerticalOffset);
+			Offsets.push_back(VerticalOffset);
+
+			maxIters.push_back(kendHeight);
+			maxIters.push_back(kendHeight);
+		}
+
+		for (int k = 0; k < ProbePoints.size(); k++)
+		{
+			// create probe object
+			Ghost<DIM, double> gp(0);
+			size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
+			probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+			if (ProbeComponents[k] == 0)
+			{
+				openfpm::vector<std::string> names_p({"vx"});
+				vp_loc.setPropNames(names_p);
+			}
+			else if (ProbeComponents[k] == 1)
+			{
+				openfpm::vector<std::string> names_p({"vy"});
+				vp_loc.setPropNames(names_p);
+			}
+
+			if (v_cl.getProcessUnitID() == 0)
+			{
+				PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+			}
+			std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
+			vp_vec.push_back(tmp);
+			probe_filenames.push_back("probes_" + std::to_string(k) + "_" + filename);
+		}
 	}
 
 	// Set cylindrical object parameters
@@ -2308,36 +2573,31 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 	CylinderCentre.get(0) = length[0] / 2.0;
 	CylinderCentre.get(1) = length[1] / 2.0;
 
-	Sphere<DIM, double> Cylinder(CylinderCentre, CylinderRadius);
-	Sphere<DIM, double> Cylinder_aux(CylinderCentre, CylinderRadius + 0.5 * dp);
-	Sphere<DIM, double> *Cylinder_ptr = nullptr;
-
-	if (BC_TYPE == NEW_NO_SLIP)
-		Cylinder_ptr = &Cylinder_aux;
-	else if (BC_TYPE == NO_SLIP)
-		Cylinder_ptr = &Cylinder;
-
 	// Set square/triangle obstacle parameters
 	const Point<DIM, double> RectangleCentre = CylinderCentre;
-	const int integerBaseLength = 17;
-	const int integerHeigthLength = 9;
+	const int integerBaseLength = 15;
+	const int integerHeigthLength = 8;
 
-	const Point<DIM, double> RectangleLowerLeft = {RectangleCentre.get(0) - (((double)integerBaseLength - 1.0) * dp) / 2.0,
-												   RectangleCentre.get(1) - (((double)integerHeigthLength - 1.0) * dp) / 2.0};
-
-	const Point<DIM, double> RectangleUpperRight = {RectangleCentre.get(0) + (((double)integerBaseLength - 1.0) * dp) / 2.0,
-													RectangleCentre.get(1) + (((double)integerHeigthLength - 1.0) * dp) / 2.0};
-	const Box<DIM, double> RectangleOutside{RectangleLowerLeft, RectangleUpperRight};
+	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
+		obstacle_ptr = new CylinderObstacle(CylinderCentre, CylinderRadius);
+	else if (SCENARIO == SQUARE)
+		obstacle_ptr = new RectangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+	else if (SCENARIO == TRIANGLE)
+		obstacle_ptr = new TriangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+	else if (SCENARIO == TRIANGLE_SYM)
+		obstacle_ptr = new TriangleSymObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+	else
+		obstacle_ptr = new EmptyObstacle();
 
 	// Add the obstacle as marker particles only on processor 0
 	if (BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
 	{
-		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
-			AddCylinderNewBC(vd, CylinderCentre, CylinderRadius);
-		if (SCENARIO == SQUARE)
-			AddSquareNewBC(vd, RectangleCentre, integerBaseLength, integerHeigthLength);
-		if (SCENARIO == TRIANGLE)
-			AddTriangleNewBC(vd, RectangleCentre, integerBaseLength, integerHeigthLength);
+		obstacle_ptr->AddObstacle(vd);
+	}
+
+	if (BC_TYPE == NEW_NO_SLIP && (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE))
+	{
+		obstacle_ptr = new CylinderObstacle(CylinderCentre, CylinderRadius);
 	}
 
 	// return an iterator to the fluid particles to add to vd
@@ -2349,73 +2609,18 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 
 		Point<DIM, double> iterator_position = fluid_it.get();
 
-		if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
+		if ((*obstacle_ptr).isInside(iterator_position)) // if inside the obstacle region
 		{
-			if ((*Cylinder_ptr).isInside(iterator_position)) // if inside the cylinder region
-			{
-				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
-				{
-					// ... add a particle ...
-					vd.add();
-					vd.template getLastProp<type>() = BOUNDARY;
-				}
-				else if (BC_TYPE == NEW_NO_SLIP) // not add particle because already added
-				{
-					++fluid_it;
-					continue;
-				}
-			}
-			else // if not inside just add fluid particles as usual
+			if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
 			{
 				// ... add a particle ...
 				vd.add();
-				vd.template getLastProp<type>() = FLUID;
+				vd.template getLastProp<type>() = BOUNDARY;
 			}
-		}
-		else if (SCENARIO == SQUARE)
-		{
-			if (RectangleOutside.isInside(iterator_position)) // if inside the square obstacle region
+			else if (BC_TYPE == NEW_NO_SLIP) // not add particle because already added
 			{
-				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
-				{
-					// ... add a particle ...
-					vd.add();
-					vd.template getLastProp<type>() = BOUNDARY;
-				}
-				else if (BC_TYPE == NEW_NO_SLIP) // not add particle because already added
-				{
-					++fluid_it;
-					continue;
-				}
-			}
-			else // if not inside just add fluid particles as usual
-			{
-				// ... add a particle ...
-				vd.add();
-				vd.template getLastProp<type>() = FLUID;
-			}
-		}
-		else if (SCENARIO == TRIANGLE)
-		{
-			if (RectangleOutside.isInside(iterator_position) && !isAvobeLine(RectangleLowerLeft, RectangleUpperRight, iterator_position)) // if inside the triangle obstacle region
-			{
-				if (BC_TYPE == NO_SLIP) // add particle but set it as boundary
-				{
-					// ... add a particle ...
-					vd.add();
-					vd.template getLastProp<type>() = BOUNDARY;
-				}
-				else if (BC_TYPE == NEW_NO_SLIP) // not add particle because already added
-				{
-					++fluid_it;
-					continue;
-				}
-			}
-			else // if not inside just add fluid particles as usual
-			{
-				// ... add a particle ...
-				vd.add();
-				vd.template getLastProp<type>() = FLUID;
+				++fluid_it;
+				continue;
 			}
 		}
 		else // if no cylinder at all just add fluid particles
@@ -2424,7 +2629,6 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 			vd.add();
 			vd.template getLastProp<type>() = FLUID;
 		}
-
 		// Set properties
 		vd.template getLastProp<rho>() = rho_zero;
 		vd.template getLastProp<pressure>() = 0.0;
@@ -2550,7 +2754,384 @@ void CreateParticleGeometry(particles &vd, probe_particles &vp, Vcluster<> &v_cl
 										"arc_length"});
 	vd.setPropNames(names);
 }
+void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl)
+{
+	// Size of the virtual cartesian grid that defines where to place the particles
+	size_t sz[DIM];
 
+	double length_small[DIM];
+	double length_big[DIM];
+	// In the case of the new bc we need particles at the wall, for this we need sz_aux
+	// We want to put one virtual grid point between each pair of the old ones,
+	// so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
+	size_t sz_aux[DIM];
+
+	// Boundary conditions
+	size_t bc[DIM];
+
+	// Number of boundary particles in each direction
+	size_t Nboundary_big[DIM];
+
+	// Number of fluid particles in each direction
+	size_t Nfluid_big[DIM];
+	size_t Nfluid_small[DIM];
+
+	// We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
+	double offset_domain[DIM] = {0.0};
+	double offset_recipient[DIM] = {0.0};
+	double offset_periodic_fluid[DIM] = {0.0};
+	double offset_periodic_recipient[DIM] = {0.0};
+
+	// non periodic situation grid of 5 fluid particles and 3 boundary particles
+	// We need a virtual grid of 5 + 2*(3+1) particles,
+	// therefore the domain is discretized with 13 grid points,
+	// when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
+	// the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
+	//           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
+	// D: domain, o: boundary, x: fluid, --: dp distance
+	// in a periodic situation we have the following
+	// .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
+	// therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+
+	double StepHeight = 4.9;
+	LengthScale = StepHeight;
+
+	Nfluid_big[0] = 275;
+	Nfluid_big[1] = 31;
+
+	Nfluid_small[0] = 100;
+	Nfluid_small[1] = 16;
+
+	size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+	Nboundary_big[0] = 0;
+	Nboundary_big[1] = Nbound;
+	double Nboundary_small_up = Nbound;
+	double Nboundary_small_down = Nbound + Nfluid_big[1] - Nfluid_small[1];
+
+	bc[0] = PERIODIC;
+	bc[1] = NON_PERIODIC;
+	dp = LengthScale / ((double)Nfluid_big[1] - Nfluid_small[1]);
+	rho_zero = 1.0;
+	nu = 1.456 * 1e-2;
+	Bfactor = 5.0;
+	gravity_vector.get(0) = 0.000603077 / 2.0;
+	umax = 1.4 * 1e-1;
+	t_end = 2000.0;
+	write_const = 1;
+
+	H = Hconst * dp;
+	// r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+	r_threshold = 3.0 * H;
+	Kcubic = (DIM == 3) ? 1.0 / M_PI / H / H / H : 10.0 / 7.0 / M_PI / H / H;
+	Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / H / H / H : 7.0 / 478.0 / M_PI / H / H;
+	MassFluid = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+	MassBound = rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+	cbar = coeff_sound * umax;
+	B = rho_zero * cbar * cbar / gamma_;
+	Pbackground = Bfactor * B;
+	eta = nu * rho_zero;
+	Re = umax * 2.0 * 5.2 / nu;
+
+	gravity = getVectorNorm(gravity_vector);
+
+	for (int dim = 0; dim < DIM; dim++)
+	{
+		if (bc[dim] == NON_PERIODIC) // non periodic, fluid covered by boundary
+		{
+			length[dim] = dp * (Nfluid_big[dim]);
+			length_small[dim] = dp * (Nfluid_small[dim]);
+			length_big[dim] = dp * (Nfluid_big[dim]);
+			sz[dim] = Nfluid_big[dim] + 2 * (Nboundary_big[dim] + 1);
+			offset_domain[dim] = (0.5 + Nboundary_big[dim]) * dp;
+
+			if (Nboundary_big[dim] != 0)
+				sz_aux[dim] = 2 * Nfluid_big[dim] - 1 + 2 * (2 * Nboundary_big[dim] + 1 + 1);
+			else // for a direction with no boundary particles we dont need to add anything
+				sz_aux[dim] = sz[dim];
+
+			if (BC_TYPE == NEW_NO_SLIP) // Nboundary should only be 0 or 1 if we are using the new bc
+				offset_recipient[dim] = 0.25 * Nboundary_big[dim] * dp;
+			else if (BC_TYPE == NO_SLIP)
+				offset_recipient[dim] = Nboundary_big[dim] * dp;
+		}
+		else // periodic, open ended
+		{
+			Nfluid_big[dim] -= 1;
+			length[dim] = dp * (Nfluid_big[dim] + Nfluid_small[dim]);
+			length_small[dim] = dp * (Nfluid_small[dim]);
+			length_big[dim] = dp * (Nfluid_big[dim]);
+
+			sz[dim] = (Nfluid_big[dim] + Nfluid_small[dim]) + 2;
+			sz_aux[dim] = sz[dim];
+
+			offset_domain[dim] = 0.5 * dp;
+			offset_periodic_fluid[dim] = 0.75 * dp;
+			offset_periodic_recipient[dim] = 0.85 * dp;
+		}
+	}
+
+	// Define the boxes
+	Box<DIM, double> domain({-offset_domain[0],
+							 -offset_domain[1]},
+							{length[0] + offset_domain[0],
+							 length[1] + offset_domain[1]});
+
+	Box<DIM, double> fluid_box_small({0.0,
+									  (Nfluid_big[1] - Nfluid_small[1]) * dp},
+									 {length_small[0],
+									  (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1]});
+
+	Box<DIM, double> fluid_box_big({length_small[0],
+									0.0},
+								   {length_small[0] + length_big[0] + offset_periodic_fluid[0],
+									length_big[1]});
+
+	Box<DIM, double> recipient({-offset_recipient[0],
+								-offset_recipient[1]},
+							   {length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+								length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
+
+	// Will only be used in the new bc
+	Box<DIM, double> recipient_hole_small({offset_recipient[0],
+										   (Nfluid_big[1] - Nfluid_small[1]) * dp + offset_recipient[1]},
+										  {length_small[0] - offset_recipient[0],
+										   (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1] - offset_recipient[1]});
+
+	Box<DIM, double> recipient_hole_big({length_small[0] + offset_recipient[0],
+										 offset_recipient[1]},
+										{length_small[0] + length_big[0] - offset_recipient[0] + offset_periodic_fluid[0],
+										 length_big[1] - offset_recipient[1]});
+
+	Box<DIM, double> CornerHole{{3 * dp, -3 * dp}, {(3 + Nfluid_small[0] - 6) * dp, (Nfluid_big[1] - Nfluid_small[1] - 3) * dp}};
+	Box<DIM, double> CornerHole_New{{dp, -1 * dp}, {(1 + Nfluid_small[0] - 2) * dp, (Nfluid_big[1] - Nfluid_small[1]) * dp - 0.5 * dp}};
+
+	// extended boundary around the domain, and the processor domain
+	Ghost<DIM, double> g(r_threshold);
+
+	// create particle object
+	particles vd_loc(0, domain, bc, g, DEC_GRAN(512));
+	vd = vd_loc;
+
+	// correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
+	for (int dim = 0; dim < DIM; dim++)
+	{
+		if (bc[dim] == PERIODIC)
+		{
+			Nfluid_big[dim] += 1;
+			length[dim] += dp;
+		}
+	}
+
+	// Write constants on file
+	std::string customString = "";
+	WriteParameters(Nfluid_big, v_cl, customString);
+
+	// we want to place probes  in a vertical line at this locations
+	Point<DIM, double> P1 = {0.75 * Nfluid_small[0] * dp, 0.0};
+	Point<DIM, double> P2 = {1.2 * Nfluid_small[0] * dp, 0.0};
+	Point<DIM, double> P3 = {1.4 * Nfluid_small[0] * dp, 0.0};
+	Point<DIM, double> P4 = {Nfluid_small[0] * dp + Nfluid_big[0] * dp * 0.7, 0.0};
+
+	std::vector<Point<DIM, double>> ProbePoints = {P1, P2, P3, P4};
+
+	Point<DIM, double> VerticalOffset = {0.0, dp};
+	int k0 = 0;
+	int kendHeight = Nfluid_big[1];
+
+	// place probes
+	if (PROBES_ENABLED)
+	{
+		for (int k = 0; k < 4; k++)
+		{
+			// create probe object
+			Ghost<DIM, double> gp(0);
+			size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
+			probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+			openfpm::vector<std::string> names_p({"vx"});
+			vp_loc.setPropNames(names_p);
+
+			PlaceProbes(vp_loc, k0, kendHeight, ProbePoints[k], VerticalOffset);
+			std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, 0);
+			vp_vec.push_back(tmp);
+			probe_filenames.push_back("probes_" + std::to_string(k) + "_" + filename);
+		}
+	}
+
+	// return an iterator to the fluid particles to add to vd
+	auto fluid_it1 = DrawParticles::DrawBox(vd, sz, domain, fluid_box_big);
+	auto fluid_it2 = DrawParticles::DrawBox(vd, sz, domain, fluid_box_small);
+
+	// for each particle inside the fluid box ...
+	while (fluid_it1.isNext())
+	{
+
+		Point<DIM, double> iterator_position = fluid_it1.get();
+
+		// ... add a particle ...
+		vd.add();
+		vd.template getLastProp<type>() = FLUID;
+
+		// Set properties
+		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<pressure>() = 0.0;
+		vd.template getLastProp<drho>() = 0.0;
+
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = iterator_position.get(xyz);
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+		}
+
+		vd.template getLastProp<curvature_boundary>() = 0.0;
+		vd.template getLastProp<arc_length>() = dp;
+
+		// next fluid particle
+		++fluid_it1;
+	}
+	// for each particle inside the fluid box ...
+	while (fluid_it2.isNext())
+	{
+
+		Point<DIM, double> iterator_position = fluid_it2.get();
+
+		// ... add a particle ...
+		vd.add();
+		vd.template getLastProp<type>() = FLUID;
+
+		// Set properties
+		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<pressure>() = 0.0;
+		vd.template getLastProp<drho>() = 0.0;
+
+		for (int xyz = 0; xyz < DIM; xyz++)
+		{
+			vd.getLastPos()[xyz] = iterator_position.get(xyz);
+			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<v_transport>()[xyz] = 0.0;
+			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+			vd.template getLastProp<velocity>()[xyz] = 0.0;
+		}
+
+		vd.template getLastProp<curvature_boundary>() = 0.0;
+		vd.template getLastProp<arc_length>() = dp;
+
+		// next fluid particle
+		++fluid_it2;
+	}
+
+	// Now place solid walls
+	openfpm::vector<Box<DIM, double>> holes;
+
+	if (BC_TYPE == NEW_NO_SLIP)
+	{
+		holes.add(recipient_hole_small);
+		holes.add(recipient_hole_big);
+		holes.add(CornerHole_New);
+		sz[0] = sz_aux[0];
+		sz[1] = sz_aux[1];
+	}
+	else if (BC_TYPE == NO_SLIP)
+	{
+		holes.add(fluid_box_big);
+		holes.add(fluid_box_small);
+		holes.add(CornerHole);
+	}
+	Box<DIM, double> hole_get0 = holes.get(0);
+	Box<DIM, double> hole_get1 = holes.get(1);
+	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
+
+	if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
+	{
+		while (bound_box.isNext())
+		{
+			Point<DIM, double> position = bound_box.get();
+
+			// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+			// When running on multiple cores, with this we check if particle is outside the recipient box
+			// Another bug places boundary particles in the correct plane, but inside the fluid box;
+			// the first bug seems to be fixed
+			// if (!recipient.isInside((position)))
+			// {
+			// 	++bound_box;
+			// 	continue;
+			// }
+			// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
+			// {
+			// 	++bound_box;
+			// 	continue;
+			// }
+
+			if (hole_get0.isInside(position) || hole_get1.isInside(position))
+			{
+				++bound_box;
+				continue;
+			}
+
+			if (BC_TYPE == NEW_NO_SLIP)
+			{
+				// Check if x and y coordinates are multiples of dp, keep multiples, discard the rest
+				double remx = fmod(position.get(0), dp);
+				double remy = fmod(position.get(1), dp);
+				double tol = 0.5 * dp * 10e-2;
+
+				// if (remx > tol && remx < dp - tol)
+				// {
+				// 	++bound_box;
+				// 	continue;
+				// }
+				if (remy > tol && remy < dp - tol)
+				{
+					++bound_box;
+					continue;
+				}
+			}
+			vd.add();
+
+			vd.template getLastProp<type>() = BOUNDARY;
+			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<pressure>() = 0.0;
+			vd.template getLastProp<drho>() = 0.0;
+
+			for (int xyz = 0; xyz < DIM; xyz++)
+			{
+				vd.getLastPos()[xyz] = bound_box.get().get(xyz);
+				vd.template getLastProp<force>()[xyz] = 0.0;
+				vd.template getLastProp<force_transport>()[xyz] = 0.0;
+				vd.template getLastProp<v_transport>()[xyz] = 0.0;
+				vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+				if (position.get(1) < dp / 4.0) // bottom wall
+				{
+					vd.template getLastProp<velocity>()[xyz] = vw_bottom.get(xyz);
+				}
+				else if (position.get(1) > length[1] - dp / 4.0) // top wall
+				{
+					vd.template getLastProp<velocity>()[xyz] = vw_top.get(xyz);
+				}
+			}
+
+			vd.template getLastProp<curvature_boundary>() = 0.0;
+			vd.template getLastProp<arc_length>() = dp;
+
+			++bound_box;
+		}
+	}
+
+	openfpm::vector<std::string> names({"type",
+										"rho",
+										"pressure",
+										"drho",
+										"force",
+										"velocity",
+										"force_transport",
+										"v_transport",
+										"normal",
+										"curvature",
+										"arc_length"});
+	vd.setPropNames(names);
+}
 int main(int argc, char *argv[])
 {
 
@@ -2562,18 +3143,34 @@ int main(int argc, char *argv[])
 
 	// Create a particle vector
 	particles vd;
-	probe_particles vp;
-	CreateParticleGeometry(vd, vp, v_cl);
-	vd.map();
-	vp.map();
+	std::vector<std::pair<probe_particles, int>> vp;
 
-	// Now that we fill the vector with particles, decompose the domain
-	ModelCustom md;
-	vd.addComputationCosts(md);
-	vd.getDecomposition().decompose();
-	vp.getDecomposition().decompose();
+	Obstacle *obstacle_ptr = nullptr;
+	if (SCENARIO == STEP)
+	{
+		CreateParticleGeometryStep(vd, vp, v_cl);
+	}
+	else
+	{
+		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr);
+	}
 	vd.map();
-	vp.map();
+
+	for (int k = 0; k < vp.size(); k++)
+	{
+		(vp[k].first).map();
+	}
+	// Now that we fill the vector with particles, decompose the domain
+	// ModelCustom md;
+	// vd.addComputationCosts(md);
+	// vd.getDecomposition().decompose();
+	// vd.map();
+
+	// for (int k = 0; k < vp.size(); k++)
+	// {
+	// 	(vp[k].first).getDecomposition().decompose();
+	// 	(vp[k].first).map();
+	// }
 	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
 	auto NN = vd.getCellList(r_threshold);
@@ -2594,6 +3191,7 @@ int main(int argc, char *argv[])
 		calcCurvature(vd, NN, v_cl);
 		vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 	}
+
 	// Evolve
 	size_t write = 0;
 	size_t it = 0;
@@ -2602,6 +3200,7 @@ int main(int argc, char *argv[])
 	std::ofstream avgvelstream("avgvel.csv");
 	bool calc_drag = false;
 	double cylinder_force = 0.0;
+
 	while (t <= t_end)
 	{
 
@@ -2638,15 +3237,20 @@ int main(int argc, char *argv[])
 		t += dt;
 		if (write < t * write_const)
 		{
-			// // sensor_pressure calculation require ghost and update cell-list
+			// // sensor calculation require ghost and update cell-list
 			if (PROBES_ENABLED)
 			{
 				vd.map();
-				vp.map();
 				vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 				vd.updateCellList(NN);
-				sensor_scalar_magnitude(vd, vp, v_cl, NN);
-				vp.write_frame(probe_filename, write, WRITER);
+				for (int k = 0; k < vp.size(); k++)
+				{
+					probe_particles &probe = vp[k].first;
+					// probe.map();
+					int &component = vp[k].second;
+					sensor_velocity_comp(vd, probe, v_cl, NN, component, obstacle_ptr);
+					probe.write_frame(probe_filenames[k], write, WRITER);
+				}
 			}
 
 			vd.deleteGhost();

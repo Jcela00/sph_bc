@@ -1,14 +1,15 @@
 #!/bin/bash
 
 # Check if two arguments are provided
-if [ "$#" -ne 2 ]; then
-    echo "You must enter exactly 2 command line arguments"
+if [ "$#" -ne 3 ]; then
+    echo "You must enter exactly 3 command line arguments"
     exit 1
 fi
 
 # Get the arguments
 filename=$1
-count=$2
+start=$2
+end=$3
 
 # Execute the command
-pvpython convertCSV.py $filename $count
+pvpython convertCSV.py $filename $start $end

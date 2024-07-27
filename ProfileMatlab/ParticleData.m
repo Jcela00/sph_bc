@@ -37,6 +37,81 @@ classdef ParticleData
 
     methods
 
+        function obj = ParticleData(filename, filenum, titlename, dp, Nfluid, Nboundary, rho0, dim, Hconst)
+            % Load the data in csv format
+            obj.filename_base = filename;
+            name = [filename '_' num2str(filenum) '.csv'];
+            data = csvread(name, 1, 0);
+
+            % delete nan density values
+            % data = data(~isnan(data(:, 2)), :);
+            obj.BaseName = titlename;
+            obj.PlotName = [obj.BaseName ' ' num2str(filenum)];
+            obj.dim = dim;
+            obj.Type = data(:, 1);
+            obj.Density = data(:, 2);
+            obj.Pressure = data(:, 3);
+            obj.DeltaDensity = data(:, 4);
+            obj.Force = data(:, 5:7);
+            obj.Velocity = data(:, 8:10);
+            obj.VelMax = max(sqrt(sum(obj.Velocity .^ 2, 2)));
+            obj.VelMin = min(sqrt(sum(obj.Velocity .^ 2, 2)));
+            obj.ForceTransport = data(:, 11:13);
+            obj.VelocityTransport = data(:, 14:16);
+            obj.Normal = data(:, 17:19);
+            obj.Curvature = data(:, 20);
+            obj.ArcLength = data(:, 21);
+            % obj.InteractCount = data(:, 22);
+            % obj.Domain = data(:, 23);
+            % obj.Position = data(:, 24:26);
+            obj.Domain = data(:, 22);
+            obj.Position = data(:, 23:25);
+            obj.Npart = length(obj.Type);
+            obj.dp = dp;
+            obj.dim_self = dim;
+            obj.Hconst_self = Hconst;
+            obj.NpartFluid = sum(obj.Type == 1);
+
+            if (dim == 2)
+                obj.mass = rho0 * obj.dp ^ 2;
+            elseif (dim == 3)
+                obj.mass = rho0 * obj.dp ^ 3;
+            else
+                error('Invalid dimension parameter, must be 2 or 3.');
+            end
+
+            obj.H = Hconst * obj.dp;
+            obj.rho0 = rho0;
+            obj.Nfluid = Nfluid;
+            obj.Nboundary = Nboundary;
+            obj.PositionLimits = [min(obj.Position(:, 1)) max(obj.Position(:, 1));
+                                  min(obj.Position(:, 2)) max(obj.Position(:, 2));
+                                  min(obj.Position(:, 3)) max(obj.Position(:, 3))];
+            obj.FluidBox = [Nfluid(1) * dp
+                            Nfluid(2) * dp
+                            Nfluid(3) * dp];
+
+        end
+
+        function obj = PlotContour(obj, fig, levels)
+            X = obj.Position(:, 1);
+            Y = obj.Position(:, 2);
+            Z = obj.Velocity(:, 1);
+
+            N = 100;
+            xi = linspace(0, 0.1, N);
+            yi = linspace(0, 0.1, N);
+            [xi, yi] = meshgrid(xi, yi);
+            Zi = griddata(X, Y, Z, xi, yi, 'linear');
+
+            figure(fig);
+            contour(xi, yi, Zi, levels, "LineWidth", 3, "LineColor", "black");
+
+            xlabel('$x$');
+            ylabel('$y$');
+            title(obj.PlotName);
+        end
+
         function obj = ReorderData (obj, Isort)
             obj.Type = obj.Type(Isort);
             obj.Density = obj.Density(Isort);
@@ -93,7 +168,9 @@ classdef ParticleData
 
                 if (obj.Type(k) == 0)
                     plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'Marker', 'o', 'MarkerSize', 6);
-                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'r');
+                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.ForceTransport(k, 1), obj.ForceTransport(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+
                 end
 
             end
@@ -124,62 +201,6 @@ classdef ParticleData
 
             xlabel('$x$'); ylabel('$y$');
             title([name num2str(kk)]);
-
-        end
-
-        function obj = ParticleData(filename, filenum, titlename, dp, Nfluid, Nboundary, rho0, dim, Hconst)
-            % Load the data in csv format
-            obj.filename_base = filename;
-            name = [filename '_' num2str(filenum) '.csv'];
-            data = csvread(name, 1, 0);
-
-            % delete nan density values
-            % data = data(~isnan(data(:, 2)), :);
-            obj.BaseName = titlename;
-            obj.PlotName = [obj.BaseName ' ' num2str(filenum)];
-            obj.dim = dim;
-            obj.Type = data(:, 1);
-            obj.Density = data(:, 2);
-            obj.Pressure = data(:, 3);
-            obj.DeltaDensity = data(:, 4);
-            obj.Force = data(:, 5:7);
-            obj.Velocity = data(:, 8:10);
-            obj.VelMax = max(sqrt(sum(obj.Velocity .^ 2, 2)));
-            obj.VelMin = min(sqrt(sum(obj.Velocity .^ 2, 2)));
-            obj.ForceTransport = data(:, 11:13);
-            obj.VelocityTransport = data(:, 14:16);
-            obj.Normal = data(:, 17:19);
-            obj.Curvature = data(:, 20);
-            obj.ArcLength = data(:, 21);
-            % obj.InteractCount = data(:, 22);
-            % obj.Domain = data(:, 23);
-            % obj.Position = data(:, 24:26);
-            obj.Domain = data(:, 22);
-            obj.Position = data(:, 23:25);
-            obj.Npart = length(obj.Type);
-            obj.dp = dp;
-            obj.dim_self = dim;
-            obj.Hconst_self = Hconst;
-            obj.NpartFluid = sum(obj.Type == 1);
-
-            if (dim == 2)
-                obj.mass = rho0 * obj.dp ^ 2;
-            elseif (dim == 3)
-                obj.mass = rho0 * obj.dp ^ 3;
-            else
-                error('Invalid dimension parameter, must be 2 or 3.');
-            end
-
-            obj.H = Hconst * obj.dp;
-            obj.rho0 = rho0;
-            obj.Nfluid = Nfluid;
-            obj.Nboundary = Nboundary;
-            obj.PositionLimits = [min(obj.Position(:, 1)) max(obj.Position(:, 1));
-                                  min(obj.Position(:, 2)) max(obj.Position(:, 2));
-                                  min(obj.Position(:, 3)) max(obj.Position(:, 3))];
-            obj.FluidBox = [Nfluid(1) * dp
-                            Nfluid(2) * dp
-                            Nfluid(3) * dp];
 
         end
 
