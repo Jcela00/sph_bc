@@ -17,10 +17,7 @@ Nfluid = [60 40 1];
 Nboundary = [1, 0, 0];
 Hconst = 1.0;
 
-%proc1 = ParticleData('../CSV_Data/1prc/file', 0, ['1proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-%proc2 = ParticleData('../CSV_Data/2prc/file', 0, ['2proc'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-% triangle = ParticleData('../CSV_Data/Triangle/file', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-triangle = ParticleData('trianglesym', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+triangle = ParticleData('../CSV_Data/triangle/file', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
 fig1 = figure;
 

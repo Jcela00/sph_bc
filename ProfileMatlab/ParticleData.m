@@ -102,10 +102,10 @@ classdef ParticleData
             xi = linspace(0, 0.1, N);
             yi = linspace(0, 0.1, N);
             [xi, yi] = meshgrid(xi, yi);
-            Zi = griddata(X, Y, Z, xi, yi, 'linear');
+            Zi = griddata(X, Y, Z, xi, yi, 'cubic');
 
             figure(fig);
-            contour(xi, yi, Zi, levels, "LineWidth", 3, "LineColor", "black");
+            contour(xi, yi, Zi, levels, "LineWidth", 4, "LineColor", "black", 'ShowText', 'on');
 
             xlabel('$x$');
             ylabel('$y$');
@@ -168,9 +168,11 @@ classdef ParticleData
 
                 if (obj.Type(k) == 0)
                     plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'Marker', 'o', 'MarkerSize', 6);
-                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'r');
-                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.ForceTransport(k, 1), obj.ForceTransport(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
-
+                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+                    plot([obj.Position(k, 1) obj.Position(k, 1) - 2.5 * obj.dp * obj.Normal(k, 1)], [obj.Position(k, 2) obj.Position(k, 2) - 2.5 * obj.dp * obj.Normal(k, 2)], '--k');
+                    plot(obj.Position(k, 1) -0.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -0.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    plot(obj.Position(k, 1) -1.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -1.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    plot(obj.Position(k, 1) -2.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -2.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
                 end
 
             end
@@ -214,9 +216,16 @@ classdef ParticleData
             custom_colormap = turbo;
 
             for k = 1:obj.Npart
-                vel_magnitude = norm(obj.Velocity(k, :));
-                color_index = round(1 + ((255 - 1) / (obj.VelMax - obj.VelMin)) * (vel_magnitude - obj.VelMin));
-                plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', 4);
+
+                if (obj.Type(k) == 1)
+                    vel_magnitude = norm(obj.Velocity(k, :));
+                    color_index = round(1 + ((255 - 1) / (obj.VelMax - obj.VelMin)) * (vel_magnitude - obj.VelMin));
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', 4);
+                else
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'm', 'MarkerFaceColor', 'm', 'Marker', 'o', 'MarkerSize', 4);
+
+                end
+
             end
 
             fig.Colormap = custom_colormap;
