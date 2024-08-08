@@ -24,6 +24,9 @@
 #define STEP 8
 #define TRIANGLE_SYM 9
 #define TAYLOR_COUETTE 10
+#define HYDROSTATIC_OBSTACLE 11
+#define TRIANGLE_EQUILATERAL 12
+#define MOVING_OBSTACLE 13
 
 // TYPE OF KERNERL
 // #define CUBIC 0
@@ -37,7 +40,7 @@
 #define DIM 2
 
 const int BC_TYPE = NEW_NO_SLIP;
-const int SCENARIO = CYLINDER_ARRAY;
+const int SCENARIO = TAYLOR_COUETTE;
 // const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -138,10 +141,10 @@ const int curvature_boundary = 9;
 const int arc_length = 10;
 
 typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double>> particles;
-//                                       |         |     |        |        |        |           |		     |             |		|       |
-//                                       |         |     |        |        |        |           |		     |			   |		|       |
-//                                    type        rho   pressure delta   force     velocity force_transport   v_transport    normal	curvature   arc_length
-//                                                              density
+//                                          |         |     |        |        |            |           |		     |           |	        |       |
+//                                          |         |     |        |        |            |           |		     |	     	 |	        |       |
+//                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length
+//                                                                 density
 
 typedef vector_dist<DIM, double, aggregate<double>> probe_particles;
 
@@ -430,12 +433,12 @@ void calcFluidVec(particles &vd, CellList &NN)
 				++Np;
 			}
 			normalizeVector(r_fluid_sum);
-			// store in force_transport because we are not using it for boundary particles
 
 			for (int xyz = 0; xyz < DIM; ++xyz)
 			{
-				vd.template getProp<force_transport>(a)[xyz] = r_fluid_sum.get(xyz);
+				vd.template getProp<normal_vector>(a)[xyz] = r_fluid_sum.get(xyz);
 			}
+			// store in normal for now
 		}
 
 		++part;
@@ -465,7 +468,7 @@ void calcNormalVec(particles &vd, CellList &NN)
 			Point<DIM, double> xa = vd.getPos(a);
 
 			// get vector that points at fluid
-			Point<DIM, double> Rfluid = vd.getProp<force_transport>(a);
+			Point<DIM, double> Rfluid = vd.getProp<normal_vector>(a);
 
 			// initialize sum
 			Point<DIM, double> n_sum = (DIM == 2) ? Point<DIM, double>{0.0, 0.0} : Point<DIM, double>{0.0, 0.0, 0.0};
@@ -839,8 +842,6 @@ void calc_density(particles &vd, CellList &NN)
 {
 	// This function computes the density of particles from the summation of the kernel
 
-	const double max_curvature = 1.0 / (3.0 * dp);
-	double max_cos = cos(max_angle * M_PI / 180.0 + M_PI / 2.0); // angle is measured from below the plane of the normal vector
 	auto part = vd.getDomainIterator();
 
 	// Update the cell-list
@@ -893,7 +894,7 @@ void calc_density(particles &vd, CellList &NN)
 					if (vd.getProp<type>(b) == FLUID)
 					{
 						// calculate distance
-						const double r = std::sqrt(r2);
+						const double r = sqrt(r2);
 
 						// evaluate kernel
 						const double w = Wab(r);
@@ -928,7 +929,8 @@ void calc_density(particles &vd, CellList &NN)
 							{
 								if (dist2marker + lwall[i] < r_threshold)
 								{
-									const double Vol = 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * i * dp * dp * kappa) * dxwall;
+									double Vol = 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall;
+									// std::cout << "Vol: " << Vol << std::endl;
 									const double mass = Vol * rho_zero;
 
 									const Point<DIM, double> ri = R_dummy[i];
@@ -1128,17 +1130,22 @@ void interact_fluid_boundary_new(particles &vd,
 	// Points from fluid to wall
 	Point<DIM, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
 	double dist2marker = getVectorNorm(r_fluid_to_wall);
-	const double massw = MassBound;
-	const double rhow = vd.getProp<rho>(boundary_key);
-	const double Pw = vd.getProp<pressure>(boundary_key);
-	const Point<DIM, double> vw = vd.getProp<velocity>(boundary_key);
+	// Get normal vector
+	Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
+	Point<DIM, double> radial_vec;
+	radial_vec.get(0) = xw.get(0) - vd.getProp<force_transport>(boundary_key)[0];
+	radial_vec.get(1) = xw.get(1) - vd.getProp<force_transport>(boundary_key)[1];
+
+	Point<DIM, double> rotation_tangential = getPerpendicularUnit(radial_vec);
+	Point<DIM, double> vw = rotation_tangential * vd.getProp<rho>(boundary_key) * vd.getProp<pressure>(boundary_key);
+	vw.get(0) += vd.template getProp<velocity>(boundary_key)[0];
+	vw.get(1) += vd.template getProp<velocity>(boundary_key)[1];
+
+	const Point<DIM, double> aw = vd.getProp<force>(boundary_key); // wall acceleration
 	const Point<DIM, double> vtf = vd.getProp<v_transport>(fluid_key);
 	const Point<DIM, double> vdiff_f = vtf - vf;
 
-	// Get normal vector
-	Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
-	Point<DIM, double> tangential = (DIM == 2) ? Point<DIM, double>{-normal.get(1), normal.get(0)} : Point<DIM, double>{normal.get(1), normal.get(0), 0.0};
-
+	Point<DIM, double> tangential = getPerpendicularUnit(normal);
 	// get curvature, and arc length
 	double kappa = vd.getProp<curvature_boundary>(boundary_key);
 	double dxwall = vd.getProp<arc_length>(boundary_key);
@@ -1164,8 +1171,8 @@ void interact_fluid_boundary_new(particles &vd,
 	std::array<double, 3> Volume_boundary;
 	std::array<double, 3> Mass_boundary;
 	double g_normal = dotProduct(gravity_vector, normal);
+	double a_normal = dotProduct(aw, normal);
 
-	size_t interact_count = 0;
 	const std::array<Point<DIM, double>, DIM> Af = dyadicProduct(rhof * vf, vdiff_f);
 	lf = std::max(lf, 0.05 * dp);
 	for (int i = 0; i < 3; i++)
@@ -1184,9 +1191,16 @@ void interact_fluid_boundary_new(particles &vd,
 			// v_boundary[i] = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential - vn * normal; // _min_vn
 
 			v_boundary[i] = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal; // no label
+
 			// v_boundary[i] = dotProduct((vw - vf) * (lwall[i] / lf) + vw, tangential) * tangential + dotProduct(vf, normal) * normal;
 			// p_boundary[i] = std::max(0.0, Pf + rhof * g_normal * (lf + lwall[i])); // if negative set to 0
-			p_boundary[i] = Pf + rhof * g_normal * (lf + lwall[i]); // if negative set to 0
+			// p_boundary[i] = Pf + rhof * (g_normal - a_normal) * (lf + lwall[i]); // if negative set to 0
+			p_boundary[i] = Pf + rhof * (g_normal - a_normal) * dotProduct(r_boundary[i], normal); // if negative set to 0
+
+			double a1 = lf + lwall[i];
+			double a2 = dotProduct(r_boundary[i], normal);
+
+			// std::cout << "a1: " << a1 << " a2: " << a2 << std::endl;
 
 			rho_boundary[i] = InvEqState_particle(p_boundary[i]);
 
@@ -1201,7 +1215,6 @@ void interact_fluid_boundary_new(particles &vd,
 			const double Va2 = (massf / rhof) * (massf / rhof);
 			// const double Vb2 = (Mass_boundary[i] / rho_zero) * (Mass_boundary[i] / rho_zero);
 			const double Vb2 = (Mass_boundary[i] / rho_boundary[i]) * (Mass_boundary[i] / rho_boundary[i]);
-			// const double Vb2 = Volume_boundary[i] * Volume_boundary[i];
 
 			const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], getVectorNorm(r_boundary[i]), v_rel, DW);
 			const double PressureTerm = PressureForce(rhof, rho_boundary[i], Pf, p_boundary[i]);
@@ -1443,13 +1456,6 @@ void calc_forces(particles &vd, CellList &NN, double &cylinder_force, bool calc_
 				++Np;
 			}
 		}
-		else // for boundary particles we only need to update their acceleration according to the time law
-		{
-			for (int xyz = 0; xyz < DIM; xyz++)
-			{
-				vd.template getProp<force>(a)[xyz] = 0.0;
-			}
-		}
 
 		++part;
 	}
@@ -1494,8 +1500,29 @@ double calc_deltaT(particles &vd, Vcluster<> &v_cl)
 	return dt;
 }
 
+Point<DIM, double> ApplyRotation(Point<DIM, double> &x, double theta, Point<DIM, double> &centre)
+{
+
+	Point<DIM, double> x_rotated;
+	x_rotated.get(0) = cos(theta) * (x.get(0) - centre.get(0)) - sin(theta) * (x.get(1) - centre.get(1)) + centre.get(0);
+	x_rotated.get(1) = sin(theta) * (x.get(0) - centre.get(0)) + cos(theta) * (x.get(1) - centre.get(1)) + centre.get(1);
+
+	return x_rotated;
+}
+
+Point<DIM, double> SolidBodyAcceleration(double t)
+{
+	Point<DIM, double> a;
+	// double period = 10.0;
+	// double amplitude = 1.0;
+	// a.get(0) = amplitude * (4.0 * M_PI * M_PI / (period * period)) * sin(2.0 * M_PI * t / period);
+	// // a.get(1) = 0.0;
+	a = {0.0, 0.0};
+	return a;
+}
+
 template <typename CellList>
-void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_cl, double &cylinder_force, bool calc_drag)
+void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_cl, double &cylinder_force, bool calc_drag, double t)
 {
 	// particle iterator
 	auto part = vd.getDomainIterator();
@@ -1503,26 +1530,54 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 	const double dt_2 = dt * 0.5;
 	vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length>();
 
+	Point<DIM, double> aSolid_minus = SolidBodyAcceleration(t - dt_2);
+	Point<DIM, double> aSolid_plus = SolidBodyAcceleration(t + dt_2);
+
+	if (SCENARIO != MOVING_OBSTACLE)
+	{
+		aSolid_minus.get(0) = 0.0;
+		aSolid_minus.get(1) = 0.0;
+		aSolid_plus.get(0) = 0.0;
+		aSolid_plus.get(1) = 0.0;
+	}
 	// For each particle ...
 	while (part.isNext())
 	{
 		// get particle a key
 		vect_dist_key_dx a = part.get();
 
-		if (vd.template getProp<type>(a) == BOUNDARY)
+		if (vd.template getProp<type>(a) == BOUNDARY && vd.template getProp<pressure>(a) != 0.0)
 		{
+			double theta = vd.template getProp<rho>(a) * dt;
+			Point<DIM, double> normal = vd.template getProp<normal_vector>(a);
+
 			for (int xyz = 0; xyz < DIM; xyz++)
 			{
-				vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
+				vd.template getProp<force>(a)[xyz] = aSolid_minus.get(xyz);
+				vd.template getProp<velocity>(a)[xyz] += dt_2 * aSolid_minus.get(xyz);
 				vd.getPos(a)[xyz] += dt * vd.template getProp<velocity>(a)[xyz];
+
+				// centre also moves
+				vd.template getProp<force_transport>(a)[xyz] += dt * vd.template getProp<velocity>(a)[xyz];
 			}
+			// apply rotation
+			Point<DIM, double> centre = vd.getProp<force_transport>(a); // stored in force_transport
+			Point<DIM, double> x = vd.getPos(a);
+			x = ApplyRotation(x, theta, centre);
+			vd.getPos(a)[0] = x.get(0);
+			vd.getPos(a)[1] = x.get(1);
+			// update normals
+			Point<DIM, double> tmp = {0.0, 0.0};
+			normal = ApplyRotation(normal, theta, tmp);
+			vd.template getProp<normal_vector>(a)[0] = normal.get(0);
+			vd.template getProp<normal_vector>(a)[1] = normal.get(1);
 		}
 		else
 		{
 			for (int xyz = 0; xyz < DIM; xyz++)
 			{
-				vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
-				vd.template getProp<v_transport>(a)[xyz] += dt_2 * vd.template getProp<force_transport>(a)[xyz];
+				vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
+				vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
 				vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
 			}
 
@@ -1573,16 +1628,23 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 		vect_dist_key_dx a = part2.get();
 
 		// if the particle is boundary skip
-		if (vd.template getProp<type>(a) == BOUNDARY)
+		if (vd.template getProp<type>(a) == BOUNDARY && vd.template getProp<pressure>(a) != 0.0)
 		{
-			++part2;
-			continue;
+			for (int xyz = 0; xyz < DIM; xyz++)
+			{
+				vd.template getProp<force>(a)[xyz] = aSolid_plus.get(xyz);
+				vd.template getProp<velocity>(a)[xyz] += dt_2 * aSolid_plus.get(xyz);
+			}
 		}
-		for (int xyz = 0; xyz < DIM; xyz++)
+		else
 		{
-			vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
-			vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+			for (int xyz = 0; xyz < DIM; xyz++)
+			{
+				vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
+				vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+			}
 		}
+
 		++part2;
 	}
 
@@ -1616,6 +1678,9 @@ void SetFilename(std::string &filename, const size_t Nfluid[DIM], const long int
 		filename = "Step";
 	else if (SCENARIO == TAYLOR_COUETTE)
 		filename = "TaylorCouette";
+	else if (SCENARIO == TRIANGLE_EQUILATERAL)
+		filename = "TriangleEquilateral";
+
 	// BC name
 	if (BC_TYPE == NO_SLIP)
 		filename += "_OLD_BC";
@@ -1674,6 +1739,8 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 		scenario_str = "Step";
 	else if (SCENARIO == TAYLOR_COUETTE)
 		scenario_str = "TaylorCouette";
+	else if (SCENARIO == TRIANGLE_EQUILATERAL)
+		scenario_str = "TriangleEquilateral";
 
 	std::string BC_str = "";
 	if (BC_TYPE == NO_SLIP)
@@ -1716,7 +1783,15 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 	file << "DENSITY_TYPE = " << density_str << std::endl;
 }
 
-void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<DIM, double> Corner, const Point<DIM, double> UnitOffset, const double dx, Point<DIM, double> SolidVelocity = {0.0, 0.0})
+void AddFlatWallNewBC(particles &vd,
+					  const int k0,
+					  const int kmax,
+					  const Point<DIM, double> Corner,
+					  const Point<DIM, double> UnitOffset,
+					  const double dx,
+					  Point<DIM, double> SolidVelocity,
+					  double AngularVelocity,
+					  Point<DIM, double> centre)
 {
 
 	for (int k = k0; k < kmax; k++)
@@ -1730,13 +1805,13 @@ void AddFlatWallNewBC(particles &vd, const int k0, const int kmax, const Point<D
 			vd.getLastPos()[xyz] = WallPos.get(xyz); //+ ((double)rand() / RAND_MAX - 0.5) * dp;
 			vd.template getLastProp<velocity>()[xyz] = SolidVelocity.get(xyz);
 			vd.template getLastProp<force>()[xyz] = 0.0;
-			vd.template getLastProp<force_transport>()[xyz] = 0.0;
+			vd.template getLastProp<force_transport>()[xyz] = centre.get(xyz);
 			vd.template getLastProp<v_transport>()[xyz] = 0.0;
 			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
 		}
 
-		vd.template getLastProp<pressure>() = 0.0;
-		vd.template getLastProp<rho>() = rho_zero;
+		vd.template getLastProp<pressure>() = getVectorNorm(WallPos - centre);
+		vd.template getLastProp<rho>() = AngularVelocity;
 		vd.template getLastProp<drho>() = 0.0;
 		vd.template getLastProp<curvature_boundary>() = 0.0;
 		vd.template getLastProp<arc_length>() = dx;
@@ -1791,8 +1866,13 @@ void PlaceProbes(probe_particles &probes, const int k0, const int kmax,
 }
 class Obstacle
 {
-private:
+protected:
+	Point<DIM, double> Centre_;
+	Point<DIM, double> LinearVelocity_;
+	double AngularVelocity_;
+
 public:
+	Obstacle(Point<DIM, double> Centre, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Centre_(Centre), LinearVelocity_(vel), AngularVelocity_(omega) {}
 	virtual bool isInside(Point<DIM, double> P) = 0;
 	virtual void AddObstacle(particles &vd) = 0;
 };
@@ -1800,6 +1880,7 @@ public:
 class EmptyObstacle : public Obstacle
 {
 public:
+	EmptyObstacle() : Obstacle({0.0, 0.0}, {0.0, 0.0}, 0.0) {}
 	bool isInside(Point<DIM, double> P) override
 	{
 		return false;
@@ -1812,14 +1893,11 @@ public:
 class CylinderObstacle : public Obstacle
 {
 private:
-	Point<DIM, double> Centre_;
 	double Radius_;
 	Sphere<DIM, double> Cylinder_;
-	double AnglularVelocity_;
-	Point<DIM, double> LinearVelocity_;
 
 public:
-	CylinderObstacle(Point<DIM, double> Centre, double Radius, double omega, Point<DIM, double> vel) : Centre_(Centre), Radius_(Radius), AnglularVelocity_(omega), LinearVelocity_(vel), Cylinder_(Centre, Radius) {}
+	CylinderObstacle(double Radius, Point<DIM, double> centre, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), Radius_(Radius), Cylinder_(centre, Radius) {}
 
 	bool isInside(Point<DIM, double> P) override
 	{
@@ -1846,15 +1924,13 @@ public:
 		const int Np_cylinder = ceil(perimeter / dp);
 		const double dtheta = 2.0 * M_PI / Np_cylinder;
 		const double dxwall = dtheta * Radius_;
+		const double rotation_speed = AngularVelocity_ * Radius_;
 		double theta = 0.0;
-		const double rotation_speed = AnglularVelocity_ * Radius_;
 
 		Point<DIM, double> Cylinder_particle;
 
 		for (int k = 0; k < Np_cylinder; k++)
 		{
-
-			const Point<DIM, double> tangential = {-sin(theta), cos(theta)};
 
 			Cylinder_particle[0] = Centre_.get(0) + Radius_ * cos(theta);
 			Cylinder_particle[1] = Centre_.get(1) + Radius_ * sin(theta);
@@ -1870,14 +1946,14 @@ public:
 			{
 				vd.getLastPos()[xyz] = Cylinder_particle.get(xyz); // + ((double)rand() / RAND_MAX - 0.5) * dp;
 				vd.template getLastProp<force>()[xyz] = 0.0;
-				vd.template getLastProp<force_transport>()[xyz] = 0.0;
+				vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
 				vd.template getLastProp<v_transport>()[xyz] = 0.0;
 				vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-				vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz) + rotation_speed * tangential.get(xyz);
+				vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
 			}
 
-			vd.template getLastProp<pressure>() = 0.0;
-			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<pressure>() = Radius_;
+			vd.template getLastProp<rho>() = AngularVelocity_;
 			vd.template getLastProp<drho>() = 0.0;
 			vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
 			vd.template getLastProp<arc_length>() = dxwall;
@@ -1889,7 +1965,6 @@ public:
 class RectangleObstacle : public Obstacle
 {
 private:
-	const Point<DIM, double> Centre_;
 	const unsigned int BaseLength_;
 	const unsigned int HeigthLength_;
 	Box<DIM, double> Rectangle_;
@@ -1900,16 +1975,17 @@ private:
 	Point<DIM, double> UpperRight_;
 
 public:
-	RectangleObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	RectangleObstacle(Point<DIM, double> centre, unsigned int BaseLength, unsigned int HeigthLength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0)
+		: Obstacle(centre, vel, omega), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 	{
-		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		UpperLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre_.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
 
 		Rectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
 	}
@@ -1926,20 +2002,19 @@ public:
 		Point<DIM, double> Xoffset = {dp, 0.0};
 		Point<DIM, double> Yoffset = {0.0, dp};
 		// Lower wall
-		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp);
+		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 		// Right wall
-		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, LowerRight_, Yoffset, dp);
+		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, LowerRight_, Yoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 		// Upper wall
-		AddFlatWallNewBC(vd, 0, BaseLength_, UpperRight_, -1.0 * Xoffset, dp);
+		AddFlatWallNewBC(vd, 0, BaseLength_, UpperRight_, -1.0 * Xoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 		// Left wall
-		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, UpperLeft_, -1.0 * Yoffset, dp);
+		AddFlatWallNewBC(vd, 1, HeigthLength_ - 1, UpperLeft_, -1.0 * Yoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 	}
 };
 
 class TriangleObstacle : public Obstacle
 {
 private:
-	const Point<DIM, double> Centre_;
 	const unsigned int BaseLength_;
 	const unsigned int HeigthLength_;
 	Box<DIM, double> ContainingRectangle_;
@@ -1948,14 +2023,14 @@ private:
 	Point<DIM, double> UpperRight_;
 
 public:
-	TriangleObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	TriangleObstacle(Point<DIM, double> centre, unsigned int BaseLength, unsigned int HeigthLength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 	{
-		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
 
 		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
 	}
@@ -1974,9 +2049,9 @@ public:
 		const Point<DIM, double> Yoffset = {0.0, dp};
 
 		// Lower wall
-		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp);
+		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 		// Right wall
-		AddFlatWallNewBC(vd, 1, HeigthLength_, LowerRight_, Yoffset, dp);
+		AddFlatWallNewBC(vd, 1, HeigthLength_, LowerRight_, Yoffset, dp, LinearVelocity_, AngularVelocity_, Centre_);
 
 		// We want particles spaced roughly by dp
 		const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
@@ -1988,14 +2063,13 @@ public:
 
 		Point<DIM, double> h_normal = {-1.0 * sin_theta, cos_theta};
 		//  Hypothenuse wall
-		AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall);
+		AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall, LinearVelocity_, AngularVelocity_, Centre_);
 	}
 };
 
 class TriangleSymObstacle : public Obstacle
 {
 private:
-	const Point<DIM, double> Centre_;
 	const unsigned int BaseLength_;
 	const unsigned int HeigthLength_;
 	Box<DIM, double> ContainingRectangle_;
@@ -2006,16 +2080,16 @@ private:
 	Point<DIM, double> TriangleTip_;
 
 public:
-	TriangleSymObstacle(Point<DIM, double> Centre, unsigned int BaseLength, unsigned int HeigthLength) : Centre_(Centre), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	TriangleSymObstacle(Point<DIM, double> centre, unsigned int BaseLength, unsigned int HeigthLength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 	{
-		LowerLeft_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp)};
-		UpperRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) + (((double)HeigthLength_ - 1.0) * dp)};
-		LowerRight_ = Point<DIM, double>{Centre.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre.get(1) - (((double)HeigthLength_ - 1.0) * dp)};
-		TriangleTip_ = Point<DIM, double>{Centre.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										  Centre.get(1)};
+		LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp)};
+		UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * dp)};
+		LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp)};
+		TriangleTip_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
+										  Centre_.get(1)};
 
 		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
 	}
@@ -2032,10 +2106,14 @@ public:
 		Point<DIM, double> Xoffset = {dp, 0.0};
 		Point<DIM, double> Yoffset = {0.0, dp};
 
+		// Equilateral triangle centre
+		double baselength = (BaseLength_ - 1) * dp;
+		double factor = sqrt(3.0) / 3.0 - 0.5;
+		Point<DIM, double> EquilateralCentre = {Centre_.get(0) + factor * baselength, Centre_.get(1)};
 		// Lower right wall
-		AddFlatWallNewBC(vd, 0, HeigthLength_, LowerRight_, Yoffset, dp);
+		AddFlatWallNewBC(vd, 0, HeigthLength_, LowerRight_, Yoffset, dp, LinearVelocity_, AngularVelocity_, EquilateralCentre);
 		// Right wall
-		AddFlatWallNewBC(vd, 0, HeigthLength_ - 1, UpperRight_, -1.0 * Yoffset, dp);
+		AddFlatWallNewBC(vd, 0, HeigthLength_ - 1, UpperRight_, -1.0 * Yoffset, dp, LinearVelocity_, AngularVelocity_, EquilateralCentre);
 
 		// We want particles spaced roughly by dp
 		const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
@@ -2047,9 +2125,66 @@ public:
 		Point<DIM, double> DiagoffsetNW = Diagoffset;
 		DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
 		//  Hypothenuse upper wall
-		AddFlatWallNewBC(vd, 1, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall);
+		AddFlatWallNewBC(vd, 1, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall, LinearVelocity_, AngularVelocity_, EquilateralCentre);
 		// Hypothenuse lower wall
-		AddFlatWallNewBC(vd, 1, Ndiag, LowerRight_, DiagoffsetNW, dxwall);
+		AddFlatWallNewBC(vd, 1, Ndiag, LowerRight_, DiagoffsetNW, dxwall, LinearVelocity_, AngularVelocity_, EquilateralCentre);
+		;
+	}
+};
+
+class TriangleEqui : public Obstacle
+{
+private:
+	const double SideLength_;
+	Box<DIM, double> ContainingRectangle_;
+
+	Point<DIM, double> LowerLeft_;
+	Point<DIM, double> UpperRight_;
+	Point<DIM, double> LowerRight_;
+	Point<DIM, double> TriangleTip_;
+
+public:
+	TriangleEqui(Point<DIM, double> centre, double sidelength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), SideLength_(sidelength)
+	{
+
+		UpperRight_ = Point<DIM, double>{Centre_.get(0) + sqrt(3) * SideLength_ / 6.0,
+										 Centre_.get(1) + SideLength_ / 2.0};
+		LowerRight_ = Point<DIM, double>{Centre_.get(0) + sqrt(3) * SideLength_ / 6.0,
+										 Centre_.get(1) - SideLength_ / 2.0};
+		TriangleTip_ = Point<DIM, double>{Centre_.get(0) - sqrt(3.0) * SideLength_ / 3.0,
+										  Centre_.get(1)};
+
+		LowerLeft_ = Point<DIM, double>{TriangleTip_.get(0),
+										LowerRight_.get(1)};
+
+		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
+	}
+	bool isInside(Point<DIM, double> P) override
+	{
+		return (ContainingRectangle_.isInside(P) && !isAvobeLine(TriangleTip_, UpperRight_, P) && !isBelowLine(TriangleTip_, LowerRight_, P));
+	}
+
+	void AddObstacle(particles &vd)
+	{
+
+		const int N_wall = ceil(SideLength_ / dp);
+		const double dxwall = SideLength_ / N_wall;
+		Point<DIM, double> Yoffset = {0.0, dxwall};
+
+		// Right wall
+		AddFlatWallNewBC(vd, 0, N_wall + 1, LowerRight_, Yoffset, dxwall, LinearVelocity_, AngularVelocity_, Centre_);
+
+		// Inclined walls
+
+		const double cos_theta = sqrt(3.0) / 2.0;
+		const double sin_theta = 1 / 2.0;
+		const Point<DIM, double> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
+		Point<DIM, double> DiagoffsetNW = Diagoffset;
+		DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
+		//  Hypothenuse upper wall
+		AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, LinearVelocity_, AngularVelocity_, Centre_);
+		// Hypothenuse lower wall
+		AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, LinearVelocity_, AngularVelocity_, Centre_);
 	}
 };
 
@@ -2313,8 +2448,8 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		rho_zero = 1.0;
 		nu = 0.1;
 		Bfactor = 1.0;
-		gravity_vector.get(1) = 0.1;
-		umax = 1.0;
+		gravity_vector.get(1) = -0.1;
+		umax = 0.1;
 		t_end = 100.0;
 		write_const = 10;
 		PROBES_ENABLED = 0;
@@ -2341,6 +2476,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 	}
 	else if (SCENARIO == CYLINDER_ARRAY)
 	{
+		// DRAG PARAMETERS
 		Nfluid[0] = 72;
 		Nfluid[1] = 48;
 		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
@@ -2360,6 +2496,26 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		t_end = 1000.0;
 		write_const = 1;
 		PROBES_ENABLED = 0;
+
+		// Nfluid[0] = 72;
+		// Nfluid[1] = 48;
+		// size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		// Nboundary[0] = 0;
+		// Nboundary[1] = Nbound;
+		// bc[0] = PERIODIC;
+		// bc[1] = NON_PERIODIC;
+		// CylinderRadius = 0.2;
+		// LengthScale = CylinderRadius;
+		// dp = 4.0 * CylinderRadius / (double)Nfluid[1]; // chanel height is 4 times the cylinder radius
+		// rho_zero = 1.0;
+		// nu = 0.1;
+		// Bfactor = 3.0;
+		// gravity_vector.get(0) = 0.0;
+		// // umax = 2.4037 * 1e-1; // from previous simulations for nu = 0.01
+		// umax = 1.0;
+		// t_end = 100.0;
+		// write_const = 100;
+		// PROBES_ENABLED = 0;
 	}
 	else if (SCENARIO == CYLINDER_LATTICE)
 	{
@@ -2435,9 +2591,70 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		dp = LengthScale / (double)Nfluid[1];
 		rho_zero = 1.0;
 		nu = 0.01;
-		Bfactor = 3.0;
+		Bfactor = 6.0;
 		gravity_vector.get(0) = 0.1;
-		umax = 3.7 * 1e-1; // from previous simulations for nu = 0.01
+		umax = 4e-1; // from previous simulations for nu = 0.01
+		t_end = 100.0;
+		write_const = 10;
+		PROBES_ENABLED = 0;
+	}
+	else if (SCENARIO == HYDROSTATIC_OBSTACLE)
+	{
+		Nfluid[0] = 40;
+		Nfluid[1] = 40;
+		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = Nbound;
+		Nboundary[1] = Nbound;
+		bc[0] = NON_PERIODIC;
+		bc[1] = NON_PERIODIC;
+		LengthScale = 1.0;
+		CylinderRadius = LengthScale / 6.0;
+		dp = LengthScale / Nfluid[0];
+		rho_zero = 1.0;
+		nu = 0.1;
+		Bfactor = 1.0;
+		gravity_vector.get(1) = -0.1;
+		umax = 0.1;
+		t_end = 100.0;
+		write_const = 10;
+		PROBES_ENABLED = 0;
+	}
+	else if (SCENARIO == TRIANGLE_EQUILATERAL)
+	{
+		Nfluid[0] = 120;
+		Nfluid[1] = 80;
+		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = 0;
+		Nboundary[1] = Nbound;
+		bc[0] = PERIODIC;
+		bc[1] = NON_PERIODIC;
+		LengthScale = 1.0;
+		dp = LengthScale / (double)Nfluid[1];
+		rho_zero = 1.0;
+		nu = 0.01;
+		Bfactor = 6.0;
+		gravity_vector.get(0) = 0.1;
+		umax = 4e-1; // from previous simulations for nu = 0.01
+		t_end = 100.0;
+		write_const = 10;
+		PROBES_ENABLED = 0;
+	}
+	else if (SCENARIO == MOVING_OBSTACLE)
+	{
+		Nfluid[0] = 72;
+		Nfluid[1] = 48;
+		size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
+		Nboundary[0] = 0;
+		Nboundary[1] = Nbound;
+		bc[0] = PERIODIC;
+		bc[1] = NON_PERIODIC;
+		LengthScale = 1.0;
+		dp = 4.0 * LengthScale / (double)Nfluid[1];
+		rho_zero = 1.0;
+		nu = 0.1;
+		Bfactor = 8.0;
+		gravity_vector.get(0) = 0.0;
+		umax = 1.5; // from previous simulations for nu = 0.01
 		t_end = 100.0;
 		write_const = 10;
 		PROBES_ENABLED = 0;
@@ -2592,14 +2809,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 			probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
 			if (ProbeComponents[k] == 0)
 			{
-				openfpm::vector<std::string> names_p;
-				names_p.add("vx");
+				openfpm::vector<std::string> names_p = {"vx"};
 				vp_loc.setPropNames(names_p);
 			}
 			else if (ProbeComponents[k] == 1)
 			{
-				openfpm::vector<std::string> names_p;
-				names_p.add("vy");
+				openfpm::vector<std::string> names_p = {"vy"};
 				vp_loc.setPropNames(names_p);
 			}
 
@@ -2620,17 +2835,27 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
 	// Set square/triangle obstacle parameters
 	const Point<DIM, double> RectangleCentre = CylinderCentre;
-	const int integerBaseLength = 15;
-	const int integerHeigthLength = 8;
+	const int integerBaseLength = 21;
+	const int integerHeigthLength = 11;
 
-	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE)
-		obstacle_ptr = new CylinderObstacle(CylinderCentre, CylinderRadius, 0.0, {-4e-4, 0.0});
+	double SideLength = LengthScale;
+
+	// const Point<DIM, double> vel = {(-1.0 * 2.0 * M_PI / 10.0), 0.0};
+	// const Point<DIM, double> vel = {-1.0, 0.0};
+
+	const Point<DIM, double> vel = {0.0, 0.0};
+	const double omega = 0.0;
+
+	if (SCENARIO == CYLINDER_ARRAY || SCENARIO == CYLINDER_LATTICE || SCENARIO == HYDROSTATIC_OBSTACLE)
+		obstacle_ptr = new CylinderObstacle(CylinderRadius, CylinderCentre, vel, omega);
 	else if (SCENARIO == SQUARE)
-		obstacle_ptr = new RectangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+		obstacle_ptr = new RectangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength, vel, omega);
 	else if (SCENARIO == TRIANGLE)
-		obstacle_ptr = new TriangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+		obstacle_ptr = new TriangleObstacle(RectangleCentre, integerBaseLength, integerHeigthLength, vel, omega);
 	else if (SCENARIO == TRIANGLE_SYM)
-		obstacle_ptr = new TriangleSymObstacle(RectangleCentre, integerBaseLength, integerHeigthLength);
+		obstacle_ptr = new TriangleSymObstacle(RectangleCentre, integerBaseLength, integerHeigthLength, vel, omega);
+	else if (SCENARIO == TRIANGLE_EQUILATERAL || SCENARIO == MOVING_OBSTACLE)
+		obstacle_ptr = new TriangleEqui(RectangleCentre, SideLength, vel, omega);
 	else
 		obstacle_ptr = new EmptyObstacle();
 
@@ -2752,7 +2977,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 			vd.add();
 
 			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = rho_zero;
+			vd.template getLastProp<rho>() = 0.0;
 			vd.template getLastProp<pressure>() = 0.0;
 			vd.template getLastProp<drho>() = 0.0;
 
@@ -2845,8 +3070,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 	double Vout = Wout * Rout;
 
 	int Nfluid_in = 20;
-	Nfluid[0] = 80;
-	Nfluid[1] = 80;
+	Nfluid[0] = 120;
+	Nfluid[1] = 120;
 	size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 	Nboundary[0] = 0;
 	Nboundary[1] = 0;
@@ -3001,14 +3226,12 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 			probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
 			if (ProbeComponents[k] == 0)
 			{
-				openfpm::vector<std::string> names_p;
-				names_p.add("vx");
+				openfpm::vector<std::string> names_p = {"vx"};
 				vp_loc.setPropNames(names_p);
 			}
 			else if (ProbeComponents[k] == 1)
 			{
-				openfpm::vector<std::string> names_p;
-				names_p.add("vy");
+				openfpm::vector<std::string> names_p = {"vy"};
 				vp_loc.setPropNames(names_p);
 			}
 
@@ -3027,8 +3250,11 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 	CylinderCentre.get(0) = 0.0;
 	CylinderCentre.get(1) = 0.0;
 	obstacle_ptr = new EmptyObstacle();
-	CylinderObstacle *obstacle_ptr_out = new CylinderObstacle(CylinderCentre, Rout, Wout, 0.0);
-	CylinderObstacle *obstacle_ptr_in = new CylinderObstacle(CylinderCentre, Rin, Win, 0.0);
+
+	const Point<DIM, double> vel = {0.0, 0.0};
+
+	CylinderObstacle *obstacle_ptr_out = new CylinderObstacle(Rout, CylinderCentre, vel, Wout);
+	CylinderObstacle *obstacle_ptr_in = new CylinderObstacle(Rin, CylinderCentre, vel, Win);
 
 	// Add the obstacle as marker particles only on processor 0
 	if (BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
@@ -3094,95 +3320,6 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 		++fluid_it;
 	}
 
-	// // Now place solid walls
-	// openfpm::vector<Box<DIM, double>> holes;
-
-	// if (BC_TYPE == NEW_NO_SLIP)
-	// {
-	// 	holes.add(recipient_hole);
-	// 	sz[0] = sz_aux[0];
-	// 	sz[1] = sz_aux[1];
-	// }
-	// else if (BC_TYPE == NO_SLIP)
-	// 	holes.add(fluid_box);
-
-	// Box<DIM, double> hole_get = holes.get(0);
-	// auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
-
-	// if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
-	// {
-	// 	while (bound_box.isNext())
-	// 	{
-	// 		Point<DIM, double> position = bound_box.get();
-
-	// 		// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
-	// 		// When running on multiple cores, with this we check if particle is outside the recipient box
-	// 		// Another bug places boundary particles in the correct plane, but inside the fluid box;
-	// 		// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
-	// 		// {
-	// 		// 	++bound_box;
-	// 		// 	continue;
-	// 		// }
-
-	// 		if (!recipient.isInside((position)))
-	// 		{
-	// 			++bound_box;
-	// 			continue;
-	// 		}
-	// 		if (hole_get.isInside(position))
-	// 		{
-	// 			++bound_box;
-	// 			continue;
-	// 		}
-
-	// 		if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC))
-	// 		{
-	// 			// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
-	// 			double remx = fmod(position.get(0), dp);
-	// 			double remz = fmod(position.get(1), dp);
-	// 			double tol = 0.5 * dp * 10e-2;
-
-	// 			if (remx > tol && remx < dp - tol)
-	// 			{
-	// 				++bound_box;
-	// 				continue;
-	// 			}
-	// 			if (remz > tol && remz < dp - tol)
-	// 			{
-	// 				++bound_box;
-	// 				continue;
-	// 			}
-	// 		}
-	// 		vd.add();
-
-	// 		vd.template getLastProp<type>() = BOUNDARY;
-	// 		vd.template getLastProp<rho>() = rho_zero;
-	// 		vd.template getLastProp<pressure>() = 0.0;
-	// 		vd.template getLastProp<drho>() = 0.0;
-
-	// 		for (int xyz = 0; xyz < DIM; xyz++)
-	// 		{
-	// 			vd.getLastPos()[xyz] = bound_box.get().get(xyz);
-	// 			vd.template getLastProp<force>()[xyz] = 0.0;
-	// 			vd.template getLastProp<force_transport>()[xyz] = 0.0;
-	// 			vd.template getLastProp<v_transport>()[xyz] = 0.0;
-	// 			vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-	// 			if (position.get(1) < dp / 4.0) // bottom wall
-	// 			{
-	// 				vd.template getLastProp<velocity>()[xyz] = vw_bottom.get(xyz);
-	// 			}
-	// 			else if (position.get(1) > length[1] - dp / 4.0) // top wall
-	// 			{
-	// 				vd.template getLastProp<velocity>()[xyz] = vw_top.get(xyz);
-	// 			}
-	// 		}
-
-	// 		vd.template getLastProp<curvature_boundary>() = 0.0;
-	// 		vd.template getLastProp<arc_length>() = dp;
-
-	// 		++bound_box;
-	// 	}
-	// }
 	openfpm::vector<std::string> names({"type",
 										"rho",
 										"pressure",
@@ -3678,7 +3815,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Integrate one time step
-		kick_drift_int(vd, NN, dt, v_cl, cylinder_force, calc_drag);
+		kick_drift_int(vd, NN, dt, v_cl, cylinder_force, calc_drag, t);
 
 		// increment time
 		t += dt;

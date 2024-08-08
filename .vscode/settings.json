@@ -98,6 +98,7 @@
         "typeindex": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "alignedvector3": "cpp"
+        "alignedvector3": "cpp",
+        "io": "cpp"
     }
 }

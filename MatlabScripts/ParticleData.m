@@ -93,17 +93,55 @@ classdef ParticleData
 
         end
 
+        function [obj, zmatrix] = SPHinterp(obj, xi, yi)
+
+            zmatrix = zeros(length(xi), length(yi));
+
+            for i = 1:length(xi)
+
+                for j = 1:length(yi)
+                    x = xi(i);
+                    y = yi(j);
+                    Wsum = 0;
+
+                    for n = 1:obj.Npart
+
+                        if (obj.Type(n) == 1)
+                            r = norm([x, y] - obj.Position(n, 1:2));
+
+                            if (r < 3 * obj.H)
+                                W = obj.kernel(r);
+                                Wsum = Wsum + W * obj.mass / obj.Density(n, 1);
+                                zmatrix(i, j) = zmatrix(i, j) + obj.mass * obj.Velocity(n, 1) * W / obj.Density(n, 1);
+                            end
+
+                        end
+
+                    end
+
+                    zmatrix(i, j) = zmatrix(i, j) / Wsum;
+
+                end
+
+            end
+
+        end
+
         function obj = PlotContour(obj, fig, levels)
             X = obj.Position(:, 1);
             Y = obj.Position(:, 2);
             Z = obj.Velocity(:, 1);
 
-            N = 100;
+            N = round(1.5 * sqrt(obj.NpartFluid));
             xi = linspace(0, 0.1, N);
             yi = linspace(0, 0.1, N);
-            [xi, yi] = meshgrid(xi, yi);
-            Zi = griddata(X, Y, Z, xi, yi, 'cubic');
+            % [xi, yi] = meshgrid(xi, yi);
+            % Zi = griddata(X, Y, Z, xi, yi, 'cubic');
 
+            [obj, Zi] = obj.SPHinterp(xi, yi);
+
+            [xi, yi] = meshgrid(xi, yi);
+            Zi = Zi';
             figure(fig);
             contour(xi, yi, Zi, levels, "LineWidth", 4, "LineColor", "black", 'ShowText', 'on');
 
@@ -300,7 +338,7 @@ classdef ParticleData
             if (obj.dim == 2)
                 K = 7.0/478.0 / pi / obj.H / obj.H;
             elseif (obj.dim == 3)
-                K = 1.0/120.0 / pi / obj.H / obj.H / obj.H
+                K = 1.0/120.0 / pi / obj.H / obj.H / obj.H;
             end
 
             tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
