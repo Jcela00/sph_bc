@@ -26,6 +26,12 @@
 #define TRIANGLE_EQUILATERAL 10
 #define MOVING_OBSTACLE 11
 
+// type of interaction limiter
+#define NO_LIMITER 0
+#define MARKER_THIRD 1
+#define LWALL 2
+#define LWALL_MOD 3
+
 // TYPE OF KERNERL
 // #define CUBIC 0
 // #define QUINTIC 1
@@ -37,12 +43,13 @@
 // DIMENSIONALITY, changes the normalizations of the kernels
 #define DIM 2
 
-const int BC_TYPE = NO_SLIP;
-const int SCENARIO = TAYLOR_COUETTE;
+const int BC_TYPE = NEW_NO_SLIP;
+const int SCENARIO = TRIANGLE;
 // const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
-int PROBES_ENABLED = 0;		   // 0 for disabled, 1 for enabled
+const int INTERACTION_LIMITER = NO_LIMITER;
+int PROBES_ENABLED = 0; // 0 for disabled, 1 for enabled
 
 //////// DECLARATION OF GLOBAL PARAMETERS /////////////////////////////////////////////////////////////
 // Output file name
@@ -770,20 +777,103 @@ void calc_density(particles &vd, CellList &NN)
 						}
 						else if (BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
 						{
-							const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
 
-							double dist2marker = sqrt(r2);
-							std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
-
-							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
-							const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
-
-							double *tmp = vd.getProp<vd_volume>(b);
-							double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
-
-							for (int i = 0; i < 3; ++i)
+							if (INTERACTION_LIMITER == LWALL)
 							{
-								if (dist2marker + lwall[i] < r_threshold)
+								const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
+
+								double dist2marker = sqrt(r2);
+								std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
+
+								// Apply offsets to dr to get 3 vectrors pointing to dummy particles
+								const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+
+								double *tmp = vd.getProp<vd_volume>(b);
+								double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
+
+								for (int i = 0; i < 3; ++i)
+								{
+									if (dist2marker + lwall[i] < r_threshold)
+									{
+										const double mass = Volumes[i] * rho_zero;
+
+										const Point<DIM, double> ri = R_dummy[i];
+
+										const double W = Wab(getVectorNorm(ri));
+
+										rho_sum += W * mass;
+									}
+								}
+							}
+							else if (INTERACTION_LIMITER == LWALL_MOD)
+							{
+								const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
+
+								double dist2marker = sqrt(r2);
+								std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
+
+								// Apply offsets to dr to get 3 vectrors pointing to dummy particles
+								const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+
+								double *tmp = vd.getProp<vd_volume>(b);
+								double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
+
+								for (int i = 0; i < 3; ++i)
+								{
+									double rtmp = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
+									if (dist2marker < rtmp)
+									{
+										const double mass = Volumes[i] * rho_zero;
+
+										const Point<DIM, double> ri = R_dummy[i];
+
+										const double W = Wab(getVectorNorm(ri));
+
+										rho_sum += W * mass;
+									}
+								}
+							}
+							else if (INTERACTION_LIMITER == MARKER_THIRD)
+							{
+								const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
+								// Apply offsets to dr to get 3 vectrors pointing to dummy particles
+								const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+
+								double dist2marker = sqrt(r2);
+								double dist2third = getVectorNorm(R_dummy[2]);
+								// const std::array<double> R_dummy_norm = {getVectorNorm(R_dummy[0]), getVectorNorm(R_dummy[1]), getVectorNorm(R_dummy[2])};
+
+								double *tmp = vd.getProp<vd_volume>(b);
+								double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
+
+								if (dist2marker < dist2third)
+								{
+									for (int i = 0; i < 3; ++i)
+									{
+										const double mass = Volumes[i] * rho_zero;
+
+										const Point<DIM, double> ri = R_dummy[i];
+
+										const double W = Wab(getVectorNorm(ri));
+
+										rho_sum += W * mass;
+									}
+								}
+							}
+							else if (INTERACTION_LIMITER == NO_LIMITER)
+							{
+								const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
+								// Apply offsets to dr to get 3 vectrors pointing to dummy particles
+								const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
+
+								double dist2marker = sqrt(r2);
+								double dist2third = getVectorNorm(R_dummy[2]);
+								// const std::array<double> R_dummy_norm = {getVectorNorm(R_dummy[0]), getVectorNorm(R_dummy[1]), getVectorNorm(R_dummy[2])};
+
+								double *tmp = vd.getProp<vd_volume>(b);
+								double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
+
+								for (int i = 0; i < 3; ++i)
 								{
 									const double mass = Volumes[i] * rho_zero;
 
@@ -1038,6 +1128,7 @@ void interact_fluid_boundary_new(particles &vd,
 	std::array<Point<DIM, double>, 3> r_boundary = GetBoundaryPositions(r_fluid_to_wall, normal);
 	std::array<double, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
 
+	const double dist2third = r_boundary_norm[2];
 	// distance from 3 boundary particles to marker
 	std::array<double, 3> lwall = {0.5 * dp, 1.5 * dp, 2.5 * dp};
 
@@ -1053,9 +1144,160 @@ void interact_fluid_boundary_new(particles &vd,
 	double *tmp = vd.getProp<vd_volume>(boundary_key);
 	double Volumes[3] = {tmp[0], tmp[1], tmp[2]};
 
-	for (int i = 0; i < 3; i++) // for the 3 boundary particles
+	if (INTERACTION_LIMITER == LWALL)
 	{
-		if (dist2marker + lwall[i] < r_threshold)
+		for (int i = 0; i < 3; i++) // for the 3 boundary particles
+		{
+			if (dist2marker + lwall[i] < r_threshold)
+			{
+
+				// compute volume of boundary particle, acording to curvature and arc length in solid curve
+				// idk if it would be more efficient to store the volume of the boundary particles in the marker particles
+				const double Mass_boundary = Volumes[i] * rho_zero;
+
+				const Point<DIM, double> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal; // no label
+				const double p_boundary = Pf + rhof * (g_normal - a_normal) * dotProduct(r_boundary[i], normal);
+				const double rho_boundary = InvEqState_particle(p_boundary);
+
+				// flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+				r_boundary[i] = -1.0 * r_boundary[i];
+
+				// Evaluate kernel gradient
+				const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i]);
+
+				// Compute forces
+				const Point<DIM, double> v_rel = vf - v_boundary;
+				const double Va2 = (massf / rhof) * (massf / rhof);
+				// const double Vb2 = Volumes[i] * Volumes[i];
+				const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+				// But I found no big difference with the commented out expression
+
+				const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW);
+				const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary);
+				const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
+
+				if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+				{
+					cylinder_force += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
+				}
+				for (int xyz = 0; xyz < DIM; ++xyz)
+				{
+					// write to particles
+					vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+					vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+				}
+
+				if (DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
+				{
+					vd.getProp<drho>(fluid_key) += Mass_boundary * dotProduct(v_rel, DW);
+				}
+			}
+		}
+	}
+	if (INTERACTION_LIMITER == LWALL_MOD)
+	{
+		for (int i = 0; i < 3; i++) // for the 3 boundary particles
+		{
+			double rtmp = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
+			if (dist2marker < rtmp)
+			{
+
+				// compute volume of boundary particle, acording to curvature and arc length in solid curve
+				// idk if it would be more efficient to store the volume of the boundary particles in the marker particles
+				const double Mass_boundary = Volumes[i] * rho_zero;
+
+				const Point<DIM, double> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal; // no label
+				const double p_boundary = Pf + rhof * (g_normal - a_normal) * dotProduct(r_boundary[i], normal);
+				const double rho_boundary = InvEqState_particle(p_boundary);
+
+				// flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+				r_boundary[i] = -1.0 * r_boundary[i];
+
+				// Evaluate kernel gradient
+				const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i]);
+
+				// Compute forces
+				const Point<DIM, double> v_rel = vf - v_boundary;
+				const double Va2 = (massf / rhof) * (massf / rhof);
+				// const double Vb2 = Volumes[i] * Volumes[i];
+				const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+				// But I found no big difference with the commented out expression
+
+				const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW);
+				const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary);
+				const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
+
+				if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+				{
+					cylinder_force += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
+				}
+				for (int xyz = 0; xyz < DIM; ++xyz)
+				{
+					// write to particles
+					vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+					vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+				}
+
+				if (DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
+				{
+					vd.getProp<drho>(fluid_key) += Mass_boundary * dotProduct(v_rel, DW);
+				}
+			}
+		}
+	}
+	else if (INTERACTION_LIMITER == MARKER_THIRD)
+	{
+		if (dist2marker < dist2third)
+		{
+			for (int i = 0; i < 3; i++) // for the 3 boundary particles
+			{
+
+				// compute volume of boundary particle, acording to curvature and arc length in solid curve
+				// idk if it would be more efficient to store the volume of the boundary particles in the marker particles
+				const double Mass_boundary = Volumes[i] * rho_zero;
+
+				const Point<DIM, double> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal; // no label
+				const double p_boundary = Pf + rhof * (g_normal - a_normal) * dotProduct(r_boundary[i], normal);
+				const double rho_boundary = InvEqState_particle(p_boundary);
+
+				// flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+				r_boundary[i] = -1.0 * r_boundary[i];
+
+				// Evaluate kernel gradient
+				const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i]);
+
+				// Compute forces
+				const Point<DIM, double> v_rel = vf - v_boundary;
+				const double Va2 = (massf / rhof) * (massf / rhof);
+				// const double Vb2 = Volumes[i] * Volumes[i];
+				const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+				// But I found no big difference with the commented out expression
+
+				const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW);
+				const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary);
+				const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
+
+				if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+				{
+					cylinder_force += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
+				}
+				for (int xyz = 0; xyz < DIM; ++xyz)
+				{
+					// write to particles
+					vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+					vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+				}
+
+				if (DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
+				{
+					vd.getProp<drho>(fluid_key) += Mass_boundary * dotProduct(v_rel, DW);
+				}
+			}
+		}
+	}
+	if (INTERACTION_LIMITER == NO_LIMITER)
+	{
+		for (int i = 0; i < 3; i++) // for the 3 boundary particles
 		{
 
 			// compute volume of boundary particle, acording to curvature and arc length in solid curve
@@ -1545,6 +1787,8 @@ void SetFilename(std::string &filename, const size_t Nfluid[DIM], const long int
 		filename = "TaylorCouette";
 	else if (SCENARIO == TRIANGLE_EQUILATERAL)
 		filename = "TriangleEquilateral";
+	else if (SCENARIO == MOVING_OBSTACLE)
+		filename = "MovingObstacle";
 
 	// BC name
 	if (BC_TYPE == NO_SLIP)
@@ -1604,6 +1848,8 @@ void WriteParameters(size_t Nfluid[3], Vcluster<> &v_cl, std::string customStrin
 		scenario_str = "TaylorCouette";
 	else if (SCENARIO == TRIANGLE_EQUILATERAL)
 		scenario_str = "TriangleEquilateral";
+	else if (SCENARIO == MOVING_OBSTACLE)
+		scenario_str = "MovingObstacle";
 
 	std::string BC_str = "";
 	if (BC_TYPE == NO_SLIP)
@@ -1879,22 +2125,24 @@ public:
 class TriangleObstacle : public Obstacle
 {
 private:
-	const unsigned int BaseLength_;
-	const unsigned int HeigthLength_;
+	const double BaseLength_;
+	const double HeigthLength_;
 	Box<DIM, double> ContainingRectangle_;
 	Point<DIM, double> LowerLeft_;
 	Point<DIM, double> LowerRight_;
 	Point<DIM, double> UpperRight_;
 
 public:
-	TriangleObstacle(Point<DIM, double> centre, unsigned int BaseLength, unsigned int HeigthLength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+	TriangleObstacle(Point<DIM, double> centre, double BaseLength, double HeigthLength, Point<DIM, double> vel = {0.0, 0.0}, double omega = 0.0) : Obstacle(centre, vel, omega), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 	{
-		LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * dp) / 2.0};
-		UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * dp) / 2.0,
-										 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * dp) / 2.0};
+		LowerLeft_ = Point<DIM, double>{Centre_.get(0) - 2.0 * BaseLength_ / 3.0,
+										Centre_.get(1) - HeigthLength_ / 3.0};
+
+		LowerRight_ = Point<DIM, double>{Centre_.get(0) + BaseLength_ / 3.0,
+										 Centre_.get(1) - HeigthLength_ / 3.0};
+
+		UpperRight_ = Point<DIM, double>{Centre_.get(0) + BaseLength_ / 3.0,
+										 Centre_.get(1) + 2.0 * HeigthLength_ / 3.0};
 
 		ContainingRectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
 	}
@@ -1906,28 +2154,28 @@ public:
 
 	void AddObstacle(particles &vd)
 	{
-		const double baseLength = (BaseLength_ - 1) * dp;
-		const double heigthLength = (HeigthLength_ - 1) * dp;
-
-		const Point<DIM, double> Xoffset = {dp, 0.0};
-		const Point<DIM, double> Yoffset = {0.0, dp};
-
 		// Lower wall
-		AddFlatWallNewBC(vd, 0, BaseLength_, LowerLeft_, Xoffset, dp, Centre_, LinearVelocity_, AngularVelocity_);
+		const int N_bottom = ceil(BaseLength_ / dp);
+		const double dxwall_bottom = BaseLength_ / N_bottom;
+		const Point<DIM, double> Xoffset = {dxwall_bottom, 0.0};
+		AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, AngularVelocity_);
+
 		// Right wall
-		AddFlatWallNewBC(vd, 1, HeigthLength_, LowerRight_, Yoffset, dp, Centre_, LinearVelocity_, AngularVelocity_);
+		const int N_right = ceil(HeigthLength_ / dp);
+		const double dxwall_right = HeigthLength_ / N_right;
+		const Point<DIM, double> Yoffset = {0.0, dxwall_right};
+		AddFlatWallNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, AngularVelocity_);
 
-		// We want particles spaced roughly by dp
-		const double hypothenuseLength = sqrt(baseLength * baseLength + heigthLength * heigthLength);
-		const int Ndiag = ceil(hypothenuseLength / dp);	 // integer number of particles that can fit in the diagonal
-		const double dxwall = hypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
-		const double sin_theta = heigthLength / hypothenuseLength;
-		const double cos_theta = baseLength / hypothenuseLength;
-		const Point<DIM, double> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
-
-		Point<DIM, double> h_normal = {-1.0 * sin_theta, cos_theta};
 		//  Hypothenuse wall
-		AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, AngularVelocity_);
+		// We want particles spaced roughly by dp
+		const double HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+		const int Ndiag = ceil(HypothenuseLength / dp);		  // integer number of particles that can fit in the diagonal
+		const double dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
+		const double sin_theta = HeigthLength_ / HypothenuseLength;
+		const double cos_theta = BaseLength_ / HypothenuseLength;
+		const Point<DIM, double> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
+
+		AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, AngularVelocity_);
 	}
 };
 
@@ -2291,7 +2539,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		umax = 2.5e-3;
 		t_end = 1000.0;
 		write_const = 1;
-		Point<DIM, double> obstacle_centre = {length[0] / 2.0, length[1] / 2.0};
+		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {0.0, 0.0};
 		double obstacle_angular_velocity = 0.0;
 
@@ -2342,13 +2590,13 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		// umax = 5.77 * 1e-5; // (morris, to get c=5.77*1e-4)
 		t_end = 10000.0;
 		write_const = 0.1;
-		Point<DIM, double> obstacle_centre = {length[0] / 2.0, length[1] / 2.0};
+		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {0.0, 0.0};
 		double obstacle_angular_velocity = 0.0;
 
 		obstacle_ptr = new CylinderObstacle(CylinderRadius, obstacle_centre, obstacle_velocity, obstacle_angular_velocity);
 
-		PROBES_ENABLED = 0;
+		PROBES_ENABLED = 1;
 	}
 	else if (SCENARIO == SQUARE)
 	{
@@ -2372,7 +2620,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		umax = 4.1 * 1e-1;
 		t_end = 40.0;
 		write_const = 100;
-		Point<DIM, double> obstacle_centre = {length[0] / 2.0, length[1] / 2.0};
+		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {0.0, 0.0};
 		double obstacle_angular_velocity = 0.0;
 
@@ -2399,18 +2647,18 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
 		rho_zero = 1.0;
 		nu = 0.01;
-		Bfactor = 3.0;
+		Bfactor = 5.0;
 		gravity_vector.get(0) = 0.1;
-		umax = 4.7 * 1e-1; // from previous simulations for nu = 0.01
+		umax = 3.5 * 1e-1; // from previous simulations for nu = 0.01
 		t_end = 100.0;
 		write_const = 10;
 		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {0.0, 0.0};
 		double obstacle_angular_velocity = 0.0;
 
-		int integerBaseLength = 21;
-		int integerHeigthLength = 11;
-		obstacle_ptr = new TriangleObstacle(obstacle_centre, integerBaseLength, integerHeigthLength, obstacle_velocity, obstacle_angular_velocity);
+		const double BaseLength = 0.47;
+		const double HeigthLength = 0.3;
+		obstacle_ptr = new TriangleObstacle(obstacle_centre, BaseLength, HeigthLength, obstacle_velocity, obstacle_angular_velocity);
 
 		PROBES_ENABLED = 0;
 	}
@@ -2436,7 +2684,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		umax = 4e-1; // from previous simulations for nu = 0.01
 		t_end = 100.0;
 		write_const = 10;
-		Point<DIM, double> obstacle_centre = {length[0] / 2.0, length[1] / 2.0};
+		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {0.0, 0.0};
 		double obstacle_angular_velocity = 0.0;
 
@@ -2467,7 +2715,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		umax = 1.5; // from previous simulations for nu = 0.01
 		t_end = 100.0;
 		write_const = 10;
-		Point<DIM, double> obstacle_centre = {length[0] / 2.0, length[1] / 2.0};
+		Point<DIM, double> obstacle_centre = {(length[0] + bc[0] * dp) / 2.0, (length[1] + bc[1] * dp) / 2.0};
 		Point<DIM, double> obstacle_velocity = {-2.0 * M_PI / 10.0 * 1.0, 0.0};
 		double obstacle_angular_velocity = 1.0;
 

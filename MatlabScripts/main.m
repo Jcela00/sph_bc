@@ -9,7 +9,6 @@ set(groot, 'defaultLineMarkerSize', 8);
 set(groot, 'defaultFigurePosition', [1440 0 1440 1440]);
 
 % sph parameters
-dp = 0.025;
 rho0 = 1;
 dim = 2;
 filenum_end = 200;
@@ -17,108 +16,242 @@ Nfluid = [60 40 1];
 Nboundary = [1, 0, 0];
 Hconst = 1.0;
 
-triangle = ParticleData('../CSV_Data/triangle/file', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+% 0 for triangle
+% 1 for cylinder
+scenario = 0;
 
-fig1 = figure;
+if scenario == 0
+    dp = 0.025;
+    triangle = ParticleData('../CSV_Data/tri', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+    x = linspace(0.3, 1.0, 100);
+    y = linspace(0.3, 0.8, 100);
 
-triangle.plotNormals(fig1); axis equal;
+elseif scenario == 1
+    dp = 0.002;
+    triangle = ParticleData('../CSV_Data/cyl', 0, ['triangle'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+    x = linspace(0.025, 0.075, 100);
+    y = linspace(0.025, 0.075, 100);
+end
 
-% for k = 0:filenum_end
+r = triangle.Position(triangle.Type == 0, :);
+normal = triangle.Normal(triangle.Type == 0, :);
 
-%     proc1 = proc1.Update(k);
-%     proc2 = proc2.Update(k);
-%     [pos1, I1] = sortrows(proc1.Position);
-%     [pos4, I2] = sortrows(proc2.Position);
-%     proc1 = proc1.ReorderData(I1);
-%     proc2 = proc2.ReorderData(I2);
+if scenario == 0
+    % remove particles with r(2) < dp or r(2) > 1 - dp
 
-%     [objDiff, pack] = CompDiff(proc1, proc2);
+    normal = normal(r(:, 2) > dp & r(:, 2) < 1 - dp, :);
+    r = r(r(:, 2) > dp & r(:, 2) < 1 - dp, :);
 
-%     PosDiff = abs(proc1.Position - proc2.Position);
+end
 
-%     error_rho = pack(1);
-%     error_p = pack(2);
-%     error_Force = pack(3);
-%     error_Velocity = pack(4);
-%     error_ForceTransport = pack(5);
-%     error_VelocityTransport = pack(6);
-%     error_Normal = pack(7);
-%     error_Curvature = pack(8);
-%     error_ArcLength = pack(9);
-%     error_InteractCount = pack(10);
-%     number_error = pack(11);
+triangle.Position = r;
+triangle.Normal = normal;
+triangle.Type = zeros(length(r(:, 1)), 1);
+r = r(:, 1:2);
+normal = normal(:, 1:2);
 
-%     if (error_rho ~= 0)
-%         fig1 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Density, '$Density$ ', fig1, k)
-%     end
+[r, idx] = sortrows(r);
+normal = normal(idx, :);
 
-%     if (error_p ~= 0)
-%         fig2 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Pressure, '$Pressure$ ', fig2, k)
-%     end
+for n = 1:length(r(:, 1))
 
-%     if (error_Force ~= 0)
-%         fig3 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Force, '$Force$ ', fig3, k)
-%     end
+    fig1 = figure; hold on;
 
-%     if (error_Velocity ~= 0)
-%         fig4 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Velocity, '$Velocity$ ', fig4, k)
-%     end
+    for i = 1:length(x)
+        xx = x(i);
 
-%     if (error_ForceTransport ~= 0)
-%         fig5 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.ForceTransport, '$Force Transport$ ', fig5, k)
-%     end
+        for j = 1:length(y)
+            yy = y(j);
 
-%     if (error_VelocityTransport ~= 0)
-%         fig6 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.VelocityTransport, '$Velocity Transport$ ', fig6, k)
-%     end
+            if (~isInside([xx yy], scenario))
+                color = 'k';
 
-%     if (error_Normal ~= 0)
-%         fig7 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Normal, '$Normal$ ', fig7, k)
-%     end
+                % [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_m_3(r(n, :), normal(n, :), [xx yy], dp);
+                [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_m_3(r(n, :), normal(n, :), [xx yy], dp);
 
-%     if (error_Curvature ~= 0)
-%         fig8 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.Curvature, '$Curvature$ ', fig8, k)
-%     end
+                if bool == true
+                    color = 'r';
+                end
 
-%     if error_InteractCount ~= 0
-%         fig9 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.InteractCount, '$Interact Count$ ', fig9, k)
-%     end
+                if (bool && bool1)
+                    color = 'g';
+                end
 
-%     if (error_ArcLength ~= 0)
-%         fig9 = figure; hold on;
-%         objDiff.plotMagnitude(objDiff.ArcLength, '$Arc Length$ ', fig9, k)
-%     end
+                if (bool && bool2)
+                    color = 'b';
+                end
 
-%     disp(['Time Step: ', num2str(k)]);
-%     % pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength];
-%     disp(['Max Position Difference: ', num2str(max(norm(PosDiff)))]);
-%     disp(['Total Error in Density: ', num2str(error_rho)]);
-%     disp(['Total Error in Pressure: ', num2str(error_p)]);
-%     disp(['Total Error in Force: ', num2str(error_Force)]);
-%     disp(['Total Error in Velocity: ', num2str(error_Velocity)]);
-%     disp(['Total Error in Force Transport: ', num2str(error_ForceTransport)]); ;
-%     disp(['Total Error in Velocity Transport: ', num2str(error_VelocityTransport)]);
-%     disp(['Total Error in Normal: ', num2str(error_Normal)]);
-%     disp(['Total Error in Curvature: ', num2str(error_Curvature)]);
-%     disp(['Total Error in Interact Count: ', num2str(error_InteractCount)]);
-%     % disp(['Total Error in Arc Length: ', num2str(error_Arclength)]);
-%     disp(['Difference in number of particles: ', num2str(number_error)]);
-%     disp(' ');
+                if (bool && bool3)
+                    color = 'm';
+                end
 
-%     pause()
+                plot(xx, yy, 'o', 'MarkerEdgeColor', color, 'MarkerFaceColor', color, 'MarkerSize', 2);
+            end
 
-%     % figure(fig2); clf;
+        end
 
-% end
+    end
+
+    triangle.plotNormals(fig1);
+    % plot(r(n, 1), r(n, 2), 'o', 'MarkerEdgeColor', 'm', 'MarkerFaceColor', 'm', 'MarkerSize', 10);
+    plotCircle(fig1, r(n, :), 3.0 * dp, 'y');
+    plot([r(n, 1) r(n, 1) - 2.5 * dp * normal(n, 1)], [r(n, 2) r(n, 2) - 2.5 * dp * normal(n, 2)], '--k', 'LineWidth', 2);
+    plot(r(n, 1) - 0.5 * dp * normal(n, 1), r(n, 2) - 0.5 * dp * normal(n, 2), 'o', 'MarkerEdgeColor', 'g', 'MarkerFaceColor', 'g', 'MarkerSize', 6);
+    plotCircle(fig1, r(n, :) - 0.5 * dp * normal(n, :), 3.0 * dp, 'g');
+    plot(r(n, 1) - 1.5 * dp * normal(n, 1), r(n, 2) - 1.5 * dp * normal(n, 2), 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'MarkerSize', 6);
+    plotCircle(fig1, r(n, :) - 1.5 * dp * normal(n, :), 3.0 * dp, 'b');
+    plot(r(n, 1) - 2.5 * dp * normal(n, 1), r(n, 2) - 2.5 * dp * normal(n, 2), 'o', 'MarkerEdgeColor', 'm', 'MarkerFaceColor', 'm', 'MarkerSize', 6);
+    plotCircle(fig1, r(n, :) - 2.5 * dp * normal(n, :), 3.0 * dp, 'm');
+    axis equal;
+    % save as png
+    % saveas(fig1, ['figs/Criterion_full_', num2str(n), '.png']);
+    % save as pdf
+    exportgraphics(gcf, ['figs/checkCriterion_m3_', num2str(n), '.pdf'], 'ContentType', 'vector');
+
+    close all;
+end
+
+function [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_nothing(Q, normal, P, dp)
+
+    % Q position of marker particle with normal normal, P position of the fluid particle
+    dist2marker = distance_own(Q, P);
+    dist1 = distance_own(Q - 0.5 * normal * dp, P);
+    dist2 = distance_own(Q - 1.5 * normal * dp, P);
+    dist3 = distance_own(Q - 2.5 * normal * dp, P);
+
+    if dist2marker < 3.0 * dp
+        bool = true;
+    else
+        bool = false;
+    end
+
+    if dist1 < 3.0 * dp
+        bool1 = true;
+    else
+        bool1 = false;
+    end
+
+    if dist2 < 3.0 * dp
+        bool2 = true;
+    else
+        bool2 = false;
+    end
+
+    if dist3 < 3.0 * dp
+        bool3 = true;
+    else
+        bool3 = false;
+    end
+
+end
+
+function [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_m_3(Q, normal, P, dp)
+
+    % Q position of marker particle with normal normal, P position of the fluid particle
+    dist2marker = distance_own(Q, P);
+    dist1 = distance_own(Q - 0.5 * normal * dp, P);
+    dist2 = distance_own(Q - 1.5 * normal * dp, P);
+    dist3 = distance_own(Q - 2.5 * normal * dp, P);
+
+    bool = dist2marker < dist3;
+    bool1 = dist1 < 3.0 * dp;
+    bool2 = dist2 < 3.0 * dp;
+    bool3 = dist3 < 3.0 * dp;
+
+end
+
+function [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_lwall(Q, normal, P, dp)
+
+    % Q position of marker particle with normal normal, P position of the fluid particle
+    dist2marker = distance_own(Q, P);
+
+    lwall = [0.5 * dp 1.5 * dp 2.5 * dp];
+
+    if dist2marker < 3.0 * dp
+        bool = true;
+    else
+        bool = false;
+    end
+
+    bool1 = dist2marker + lwall(1) < 3.0 * dp;
+    bool2 = dist2marker + lwall(2) < 3.0 * dp;
+    bool3 = dist2marker + lwall(3) < 3.0 * dp;
+
+end
+
+function [bool, dist2marker, bool1, bool2, bool3] = checkCriterion_lwallmod(Q, normal, P, dp)
+
+    % Q position of marker particle with normal normal, P position of the fluid particle
+    dist2marker = distance_own(Q, P);
+
+    r0 = sqrt(3.0 ^ 2 - (0.5 + 0) ^ 2) * dp;
+    r1 = sqrt(3.0 ^ 2 - (0.5 + 1) ^ 2) * dp;
+    r2 = sqrt(3.0 ^ 2 - (0.5 + 2) ^ 2) * dp;
+
+    if dist2marker < 3.0 * dp
+        bool = true;
+    else
+        bool = false;
+    end
+
+    bool1 = dist2marker < r0;
+    bool2 = dist2marker < r1;
+    bool3 = dist2marker < r2;
+
+end
+
+function plotCircle(fig, centre, radius, linestyle)
+
+    th = linspace(0, 2 * pi, 20);
+    xunit = radius * cos(th) + centre(1);
+    yunit = radius * sin(th) + centre(2);
+    figure(fig);
+    plot(xunit, yunit, linestyle, 'LineWidth', 1);
+
+end
+
+function dist = distance_own(P, Q)
+    dist = sqrt((P(1) - Q(1)) ^ 2 + (P(2) - Q(2)) ^ 2);
+end
+
+function boolean = isInside(P, scenario)
+
+    if scenario == 0
+        A = [0.4366667 0.4];
+        B = [0.9066667 0.4];
+        C = [0.9066667 0.7];
+
+        %      C
+        %    /  |
+        %   /   |
+        % A-----B
+
+        boolean = false;
+        % check if P is inside the triangle ABC
+
+        % first check if P is inside the rectangle formed by AC
+        if (P(1) >= A(1) && P(1) <= C(1) && P(2) >= A(2) && P(2) <= C(2))
+            % check if P is below the line AC
+            if (P(2) <= (C(2) - A(2)) / (C(1) - A(1)) * (P(1) - A(1)) + A(2))
+                boolean = true;
+            end
+
+        end
+
+    elseif scenario == 1
+        R = 0.02;
+        C = [0.05 0.05];
+
+        if (sqrt((P(1) - C(1)) ^ 2 + (P(2) - C(2)) ^ 2) <= R)
+            boolean = true;
+        else
+            boolean = false;
+        end
+
+    end
+
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
 % % Analytical profile
 % tend = 80;

@@ -18,7 +18,8 @@ classdef ParticleData
         Curvature
         ArcLength
         Domain
-        InteractCount
+        Volumes
+        Omega
         Position
         Npart
         NpartFluid
@@ -61,11 +62,10 @@ classdef ParticleData
             obj.Normal = data(:, 17:19);
             obj.Curvature = data(:, 20);
             obj.ArcLength = data(:, 21);
-            % obj.InteractCount = data(:, 22);
-            % obj.Domain = data(:, 23);
-            % obj.Position = data(:, 24:26);
-            obj.Domain = data(:, 22);
-            obj.Position = data(:, 23:25);
+            obj.Volumes = data(:, 22:24);
+            obj.Omega = data(:, 25);
+            obj.Domain = data(:, 26);
+            obj.Position = data(:, 27:29);
             obj.Npart = length(obj.Type);
             obj.dp = dp;
             obj.dim_self = dim;
@@ -202,20 +202,18 @@ classdef ParticleData
 
             figure(fig); hold on;
 
-            for k = 1:obj.Npart
+            for k = 1:length(obj.Position(:, 1))
 
                 if (obj.Type(k) == 0)
-                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'Marker', 'o', 'MarkerSize', 6);
-                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
-                    plot([obj.Position(k, 1) obj.Position(k, 1) - 2.5 * obj.dp * obj.Normal(k, 1)], [obj.Position(k, 2) obj.Position(k, 2) - 2.5 * obj.dp * obj.Normal(k, 2)], '--k');
-                    plot(obj.Position(k, 1) -0.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -0.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
-                    plot(obj.Position(k, 1) -1.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -1.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
-                    plot(obj.Position(k, 1) -2.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -2.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'y', 'Marker', 'o', 'MarkerSize', 6);
+                    % quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Normal(k, 1), obj.Normal(k, 2), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+                    % plot([obj.Position(k, 1) obj.Position(k, 1) - 2.5 * obj.dp * obj.Normal(k, 1)], [obj.Position(k, 2) obj.Position(k, 2) - 2.5 * obj.dp * obj.Normal(k, 2)], '--k');
+                    % plot(obj.Position(k, 1) -0.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -0.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    % plot(obj.Position(k, 1) -1.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -1.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    % plot(obj.Position(k, 1) -2.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -2.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
                 end
 
             end
-
-            xlabel('$x$'); ylabel('$y$');
 
         end
 
