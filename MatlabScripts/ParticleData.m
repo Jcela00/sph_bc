@@ -47,7 +47,7 @@ classdef ParticleData
             % delete nan density values
             % data = data(~isnan(data(:, 2)), :);
             obj.BaseName = titlename;
-            obj.PlotName = [obj.BaseName ' ' num2str(filenum)];
+            obj.PlotName = [obj.BaseName]; % ' ' num2str(filenum)];
             obj.dim = dim;
             obj.Type = data(:, 1);
             obj.Density = data(:, 2);
