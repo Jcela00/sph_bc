@@ -14,50 +14,52 @@ Hconst = 1;
 dim = 2;
 rho0 = 1;
 
-nfile = 148;
-TC80_1 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_80_80_4prc_1rf_/file', nfile, ['80x80 1x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC80_2 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_80_80_4prc_2rf_/file', nfile, ['80x80 2x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC80_3 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_80_80_4prc_3rf_/file', nfile, ['80x80 3x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+nfile = 250;
+test = ParticleData('../CSV_Data/TEST/file', nfile, ['80x1 TEST'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_80_1 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_80_80_4prc_1rf/file', nfile, ['80x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_80_2 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_80_80_4prc_2rf/file', nfile, ['80x2'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_80_3 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_80_80_4prc_3rf/file', nfile, ['80x3'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-TC120_1 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_120_120_4prc_1rf_/file', nfile, ['120x120 1x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC120_2 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_120_120_4prc_2rf_/file', nfile, ['120x120 2x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC120_3 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_120_120_4prc_3rf_/file', nfile, ['120x120 3x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_160_1 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_160_160_4prc_1rf/file', nfile, ['160x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_160_2 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_160_160_4prc_2rf/file', nfile, ['160x2'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_160_3 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_160_160_4prc_3rf/file', nfile, ['160x3'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-TC240_1 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_240_240_4prc_1rf_/file', nfile, ['240x240 1x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC240_2 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_240_240_4prc_2rf_/file', nfile, ['240x240 2x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC240_3 = ParticleData('../CSV_Data/TaylorCouette_NEW_BC_Summation_240_240_4prc_3rf_/file', nfile, ['240x240 3x wall'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_240_1 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_240_240_4prc_1rf/file', nfile, ['240x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_240_2 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_240_240_4prc_2rf/file', nfile, ['240x2'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_240_3 = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_NEW_BC_Summation_240_240_4prc_3rf/file', nfile, ['240x3'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-TC80_OLD = ParticleData('../CSV_Data/TaylorCouette_OLD_BC_Summation_80_80_4prc_1rf_/file', nfile, ['80x80 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC120_OLD = ParticleData('../CSV_Data/TaylorCouette_OLD_BC_Summation_120_120_4prc_1rf_/file', nfile, ['120x120 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-TC240_OLD = ParticleData('../CSV_Data/TaylorCouette_OLD_BC_Summation_240_240_4prc_1rf/file', nfile, ['240x240 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_80_old = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_OLD_BC_Summation_80_80_4prc/file', nfile, ['80 OLD'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_160_old = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_OLD_BC_Summation_160_160_4prc/file', nfile, ['160 OLD'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+tc_240_old = ParticleData('../CSV_Data/TC_NEW/TaylorCouette_OLD_BC_Summation_240_240_4prc/file', nfile, ['240 OLD'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
 
-datasets = {TC80_1 TC80_2 TC80_3 TC120_1 TC120_2 TC120_3 TC240_1 TC240_2 TC240_3};
-data_single = {TC80_1 TC120_1 TC240_1};
-data_double = {TC80_2 TC120_2 TC240_2};
-data_triple = {TC80_3 TC120_3 TC240_3};
-datasets_old = {TC80_OLD TC120_OLD TC240_OLD};
+setTest = {test};
+set80 = {tc_80_1, tc_80_2, tc_80_3};
+set160 = {tc_160_1, tc_160_2, tc_160_3};
+set240 = {tc_240_1, tc_240_2, tc_240_3};
+set1 = {tc_80_1, tc_160_1, tc_240_1};
+set2 = {tc_80_2, tc_160_2, tc_240_2};
+set3 = {tc_80_3, tc_160_3, tc_240_3};
+setold = {tc_80_old, tc_160_old, tc_240_old};
 
-data_80 = {TC80_1 TC80_2 TC80_3};
-data_120 = {TC120_1 TC120_2 TC120_3};
-data_240 = {TC240_1 TC240_2 TC240_3};
-
-E_single = ComputeErrorAndPlotTC(data_single);
-E_double = ComputeErrorAndPlotTC(data_double);
-E_triple = ComputeErrorAndPlotTC(data_triple);
-
+E_test = ComputeErrorAndPlotTC(setTest);
+E_1 = ComputeErrorAndPlotTC(set1);
+E_2 = ComputeErrorAndPlotTC(set2);
+E_3 = ComputeErrorAndPlotTC(set3);
+pause;
 close all;
-
-E_old = ComputeErrorAndPlotTC(datasets_old);
-E_80 = ComputeErrorAndPlotTC(data_80);
-E_120 = ComputeErrorAndPlotTC(data_120);
-E_240 = ComputeErrorAndPlotTC(data_240);
+E_80 = ComputeErrorAndPlotTC(set80);
+E_160 = ComputeErrorAndPlotTC(set160);
+E_240 = ComputeErrorAndPlotTC(set240);
+E_old = ComputeErrorAndPlotTC(setold);
 
 figure;
-res = [80 120 240];
-loglog(res, E_single, 'o-'); hold on;
-loglog(res, E_double, 'o-');
-loglog(res, E_triple, 'o-');
-loglog(res, E_old, 'o-'); ylabel('$L_2$ error');
+res = [80 160 240];
+loglog([res], E_1, 'o-'); hold on;
+loglog(res, E_2, 'o-');
+loglog(res, E_3, 'o-');
+loglog([res], E_old, 'o-');
+loglog([240], E_test, 'o-');
+ylabel('$L_2$ error');
 xlabel('$N_{particles}$');
 legend('New BC', 'New BC 2x refined wall', 'New BC 3x refined wall', 'Old BC', 'Location', 'best');
 
@@ -97,9 +99,10 @@ end
 function [errors] = ComputeErrorAndPlotTC(datasets)
 
     nres = length(datasets);
-    errors = zeros(nres, 1);
+    errors = zeros(nres, 2);
 
-    figure;
+    fig1 = figure;
+    fig2 = figure;
 
     for k = 1:nres
         TC = datasets{k};
@@ -116,10 +119,14 @@ function [errors] = ComputeErrorAndPlotTC(datasets)
         PolarPosition(:, 1) = sqrt(TC.Position(:, 1) .^ 2 + TC.Position(:, 2) .^ 2);
         PolarPosition(:, 2) = atan2(TC.Position(:, 2), TC.Position(:, 1));
 
-        PolarVelocity(:, 1) = TC.Velocity(:, 1) .* TC.Position(:, 1) ./ PolarPosition(:, 1) + TC.Velocity(:, 2) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
-        PolarVelocity(:, 2) = TC.Velocity(:, 2) .* TC.Position(:, 1) ./ PolarPosition(:, 1) - TC.Velocity(:, 1) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
+        vel = TC.Velocity;
+        % vel = TC.VelocityTransport;
+
+        PolarVelocity(:, 1) = vel(:, 1) .* TC.Position(:, 1) ./ PolarPosition(:, 1) + vel(:, 2) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
+        PolarVelocity(:, 2) = vel(:, 2) .* TC.Position(:, 1) ./ PolarPosition(:, 1) - vel(:, 1) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
 
         % Remove boundary particles
+
         PolarPosition = PolarPosition(TC.Type == 1, :);
         PolarVelocity = PolarVelocity(TC.Type == 1, :);
 
@@ -127,20 +134,53 @@ function [errors] = ComputeErrorAndPlotTC(datasets)
 
         rfine = linspace(Rin, Rout, 1000);
         [urfine, uthfine] = TC_Analytical(rfine, [Rin Rout win wout]);
+
+        errors(k, 1) = TC_Error(PolarPosition, PolarVelocity, ur, uth);
+
+        %% SAME WITH TRANSPORT VELOCITY
+        vel = TC.VelocityTransport;
+        PolarPosition = zeros(rows, 2);
+        PolarVelocityT = zeros(rows, 2);
+        PolarPosition(:, 1) = sqrt(TC.Position(:, 1) .^ 2 + TC.Position(:, 2) .^ 2);
+        PolarPosition(:, 2) = atan2(TC.Position(:, 2), TC.Position(:, 1));
+
+        PolarVelocityT(:, 1) = vel(:, 1) .* TC.Position(:, 1) ./ PolarPosition(:, 1) + vel(:, 2) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
+        PolarVelocityT(:, 2) = vel(:, 2) .* TC.Position(:, 1) ./ PolarPosition(:, 1) - vel(:, 1) .* TC.Position(:, 2) ./ PolarPosition(:, 1);
+        % Remove boundary particles
+        PolarPosition = PolarPosition(TC.Type == 1, :);
+        PolarVelocityT = PolarVelocityT(TC.Type == 1, :);
+
+        errors(k, 2) = TC_Error(PolarPosition, PolarVelocityT, ur, uth);
+
+        figure(fig2);
         subplot(2, nres, k);
         hold on;
         plot(PolarPosition(:, 1), PolarVelocity(:, 2), '.'); ylabel('$u_\theta$');
         plot(rfine, uthfine);
-        title(TC.PlotName);
+        title([TC.PlotName]);
         axis([1.5 2 -0.15 0.15]);
         subplot(2, nres, k + nres);
         hold on;
         plot(PolarPosition(:, 1), PolarVelocity(:, 1), '.'); ylabel('$u_r$');
         plot(rfine, urfine);
         axis([1.5 2 -0.1 0.1]);
-        title(TC.PlotName);
+        title([" $L_2$ error: " + num2str(errors(k, 1)) "$L_2$ error (transport): " + num2str(errors(k, 2))])
 
-        errors(k) = TC_Error(PolarPosition, PolarVelocity, ur, uth);
+        figure(fig1);
+        subplot(2, nres, k);
+        hold on;
+        plot(PolarPosition(:, 1), abs(PolarVelocity(:, 2) - uth), '.'); ylabel('$E_\theta$');
+        xlabel('$r$');
+        axis([1.5 2 0 0.1]);
+        title([TC.PlotName]);
+        subplot(2, nres, k + nres);
+        hold on;
+        plot(PolarPosition(:, 1), abs(PolarVelocity(:, 1) - ur), '.'); ylabel('$E_r$');
+        xlabel('$r$');
+        axis([1.5 2 0 0.1]);
+        title([" $L_2$ error: " + num2str(errors(k, 1)) "$L_2$ error (transport): " + num2str(errors(k, 2))])
+
     end
 
+    errors = errors(:, 2);
 end

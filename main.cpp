@@ -37,8 +37,8 @@
 // DIMENSIONALITY, changes the normalizations of the kernels
 #define DIM 2
 
-const int BC_TYPE = NO_SLIP;
-const int SCENARIO = TAYLOR_COUETTE;
+const int BC_TYPE = NEW_NO_SLIP;
+const int SCENARIO = POISEUILLE;
 // const int KERNEL = QUINTIC;
 const int DENSITY_TYPE = DENSITY_SUMMATION;
 const int WRITER = VTK_WRITER; // VTK_WRITER or CSV_WRITER
@@ -775,12 +775,12 @@ void calc_density(particles &vd, CellList &NN)
 							const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
 							// get volumes, and curvature of dummy particles
 							const Point<3, double> vol = vd.template getProp<vd_volume>(b);
-							const double kappa = vd.template getProp<curvature_boundary>(b);
+							// const double kappa = vd.template getProp<curvature_boundary>(b);
 							// Apply offsets to dr to get 3 vectrors pointing to dummy particles
 							const std::array<Point<DIM, double>, 3> R_dummy = GetBoundaryPositions(-1.0 * dr, normal);
 
 							// distance to the marker particle
-							const double dist2marker = sqrt(r2);
+							// const double dist2marker = sqrt(r2);
 
 							// double k = vd.template getProp<vd_volume>(b)[0];
 							for (int i = 0; i < 3; i++)
@@ -1086,21 +1086,27 @@ void interact_fluid_boundary_new(particles &vd,
 		const double Va2 = (massf / rhof) * (massf / rhof);
 		// const double Vb2 = Volumes[i] * Volumes[i];
 		const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+		const double Vb = (Mass_boundary / rho_boundary);
 		// But I found no big difference with the commented out expression
 
 		const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW);
-		const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary);
+		const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary); //-p_boundary - Pf;
 		const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
 
-		if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
-		{
-			cylinder_force += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
-		}
+		// std::cout << "PressureTerm_x: " << PressureTerm * DW.get(0) << "PressureTerm_y: " << PressureTerm * DW.get(1) << std::endl;
+		// std::cout << "ViscosityTerm_x: " << ViscosityTerm.get(0) << "ViscosityTerm_y: " << ViscosityTerm.get(1) << std::endl;
+		// std::cout << "GradATerm_x: " << GradATerm.get(0) << "GradATerm_y: " << GradATerm.get(1) << std::endl;
+		// if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+		// {
+		// 	cylinder_force += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
+		// }
 		for (int xyz = 0; xyz < DIM; ++xyz)
 		{
 			// write to particles
-			vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
-			vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+			vd.getProp<force>(fluid_key)[xyz] += 2.0 * (Vb / rhof) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz));
+			vd.getProp<force_transport>(fluid_key)[xyz] += -2.0 * (Vb / rhof) * (Pbackground)*DW.get(xyz);
+			// vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+			// vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
 		}
 
 		if (DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
@@ -2183,7 +2189,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 	// Set scenario specific parameters
 
 	obstacle_ptr = new EmptyObstacle();
-	double refine_factor = 2.0;
+	double refine_factor = 3.0;
 
 	if (SCENARIO == POISEUILLE)
 	{
@@ -2201,11 +2207,11 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 		length[1] = dp * (Nfluid[1] - bc[1]);
 
 		rho_zero = 1.0;
-		nu = 0.01;
+		nu = 0.1;
 		Bfactor = 1.0;
 		gravity_vector.get(0) = 0.1;
 		umax = gravity_vector.get(0) * LengthScale * LengthScale / (8.0 * nu);
-		t_end = 100.0;
+		t_end = 10.0;
 		write_const = 10;
 		PROBES_ENABLED = 0;
 	}
@@ -2602,6 +2608,10 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
 	// Write constants on file
 	std::string customString = "";
+	if (BC_TYPE == NEW_NO_SLIP)
+	{
+		customString = "_" + std::to_string((int)refine_factor) + "rf";
+	}
 	WriteParameters(Nfluid, v_cl, customString);
 
 	// place probes
@@ -2682,6 +2692,17 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 	if (BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
 	{
 		obstacle_ptr->AddObstacle(vd);
+
+		// length[0] = length[0] - dp * bc[0];
+		double dx_wall = dp / refine_factor;
+		int Nwall = ceil(length[0] / dx_wall);
+		dx_wall = length[0] / Nwall;
+		Point<DIM, double> X_Offset = {dx_wall, 0.0};
+
+		Point<DIM, double> LL_corner = {0.0, 0.0};
+		Point<DIM, double> UL_corner = {0.0, length[1]};
+		AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, {0.0, 0.0}, 0.0);
+		AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, {0.0, 0.0}, 0.0);
 	}
 
 	// return an iterator to the fluid particles to add to vd
@@ -2759,80 +2780,84 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 	Box<DIM, double> hole_get = holes.get(0);
 	auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
-	if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
+	if (BC_TYPE == NO_SLIP)
 	{
-		while (bound_box.isNext())
+		if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
 		{
-			Point<DIM, double> position = bound_box.get();
-
-			// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
-			// When running on multiple cores, with this we check if particle is outside the recipient box
-			// Another bug places boundary particles in the correct plane, but inside the fluid box;
-			// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
-			// {
-			// 	++bound_box;
-			// 	continue;
-			// }
-
-			if (!recipient.isInside((position)))
+			while (bound_box.isNext())
 			{
-				++bound_box;
-				continue;
-			}
-			if (hole_get.isInside(position))
-			{
-				++bound_box;
-				continue;
-			}
+				Point<DIM, double> position = bound_box.get();
 
-			if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC))
-			{
-				// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
-				double remx = fmod(position.get(0), dp);
-				double remz = fmod(position.get(1), dp);
-				double tol = 0.5 * dp * 10e-2;
+				// periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+				// When running on multiple cores, with this we check if particle is outside the recipient box
+				// Another bug places boundary particles in the correct plane, but inside the fluid box;
+				// if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
+				// {
+				// 	++bound_box;
+				// 	continue;
+				// }
 
-				if (remx > tol && remx < dp - tol)
+				if (!recipient.isInside((position)))
 				{
 					++bound_box;
 					continue;
 				}
-				if (remz > tol && remz < dp - tol)
+				if (hole_get.isInside(position))
 				{
 					++bound_box;
 					continue;
 				}
-			}
-			vd.add();
 
-			vd.template getLastProp<type>() = BOUNDARY;
-			vd.template getLastProp<rho>() = 0.0;
-			vd.template getLastProp<pressure>() = 0.0;
-			vd.template getLastProp<drho>() = 0.0;
-
-			for (int xyz = 0; xyz < DIM; xyz++)
-			{
-				vd.getLastPos()[xyz] = bound_box.get().get(xyz);
-				vd.template getLastProp<force>()[xyz] = 0.0;
-				vd.template getLastProp<force_transport>()[xyz] = 0.0;
-				vd.template getLastProp<v_transport>()[xyz] = 0.0;
-				vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-				if (position.get(1) < dp / 4.0) // bottom wall
+				if (BC_TYPE == NEW_NO_SLIP && (bc[0] == NON_PERIODIC && bc[1] == NON_PERIODIC))
 				{
-					vd.template getLastProp<velocity>()[xyz] = vw_bottom.get(xyz);
+					// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
+					double remx = fmod(position.get(0), dp);
+					double remz = fmod(position.get(1), dp);
+					double tol = 0.5 * dp * 10e-2;
+
+					if (remx > tol && remx < dp - tol)
+					{
+						++bound_box;
+						continue;
+					}
+					if (remz > tol && remz < dp - tol)
+					{
+						++bound_box;
+						continue;
+					}
 				}
-				else if (position.get(1) > length[1] - dp / 4.0) // top wall
+				vd.add();
+
+				vd.template getLastProp<type>() = BOUNDARY;
+				vd.template getLastProp<rho>() = 0.0;
+				vd.template getLastProp<pressure>() = 0.0;
+				vd.template getLastProp<drho>() = 0.0;
+
+				for (int xyz = 0; xyz < DIM; xyz++)
 				{
-					vd.template getLastProp<velocity>()[xyz] = vw_top.get(xyz);
+					vd.getLastPos()[xyz] = bound_box.get().get(xyz);
+					vd.template getLastProp<force>()[xyz] = 0.0;
+					vd.template getLastProp<force_transport>()[xyz] = 0.0;
+					vd.template getLastProp<v_transport>()[xyz] = 0.0;
+					vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+					if (position.get(1) < dp / 4.0) // bottom wall
+					{
+						vd.template getLastProp<velocity>()[xyz] = vw_bottom.get(xyz);
+					}
+					else if (position.get(1) > length[1] - dp / 4.0) // top wall
+					{
+						vd.template getLastProp<velocity>()[xyz] = vw_top.get(xyz);
+					}
 				}
+
+				vd.template getLastProp<curvature_boundary>() = 0.0;
+				vd.template getLastProp<arc_length>() = dp;
+
+				++bound_box;
 			}
-
-			vd.template getLastProp<curvature_boundary>() = 0.0;
-			vd.template getLastProp<arc_length>() = dp;
-
-			++bound_box;
 		}
 	}
+
 	openfpm::vector<std::string> names({"type",
 										"rho",
 										"pressure",
@@ -2903,7 +2928,6 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 	double a_tc = -((Rout * Rout * Rin * Rin) / (Rout * Rout - Rin * Rin)) * (Wout - Win);
 	double b_tc = (Wout * Rout * Rout - Win * Rin * Rin) / (Rout * Rout - Rin * Rin);
 
-	int Nfluid_in = 20;
 	Nfluid[0] = 240;
 	Nfluid[1] = 240;
 	size_t Nbound = (BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
@@ -2973,8 +2997,14 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 	}
 
 	// Write constants on file
-	double rf = 1.0;
-	std::string customString = "_" + std::to_string((int)rf) + "rf";
+	double rf = 3.0;
+	std::string customString = "";
+
+	if (BC_TYPE == NEW_NO_SLIP)
+	{
+		customString = "_" + std::to_string((int)rf) + "rf";
+	}
+
 	WriteParameters(Nfluid, v_cl, customString);
 
 	// Set cylindrical object parameters
