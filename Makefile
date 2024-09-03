@@ -3,6 +3,9 @@ include ../../common.mk
 
 OBJ = main.o
 
+# Add the TinyXML2 library to the LIBS variable
+LIBS += -ltinyxml2
+
 sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))
 sph_dlb: $(OBJ)
 	$(CC) $(OPT) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
