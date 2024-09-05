@@ -84,7 +84,7 @@ public:
 	// Reference density
 	double rho_zero;
 	// Gamma in eq of state
-	const double gamma_ = 1.0;
+	const double gamma_ = 7.0;
 	// Constant used for the sound speed, number of times the max velocity
 	const double coeff_sound = 10.0;
 	// Sound speed
@@ -128,6 +128,9 @@ public:
 	double Rout;
 	double Win;
 	double Wout;
+
+	// custom string
+	std::string custom_string = "";
 };
 
 // int SCENARIO;
@@ -1178,9 +1181,9 @@ void interact_fluid_boundary_new(particles &vd,
 
 		// Compute forces
 		const Point<DIM, double> v_rel = vf - v_boundary;
-		const double Va2 = (massf / rhof) * (massf / rhof);
+		// const double Va2 = (massf / rhof) * (massf / rhof);
 		// const double Vb2 = Volumes[i] * Volumes[i];
-		const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+		// const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
 		const double Vb = (Mass_boundary / rho_boundary);
 		// But I found no big difference with the commented out expression
 
@@ -1639,7 +1642,7 @@ void kick_drift_int(particles &vd, CellList &NN, const double dt, Vcluster<> &v_
 	GlobalParameters.cnt++;
 }
 
-void SetFilename(std::string &filename, const long int Nprc, const std::string custom_string = "")
+void SetFilename(std::string &filename, const long int Nprc)
 {
 	filename = "";
 	// Scenario name
@@ -1683,12 +1686,12 @@ void SetFilename(std::string &filename, const long int Nprc, const std::string c
 	// Add the size of the simulation, the number of processors and the refinement factor
 	std::string size_proc_name = std::to_string(GlobalParameters.Nfluid[0]) + "_" + std::to_string(GlobalParameters.Nfluid[1]) + "_" + std::to_string(Nprc) + "prc";
 	if (GlobalParameters.BC_TYPE == NEW_NO_SLIP)
-		size_proc_name += "_" + std::to_string(GlobalParameters.rf) + "rf";
+		size_proc_name += "_" + std::to_string((int)GlobalParameters.rf) + "rf";
 	filename += "_" + size_proc_name;
-	filename += custom_string;
+	filename += GlobalParameters.custom_string;
 }
 
-void WriteParameters(Vcluster<> &v_cl, std::string customString)
+void WriteParameters(Vcluster<> &v_cl)
 {
 	const double Lx = GlobalParameters.length[0]; // channel height
 	const double Ly = GlobalParameters.length[1]; // channel width
@@ -1696,7 +1699,7 @@ void WriteParameters(Vcluster<> &v_cl, std::string customString)
 		const double Lz = GlobalParameters.length[2]; // channel length ( +0.5dp due to periodicity)
 
 	const long int Nprc = v_cl.getProcessingUnits();
-	SetFilename(GlobalParameters.filename, Nprc, customString);
+	SetFilename(GlobalParameters.filename, Nprc);
 
 	std::string constants_filename = GlobalParameters.filename + "_PARAMETERS" + ".txt";
 	std::ofstream file(constants_filename);
@@ -2330,6 +2333,9 @@ void ParseXMLFile(const std::string &filename)
 
 		simulationElement->QueryDoubleAttribute("time", &(GlobalParameters.t_end));
 		simulationElement->QueryDoubleAttribute("write_const", &(GlobalParameters.write_const));
+		const char *custom_str = simulationElement->Attribute("custom_string");
+
+		GlobalParameters.custom_string += custom_str;
 	}
 
 	// Parse <geometry> element
@@ -2464,7 +2470,7 @@ void InitializeConstants()
 	else if (GlobalParameters.SCENARIO == MOVING_OBSTACLE)
 		GlobalParameters.umax = 1.5; // from previous simulations for nu = 0.01
 	else if (GlobalParameters.SCENARIO == TAYLOR_COUETTE)
-		GlobalParameters.umax = 2.0 * abs(GlobalParameters.Wout * GlobalParameters.Rout);
+		GlobalParameters.umax = 4.0 * abs(GlobalParameters.Wout * GlobalParameters.Rout);
 
 	// Enable probes in some scenarios
 	if (GlobalParameters.SCENARIO == CAVITY || GlobalParameters.SCENARIO == CYLINDER_LATTICE)
@@ -2613,8 +2619,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 	vd = vd_loc;
 
 	// Write constants on file
-	std::string customString = "";
-	WriteParameters(v_cl, customString);
+	WriteParameters(v_cl);
 
 	// place probes
 	if (GlobalParameters.PROBES_ENABLED)
@@ -2974,9 +2979,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
 
 	// Write constants on file
 	double rf = GlobalParameters.rf;
-	std::string customString = "";
 
-	WriteParameters(v_cl, customString);
+	WriteParameters(v_cl);
 
 	// Set cylindrical object parameters
 	Point<DIM, double> CylinderCentre = {0.0, 0.0};
@@ -3318,8 +3322,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
 	}
 
 	// Write constants on file
-	std::string customString = "";
-	WriteParameters(v_cl, customString);
+	WriteParameters(v_cl);
 
 	// we want to place probes  in a vertical line at this locations
 	Point<DIM, double> P1 = {0.75 * Nfluid_small[0] * dp, 0.0};

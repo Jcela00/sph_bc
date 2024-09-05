@@ -14,7 +14,7 @@ Hconst = 1;
 dim = 2;
 rho0 = 1;
 
-steps = 50:150;
+steps = 100:100;
 
 E_1 = zeros(length(steps), 3);
 E_2 = zeros(length(steps), 3);
@@ -49,7 +49,7 @@ for k = 1:length(steps)
 
     E_20 = ComputeErrorAndPlotPoiseuille(set20, 0);
     E_40 = ComputeErrorAndPlotPoiseuille(set40, 0);
-    E_60 = ComputeErrorAndPlotPoiseuille(set60, 0);
+    E_60 = ComputeErrorAndPlotPoiseuille(set60, 1);
 
     E_1(k, :) = [E_20(1) E_40(1) E_60(1)];
     E_2(k, :) = [E_20(2) E_40(2) E_60(2)];
@@ -151,11 +151,11 @@ ylabel('$L_2$ error');
 legend('20x40', '40x80', '60x120', 'Location', 'best');
 title('Old BC');
 
-E_1 = mean(E_1);
-E_2 = mean(E_2);
-E_3 = mean(E_3);
-E_4 = mean(E_4);
-E_old = mean(E_old);
+E_1 = mean(E_1, 1);
+E_2 = mean(E_2, 1);
+E_3 = mean(E_3, 1);
+E_4 = mean(E_4, 1);
+E_old = mean(E_old, 1);
 
 % do linear fit of E_1 and E_old
 res = [20 40 60];

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+
+    <simulation
+        scenario="TaylorCouette"
+        bcType="old"
+        densityType="summation"
+        writerType="vtk"
+        time="40"
+        write_const="10"
+        custom_string=""
+    />
+
+    <geometry
+        lengthScale="4.0"
+        rf="1.0"
+        sizeX="80" sizeY="80" sizeZ="0"
+    />
+
+    <physics
+        rho0="1.0"
+        nu="0.1"
+        Bfactor="4.0"
+        gravityX="0.0" gravityY="0.0" gravityZ="0.0"
+        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        vBotX="0.0" vBotY="0.0" vBotZ="0.0"
+    />
+
+    <obstacle 
+        velX="0.0" velY="0.0" velZ="0.0"
+        omega="1.0"
+    />
+
+    <TaylorCouette
+        Rin="1.5"
+        Rout="2.0"
+        Win="0.1"
+        Wout="-0.075"
+    />
+
+</configuration>
