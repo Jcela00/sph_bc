@@ -127,6 +127,33 @@ classdef ParticleData
 
         end
 
+        function obj = OnlyBoundaryFluid(obj, fluidorboundary)
+
+            if (fluidorboundary ~= 0 && fluidorboundary ~= 1)
+                error('Invalid input, must be 0 or 1.');
+            end
+
+            typetmp = obj.Type;
+
+            obj.Type = typetmp(typetmp == fluidorboundary);
+            obj.Density = obj.Density(typetmp == fluidorboundary);
+            obj.Pressure = obj.Pressure(typetmp == fluidorboundary);
+            obj.DeltaDensity = obj.DeltaDensity(typetmp == fluidorboundary);
+            obj.Force = obj.Force(typetmp == fluidorboundary, :);
+            obj.Velocity = obj.Velocity(typetmp == fluidorboundary, :);
+            obj.ForceTransport = obj.ForceTransport(typetmp == fluidorboundary, :);
+            obj.VelocityTransport = obj.VelocityTransport(typetmp == fluidorboundary, :);
+            obj.Normal = obj.Normal(typetmp == fluidorboundary, :);
+            obj.Curvature = obj.Curvature(typetmp == fluidorboundary);
+            obj.ArcLength = obj.ArcLength(typetmp == fluidorboundary);
+            obj.Volumes = obj.Volumes(typetmp == fluidorboundary, :);
+            obj.Omega = obj.Omega(typetmp == fluidorboundary);
+            obj.Domain = obj.Domain(typetmp == fluidorboundary);
+            obj.Position = obj.Position(typetmp == fluidorboundary, :);
+            obj.Npart = length(obj.Type);
+
+        end
+
         function obj = PlotContour(obj, fig, levels)
             X = obj.Position(:, 1);
             Y = obj.Position(:, 2);
@@ -150,53 +177,53 @@ classdef ParticleData
             title(obj.PlotName);
         end
 
-        function obj = ReorderData (obj, Isort)
-            obj.Type = obj.Type(Isort);
-            obj.Density = obj.Density(Isort);
-            obj.Pressure = obj.Pressure(Isort);
-            obj.DeltaDensity = obj.DeltaDensity(Isort);
-            obj.Force = obj.Force(Isort, :);
-            obj.Velocity = obj.Velocity(Isort, :);
-            obj.ForceTransport = obj.ForceTransport(Isort, :);
-            obj.VelocityTransport = obj.VelocityTransport(Isort, :);
-            obj.Normal = obj.Normal(Isort, :);
-            obj.Curvature = obj.Curvature(Isort);
-            obj.ArcLength = obj.ArcLength(Isort);
-            obj.InteractCount = obj.InteractCount(Isort);
-            obj.Domain = obj.Domain(Isort);
-            obj.Position = obj.Position(Isort, :);
-        end
+        % function obj = ReorderData (obj, Isort)
+        %     obj.Type = obj.Type(Isort);
+        %     obj.Density = obj.Density(Isort);
+        %     obj.Pressure = obj.Pressure(Isort);
+        %     obj.DeltaDensity = obj.DeltaDensity(Isort);
+        %     obj.Force = obj.Force(Isort, :);
+        %     obj.Velocity = obj.Velocity(Isort, :);
+        %     obj.ForceTransport = obj.ForceTransport(Isort, :);
+        %     obj.VelocityTransport = obj.VelocityTransport(Isort, :);
+        %     obj.Normal = obj.Normal(Isort, :);
+        %     obj.Curvature = obj.Curvature(Isort);
+        %     obj.ArcLength = obj.ArcLength(Isort);
+        %     % obj.InteractCount = obj.InteractCount(Isort);
+        %     obj.Domain = obj.Domain(Isort);
+        %     obj.Position = obj.Position(Isort, :);
+        % end
 
-        function [objDiff, pack] = CompDiff(obj1, obj2) % must be well sorted
-            objDiff = obj1;
-            objDiff.Type = abs(obj1.Type - obj2.Type);
-            objDiff.Density = abs(obj1.Density - obj2.Density);
-            objDiff.Pressure = abs(obj1.Pressure - obj2.Pressure);
-            objDiff.DeltaDensity = abs(obj1.DeltaDensity - obj2.DeltaDensity);
-            objDiff.Force = abs(obj1.Force - obj2.Force);
-            objDiff.Velocity = abs(obj1.Velocity - obj2.Velocity);
-            objDiff.ForceTransport = abs(obj1.ForceTransport - obj2.ForceTransport);
-            objDiff.VelocityTransport = abs(obj1.VelocityTransport - obj2.VelocityTransport);
-            objDiff.Normal = abs(obj1.Normal - obj2.Normal);
-            objDiff.InteractCount = abs(obj1.InteractCount - obj2.InteractCount);
-            objDiff.Curvature = abs(obj1.Curvature - obj2.Curvature);
-            objDiff.ArcLength = abs(obj1.ArcLength - obj2.ArcLength);
+        % function [objDiff, pack] = CompDiff(obj1, obj2) % must be well sorted
+        %     objDiff = obj1;
+        %     objDiff.Type = abs(obj1.Type - obj2.Type);
+        %     objDiff.Density = abs(obj1.Density - obj2.Density);
+        %     objDiff.Pressure = abs(obj1.Pressure - obj2.Pressure);
+        %     objDiff.DeltaDensity = abs(obj1.DeltaDensity - obj2.DeltaDensity);
+        %     objDiff.Force = abs(obj1.Force - obj2.Force);
+        %     objDiff.Velocity = abs(obj1.Velocity - obj2.Velocity);
+        %     objDiff.ForceTransport = abs(obj1.ForceTransport - obj2.ForceTransport);
+        %     objDiff.VelocityTransport = abs(obj1.VelocityTransport - obj2.VelocityTransport);
+        %     objDiff.Normal = abs(obj1.Normal - obj2.Normal);
+        %     % objDiff.InteractCount = abs(obj1.InteractCount - obj2.InteractCount);
+        %     objDiff.Curvature = abs(obj1.Curvature - obj2.Curvature);
+        %     objDiff.ArcLength = abs(obj1.ArcLength - obj2.ArcLength);
 
-            totalE_rho = sum(objDiff.Density);
-            totalE_p = sum(objDiff.Pressure);
-            totalE_Force = sum(norm(objDiff.Force));
-            totalE_Velocity = sum(norm(objDiff.Velocity));
-            totalE_ForceTransport = sum(norm(objDiff.ForceTransport));
-            totalE_VelocityTransport = sum(norm(objDiff.VelocityTransport));
-            totalE_Normal = sum(norm(objDiff.Normal));
-            totalE_Curvature = sum(objDiff.Curvature);
-            totalE_ArcLength = sum(objDiff.ArcLength);
-            totalE_InteractCount = sum(objDiff.InteractCount);
-            number_error = abs(obj1.Npart - obj2.Npart);
+        %     totalE_rho = sum(objDiff.Density);
+        %     totalE_p = sum(objDiff.Pressure);
+        %     totalE_Force = sum(norm(objDiff.Force));
+        %     totalE_Velocity = sum(norm(objDiff.Velocity));
+        %     totalE_ForceTransport = sum(norm(objDiff.ForceTransport));
+        %     totalE_VelocityTransport = sum(norm(objDiff.VelocityTransport));
+        %     totalE_Normal = sum(norm(objDiff.Normal));
+        %     totalE_Curvature = sum(objDiff.Curvature);
+        %     totalE_ArcLength = sum(objDiff.ArcLength);
+        %     totalE_InteractCount = sum(objDiff.InteractCount);
+        %     number_error = abs(obj1.Npart - obj2.Npart);
 
-            pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength, totalE_InteractCount, number_error];
+        %     pack = [totalE_rho, totalE_p, totalE_Force, totalE_Velocity, totalE_ForceTransport, totalE_VelocityTransport, totalE_Normal, totalE_Curvature, totalE_ArcLength, totalE_InteractCount, number_error];
 
-        end
+        % end
 
         function plotNormals(obj, fig)
 

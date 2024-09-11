@@ -8,6 +8,7 @@
         writerType="vtk"
         time="10"
         write_const="100"
+        custom_string=""
     />
 
     <geometry
@@ -20,6 +21,8 @@
         rho0="1.0"
         nu="0.1"
         Bfactor="1.0"
+        gamma="1.0"
+        umax="1.25"
         gravityX="0.0" gravityY="0.0" gravityZ="0.0"
         vTopX="1.25" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
