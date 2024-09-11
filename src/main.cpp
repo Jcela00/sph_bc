@@ -36,6 +36,11 @@ int main(int argc, char *argv[])
 
 	// Create a particle vector
 	particles vd;
+	// set names
+	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport",
+										"v_transport", "normal", "curvature", "arc_length", "volume", "vd_omega", "vorticity"});
+	vd.setPropNames(names);
+
 	std::vector<std::pair<probe_particles, int>> vp;
 
 	Obstacle *obstacle_ptr = nullptr;
@@ -52,7 +57,7 @@ int main(int argc, char *argv[])
 		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr, MainParameters);
 	}
 	vd.map();
-	vd.write_frame(MainParameters.filename, 0, MainParameters.WRITER);
+	// vd.write_frame(MainParameters.filename, 0, MainParameters.WRITER);
 
 	for (size_t k = 0; k < vp.size(); k++)
 	{
@@ -98,7 +103,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Evolve
-	size_t write = 1;
+	size_t write = 0;
 
 	double t = 0.0;
 	std::ofstream avgvelstream("Drag_Lift.csv");
@@ -159,6 +164,7 @@ int main(int argc, char *argv[])
 				}
 			}
 
+			CalcVorticity(vd, NN, MainParameters);
 			vd.deleteGhost();
 			vd.write_frame(MainParameters.filename, write, MainParameters.WRITER);
 			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();

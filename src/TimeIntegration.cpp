@@ -39,15 +39,6 @@ double calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters &params)
     return dt;
 }
 
-void ApplyRotation(Point<DIM, double> &x, const double theta, const Point<DIM, double> centre)
-{
-
-    Point<DIM, double> x_rotated;
-    x_rotated.get(0) = cos(theta) * (x.get(0) - centre.get(0)) - sin(theta) * (x.get(1) - centre.get(1)) + centre.get(0);
-    x_rotated.get(1) = sin(theta) * (x.get(0) - centre.get(0)) + cos(theta) * (x.get(1) - centre.get(1)) + centre.get(1);
-
-    x = x_rotated;
-}
 
 Point<DIM, double> SolidBodyAcceleration(double t, const Parameters &params)
 {

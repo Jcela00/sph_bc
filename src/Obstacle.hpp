@@ -2,6 +2,7 @@
 #define OBSTACLE_HPP
 
 #include "Definitions.hpp"
+#include "VectorUtilities.hpp"
 
 void AddFlatWallNewBC(particles &vd,
 					  const int k0,
@@ -76,6 +77,28 @@ public:
 	bool isInside(Point<DIM, double> P) override;
 	bool isOutside(Point<DIM, double> P); // for outer cylinder in taylor couette
 	void AddObstacle(particles &vd);
+};
+
+class EllipticObstacle : public Obstacle
+{
+private:
+	double Major_;
+	double Minor_;
+	double tilt_;
+
+public:
+	EllipticObstacle(double Major_,
+					 double Minor_,
+					 double tilt_,
+					 Point<DIM, double> centre,
+					 const Parameters &p,
+					 Point<DIM, double> vel = {0.0, 0.0},
+					 double omega = 0.0,
+					 double rf = 1.0);
+	~EllipticObstacle() override = default;
+	bool isInside(Point<DIM, double> P) override;
+	void AddObstacle(particles &vd);
+	Point<DIM, double> parametricEllipse(double theta);
 };
 
 class RectangleObstacle : public Obstacle

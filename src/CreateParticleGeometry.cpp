@@ -32,7 +32,8 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
     else if (params.SCENARIO == MOVING_OBSTACLE)
         obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
-
+    else if (params.SCENARIO == ELLIPSE)
+        obstacle_ptr = new EllipticObstacle(params.ObstacleBase, params.ObstacleHeight, params.ObstacleTilt, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
     double refine_factor = params.rf;
 
     // Now define the iterator boxes
@@ -377,21 +378,6 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             }
         }
     }
-
-    openfpm::vector<std::string> names({"type",
-                                        "rho",
-                                        "pressure",
-                                        "drho",
-                                        "force",
-                                        "velocity",
-                                        "force_transport",
-                                        "v_transport",
-                                        "normal",
-                                        "curvature",
-                                        "arc_length",
-                                        "volume",
-                                        "vd_omega"});
-    vd.setPropNames(names);
 }
 void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters params)
 {
@@ -625,21 +611,6 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
         // next fluid particle
         ++fluid_it;
     }
-
-    openfpm::vector<std::string> names({"type",
-                                        "rho",
-                                        "pressure",
-                                        "drho",
-                                        "force",
-                                        "velocity",
-                                        "force_transport",
-                                        "v_transport",
-                                        "normal",
-                                        "curvature",
-                                        "arc_length",
-                                        "volume",
-                                        "vd_omega"});
-    vd.setPropNames(names);
 }
 void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Parameters params)
 {
@@ -998,19 +969,4 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             ++bound_box;
         }
     }
-
-    openfpm::vector<std::string> names({"type",
-                                        "rho",
-                                        "pressure",
-                                        "drho",
-                                        "force",
-                                        "velocity",
-                                        "force_transport",
-                                        "v_transport",
-                                        "normal",
-                                        "curvature",
-                                        "arc_length",
-                                        "volume",
-                                        "vd_omega"});
-    vd.setPropNames(names);
 }

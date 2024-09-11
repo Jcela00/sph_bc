@@ -29,6 +29,7 @@
 #define STEP 9
 #define TAYLOR_COUETTE 10
 #define MOVING_OBSTACLE 11
+#define ELLIPSE 12
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
@@ -61,11 +62,13 @@ const int arc_length = 10;
 const int vd_volume = 11;
 // angular velocity
 const int vd_omega = 12;
+// vorticity
+const int vd_vorticity = 13;
 
-typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double, double[3], double>> particles;
-//                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |
-//                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |
-//                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega
+typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double, double[3], double, double[DIM]>> particles;
+//                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |       |
+//                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |       |
+//                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega    vorticity
 //                                                                 density
 
 typedef vector_dist<DIM, double, aggregate<double>> probe_particles;
@@ -163,6 +166,7 @@ public:
     // Obstacle
     double ObstacleBase;
     double ObstacleHeight;
+    double ObstacleTilt;
     // // custom string
     // std::string custom_string = "";
 };

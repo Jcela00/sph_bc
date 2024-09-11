@@ -7,7 +7,6 @@
 
 void max_velocity(particles &vd, Vcluster<> &v_cl, double &max_vel);
 double calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters &params);
-void ApplyRotation(Point<DIM, double> &x, const double theta, const Point<DIM, double> centre);
 Point<DIM, double> SolidBodyAcceleration(double t, const Parameters &params);
 
 template <typename CellList>

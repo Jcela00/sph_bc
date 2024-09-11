@@ -67,3 +67,30 @@ std::array<Point<DIM, double>, 3> getBoundaryPositions(const Point<DIM, double> 
 
     return r_virtual;
 }
+
+Point<DIM, double> crossProduct(const Point<DIM, double> &v, const Point<DIM, double> &w)
+{
+    Point<DIM, double> res;
+    if constexpr (DIM == 2)
+    {
+        res.get(0) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
+    }
+    else if constexpr (DIM == 3)
+    {
+        res.get(0) = v.get(1) * w.get(2) - v.get(2) * w.get(1);
+        res.get(1) = v.get(2) * w.get(0) - v.get(0) * w.get(2);
+        res.get(2) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
+    }
+    return res;
+}
+
+
+void ApplyRotation(Point<DIM, double> &x, const double theta, const Point<DIM, double> centre)
+{
+
+    Point<DIM, double> x_rotated;
+    x_rotated.get(0) = cos(theta) * (x.get(0) - centre.get(0)) - sin(theta) * (x.get(1) - centre.get(1)) + centre.get(0);
+    x_rotated.get(1) = sin(theta) * (x.get(0) - centre.get(0)) + cos(theta) * (x.get(1) - centre.get(1)) + centre.get(1);
+
+    x = x_rotated;
+}

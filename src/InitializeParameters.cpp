@@ -44,6 +44,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
             argParameters.SCENARIO = TAYLOR_COUETTE;
         else if (strcmp(scenario_str, "MovingObstacle") == 0)
             argParameters.SCENARIO = MOVING_OBSTACLE;
+        else if (strcmp(scenario_str, "Ellipse") == 0)
+            argParameters.SCENARIO = ELLIPSE;
         else
         {
             throw std::runtime_error("Unknown scenario");
@@ -128,7 +130,7 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
     if (obstacleElement)
     {
 
-        // optional parameters ObstacleBase, ObstacleHeight
+        // optional parameters ObstacleBase, ObstacleHeight, tilt
         argParameters.ObstacleBase = 0.0;
         argParameters.ObstacleHeight = 0.0;
         const char *obstacleBaseStr = obstacleElement->Attribute("ObstacleBase");
@@ -140,6 +142,11 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         if (obstacleHeightStr)
         {
             argParameters.ObstacleHeight = std::stod(obstacleHeightStr); // Convert to float
+        }
+        const char *tiltStr = obstacleElement->Attribute("tilt");
+        if (tiltStr)
+        {
+            argParameters.ObstacleTilt = std::stod(tiltStr); // Convert to float
         }
 
         obstacleElement->QueryDoubleAttribute("velX", &(argParameters.ObstacleVelocity.get(0)));
@@ -189,7 +196,7 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
         argParameters.bc[0] = NON_PERIODIC;
         argParameters.bc[1] = NON_PERIODIC;
     }
-    else if (argParameters.SCENARIO == CYLINDER_LATTICE)
+    else if (argParameters.SCENARIO == CYLINDER_LATTICE || argParameters.SCENARIO == ELLIPSE)
     {
         argParameters.Nboundary[0] = 0;
         argParameters.Nboundary[1] = 0;

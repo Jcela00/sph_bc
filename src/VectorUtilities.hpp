@@ -19,6 +19,10 @@ Point<DIM, double> getPerpendicularUnit2D(const Point<DIM, double> &v);
 
 std::array<Point<DIM, double>, 3> getBoundaryPositions(const Point<DIM, double> &r, const Point<DIM, double> &normal, double dp);
 
+Point<DIM, double> crossProduct(const Point<DIM, double> &v, const Point<DIM, double> &w);
+
+void ApplyRotation(Point<DIM, double> &x, const double theta, const Point<DIM, double> centre);
+
 // function to know the type of a variable
 // used to know types of auto variables
 template <class T>

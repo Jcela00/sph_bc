@@ -73,6 +73,67 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
 }
 
 template <typename CellList>
+void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
+{
+    auto part = vd.getDomainIterator();
+
+    // Update the cell-list
+    vd.updateCellList(NN);
+
+    // For each particle ...
+    while (part.isNext())
+    {
+        // Key of the particle a
+        vect_dist_key_dx a = part.get();
+
+        // if particle FLUID
+        if (vd.getProp<type>(a) == FLUID)
+        {
+            // Get the position xa of the particle a
+            Point<DIM, double> xa = vd.getPos(a);
+
+            // initialize vorticity sum
+            Point<DIM, double> vorticity = {0.0, 0.0};
+
+            // neighborhood particles
+            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+
+            // iterate the neighborhood particles
+            while (Np.isNext() == true)
+            {
+                // Key of b particle
+                const unsigned long b = Np.get();
+
+                // Only consider other fluid particles
+                if (vd.getProp<type>(b) == FLUID)
+                {
+                    // Get the position ( and vel ) of particle b
+                    const Point<DIM, double> xb = vd.getPos(b);
+                    const Point<DIM, double> vb = vd.getProp<velocity>(b);
+
+                    // Get the vector pointing at A from B
+                    Point<DIM, double> dr = xa - xb;
+                    // get the kernel gradient
+                    Point<DIM, double> Dwab = DWab(dr, sqrt(norm2(dr)), params.H, params.Kquintic);
+
+                    vorticity += -(params.MassFluid / vd.getProp<rho>(b)) * crossProduct(vb, Dwab);
+                }
+
+                ++Np;
+            }
+
+            // Store in vorticity property
+            for (int xyz = 0; xyz < DIM; ++xyz)
+            {
+                vd.template getProp<vd_vorticity>(a)[xyz] = vorticity.get(xyz);
+            }
+        }
+
+        ++part;
+    }
+}
+
+template <typename CellList>
 void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the normal vector for a boundary particle based on the other boundary particles inside its kernel.
@@ -401,22 +462,22 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
                             // if (dotProduct(dr, normal) > 0.0)
                             // {
 
-                                for (int i = 0; i < 3; i++)
-                                {
-                                    // double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
-                                    // double rmin = (3.0 - (0.5 + (double)i)) * dp;
-                                    // double kappa_max = 1.0 / (3.0 * dp);
+                            for (int i = 0; i < 3; i++)
+                            {
+                                // double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
+                                // double rmin = (3.0 - (0.5 + (double)i)) * dp;
+                                // double kappa_max = 1.0 / (3.0 * dp);
 
-                                    // kappa 0 gets rmax, kappa = kappa_max gets rmin
-                                    // double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
-                                    ////
-                                    // if (dist2marker < r_interp)
-                                    // {
+                                // kappa 0 gets rmax, kappa = kappa_max gets rmin
+                                // double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
+                                ////
+                                // if (dist2marker < r_interp)
+                                // {
 
-                                    const double W = Wab(getVectorNorm(R_dummy[i]), params.H, params.Kquintic);
-                                    rho_sum += W * vol[i] * params.rho_zero; // W*mass
-                                                                             // }
-                                }
+                                const double W = Wab(getVectorNorm(R_dummy[i]), params.H, params.Kquintic);
+                                rho_sum += W * vol[i] * params.rho_zero; // W*mass
+                                                                         // }
+                            }
                             // }
                         }
                     }

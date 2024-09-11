@@ -158,7 +158,7 @@ void CylinderObstacle::AddObstacle(particles &vd)
     const double dx_self = params.dp / refine_factor;
     const double perimeter = 2.0 * M_PI * Radius_;
     const int Np_cylinder = ceil(perimeter / dx_self);
-    const double dtheta = 2.0 * M_PI / Np_cylinder;
+    const double dtheta = 2.0 * M_PI / (double)Np_cylinder;
     const double dxwall = dtheta * Radius_;
     double theta = 0.0;
 
@@ -195,6 +195,118 @@ void CylinderObstacle::AddObstacle(particles &vd)
         vd.template getLastProp<vd_omega>() = AngularVelocity_;
         theta += dtheta;
     }
+}
+
+// Ellipse class
+EllipticObstacle::EllipticObstacle(double Major,
+                                   double Minor,
+                                   double tilt,
+                                   Point<DIM, double> centre,
+                                   const Parameters &p,
+                                   Point<DIM, double> vel,
+                                   double omega,
+                                   double rf) : Obstacle(centre, p, vel, omega, rf), Major_(Major), Minor_(Minor), tilt_(tilt) {}
+
+bool EllipticObstacle::isInside(Point<DIM, double> P)
+{
+    // get point minus the centre
+    Point<DIM, double> Paux = P - Centre_;
+    // rotate by -tilt
+    ApplyRotation(Paux, -tilt_, {0.0, 0.0});
+    // check if the point is inside the ellipse
+    return (Paux.get(0) * Paux.get(0) / (Major_ * Major_) + Paux.get(1) * Paux.get(1) / (Minor_ * Minor_) <= 1.0);
+}
+
+void EllipticObstacle::AddObstacle(particles &vd)
+{
+    // first we need to determine the perimeter of the ellipse
+    // we can use c++ std::comp_ellint_2 function
+    // first compute eccentricity
+    const double e = sqrt(1.0 - Minor_ * Minor_ / Major_ / Major_);
+    // compute the perimeter
+    const double perimeter = 4.0 * Major_ * std::comp_ellint_2(e);
+    const double dx_self = params.dp / refine_factor;
+    const int Np_ellipse_ = ceil(perimeter / dx_self);
+    std::cout << "Theoretical number of points Np_ellipse_ " << Np_ellipse_ << std::endl;
+    const double dxwall = perimeter / (double)Np_ellipse_;
+
+    const int M = 1e6; // number of points to discretize the ellipse
+    double accumulated_arc = 0.0;
+    double theta = 0.0;
+    double dtheta = 2.0 * M_PI / (double)M;
+
+    Point<DIM, double> P = parametricEllipse(theta);
+    int count = 0;
+    // add the first particle
+    vd.add();
+    vd.template getLastProp<type>() = BOUNDARY;
+    for (int xyz = 0; xyz < DIM; xyz++)
+    {
+        vd.getLastPos()[xyz] = P.get(xyz);
+        vd.template getLastProp<force>()[xyz] = 0.0;
+        vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
+        vd.template getLastProp<v_transport>()[xyz] = 0.0;
+        vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+        vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
+    }
+    count++;
+
+    vd.template getLastProp<pressure>() = 0.0;
+    vd.template getLastProp<rho>() = 0.0;
+    vd.template getLastProp<drho>() = 0.0;
+    vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
+    vd.template getLastProp<arc_length>() = dxwall;
+    vd.template getLastProp<vd_omega>() = AngularVelocity_;
+
+    Point<DIM, double> P_prev = P;
+
+    theta += dtheta;
+
+    for (int step = 1; step < M; step++)
+    {
+        P = parametricEllipse(theta);
+        accumulated_arc += norm(P - P_prev);
+
+        P_prev = P;
+        theta += dtheta;
+
+        // if accumulated arc is greater than dxwall, we add a particle
+        if (accumulated_arc > dxwall)
+        {
+            vd.add();
+            vd.template getLastProp<type>() = BOUNDARY;
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.getLastPos()[xyz] = P.get(xyz);
+                vd.template getLastProp<force>()[xyz] = 0.0;
+                vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
+                vd.template getLastProp<v_transport>()[xyz] = 0.0;
+                vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+                vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
+            }
+
+            vd.template getLastProp<pressure>() = 0.0;
+            vd.template getLastProp<rho>() = 0.0;
+            vd.template getLastProp<drho>() = 0.0;
+            vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
+            vd.template getLastProp<arc_length>() = dxwall;
+            vd.template getLastProp<vd_omega>() = AngularVelocity_;
+
+            // reset accumulated arc
+            accumulated_arc = 0.0;
+            count++;
+        }
+    }
+    std::cout << "Number of points added to the ellipse " << count << std::endl;
+}
+
+Point<DIM, double> EllipticObstacle::parametricEllipse(double theta)
+{
+    // given the angle theta, return the point in the ellipse
+    Point<DIM, double> P;
+    P.get(0) = Centre_.get(0) + (Major_ * cos(theta) * cos(tilt_) - Minor_ * sin(theta) * sin(tilt_));
+    P.get(1) = Centre_.get(1) + (Major_ * cos(theta) * sin(tilt_) + Minor_ * sin(theta) * cos(tilt_));
+    return P;
 }
 
 // RectangleObstacle class
