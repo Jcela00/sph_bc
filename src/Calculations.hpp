@@ -91,6 +91,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
         {
             // Get the position xa of the particle a
             Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, double> va = vd.getProp<velocity>(a);
 
             // initialize vorticity sum
             Point<DIM, double> vorticity = {0.0, 0.0};
@@ -109,14 +110,20 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                 {
                     // Get the position ( and vel ) of particle b
                     const Point<DIM, double> xb = vd.getPos(b);
-                    const Point<DIM, double> vb = vd.getProp<velocity>(b);
 
                     // Get the vector pointing at A from B
                     Point<DIM, double> dr = xa - xb;
-                    // get the kernel gradient
-                    Point<DIM, double> Dwab = DWab(dr, sqrt(norm2(dr)), params.H, params.Kquintic);
+                    // get the norm squared of this vector
+                    const double r2 = norm2(dr);
 
-                    vorticity += -(params.MassFluid / vd.getProp<rho>(b)) * crossProduct(vb, Dwab);
+                    if (r2 < params.r_threshold * params.r_threshold)
+                    {
+                        // Get the velocity of particle b
+                        const Point<DIM, double> vb = vd.getProp<velocity>(b);
+                        // evaluate the kernel gradient
+                        Point<DIM, double> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
+                        vorticity += -params.MassFluid * crossProduct(vb - va, Dwab);
+                    }
                 }
 
                 ++Np;
@@ -125,7 +132,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             // Store in vorticity property
             for (int xyz = 0; xyz < DIM; ++xyz)
             {
-                vd.template getProp<vd_vorticity>(a)[xyz] = vorticity.get(xyz);
+                vd.template getProp<vd_vorticity>(a)[xyz] = vorticity.get(xyz) / vd.getProp<rho>(a);
             }
         }
 

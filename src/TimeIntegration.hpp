@@ -24,7 +24,7 @@ void kick_drift_int(particles &vd,
     auto part = vd.getDomainIterator();
 
     const double dt_2 = dt * 0.5;
-    vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
     Point<DIM, double> aSolid_minus = SolidBodyAcceleration(t - dt_2, params);
     Point<DIM, double> aSolid_plus = SolidBodyAcceleration(t + dt_2, params);
@@ -35,7 +35,7 @@ void kick_drift_int(particles &vd,
         // get particle a key
         vect_dist_key_dx a = part.get();
 
-        if (vd.template getProp<type>(a) == BOUNDARY)
+        if (vd.template getProp<type>(a) == BOUNDARY) // BOUNDARY
         {
             // move boundary particles with linear velocity and acceleration
             for (int xyz = 0; xyz < DIM; xyz++)
@@ -71,7 +71,7 @@ void kick_drift_int(particles &vd,
                 vd.template getProp<normal_vector>(a)[1] = normal.get(1);
             }
         }
-        else
+        else // FLUID
         {
             for (int xyz = 0; xyz < DIM; xyz++)
             {
@@ -87,7 +87,7 @@ void kick_drift_int(particles &vd,
     }
     // map particles if they have gone outside the domain
     vd.map();
-    vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
@@ -111,14 +111,21 @@ void kick_drift_int(particles &vd,
     calc_forces(vd, NN, obstalce_force_x, obstacle_force_y, calc_drag, params);
     if (calc_drag)
     {
-        obstalce_force_x = obstalce_force_x * params.MassFluid;
-        obstacle_force_y = obstacle_force_y * params.MassFluid;
+        // obstalce_force_x = obstalce_force_x; //* params.MassFluid;
+        // obstacle_force_y = obstacle_force_y; //* params.MassFluid;
+        // int rank = v_cl.getProcessUnitID();
+        // std::cout << "Rank: " << rank << " t: " << t << " BEFORE REDUCTION force_x: " << obstalce_force_x << " force_y: " << obstacle_force_y << std::endl;
         v_cl.sum(obstalce_force_x);
         v_cl.sum(obstacle_force_y);
         v_cl.execute();
+
+        obstalce_force_x = obstalce_force_x * params.MassFluid;
+        obstacle_force_y = obstacle_force_y * params.MassFluid;
+
+        // std::cout << "Rank: " << rank << " t: " << t << " AFTER REDUCTION force_x: " << obstalce_force_x << " force_y: " << obstacle_force_y << std::endl;
     }
 
-    vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+    // vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
     // particle iterator
     auto part2 = vd.getDomainIterator();

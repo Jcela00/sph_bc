@@ -4,6 +4,7 @@
     <simulation
         scenario="Poiseuille"
         bcType="old"
+        bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
         time="25"

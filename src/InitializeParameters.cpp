@@ -15,11 +15,9 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
     tinyxml2::XMLElement *simulationElement = doc.FirstChildElement("configuration")->FirstChildElement("simulation");
     if (simulationElement)
     {
-        const char *scenario_str = simulationElement->Attribute("scenario");
-        const char *bc_type_str = simulationElement->Attribute("bcType");
-        const char *density_type_Str = simulationElement->Attribute("densityType");
-        const char *writer_str = simulationElement->Attribute("writerType");
 
+        // read scenario
+        const char *scenario_str = simulationElement->Attribute("scenario");
         if (strcmp(scenario_str, "Poiseuille") == 0)
             argParameters.SCENARIO = POISEUILLE;
         else if (strcmp(scenario_str, "Couette") == 0)
@@ -50,9 +48,10 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         {
             throw std::runtime_error("Unknown scenario");
         }
-
         argParameters.filename = scenario_str;
 
+        // read BC type (old or new)
+        const char *bc_type_str = simulationElement->Attribute("bcType");
         if (strcmp(bc_type_str, "old") == 0)
             argParameters.BC_TYPE = NO_SLIP;
         else if (strcmp(bc_type_str, "new") == 0)
@@ -61,6 +60,30 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         argParameters.filename += "_";
         argParameters.filename += bc_type_str;
 
+        // read BC periodic or non periodic
+        const char *bcX = simulationElement->Attribute("bcX");
+        if (strcmp(bcX, "periodic") == 0)
+            argParameters.bc[0] = PERIODIC;
+        else if (strcmp(bcX, "non_periodic") == 0)
+            argParameters.bc[0] = NON_PERIODIC;
+
+        const char *bcY = simulationElement->Attribute("bcY");
+        if (strcmp(bcY, "periodic") == 0)
+            argParameters.bc[1] = PERIODIC;
+        else if (strcmp(bcY, "non_periodic") == 0)
+            argParameters.bc[1] = NON_PERIODIC;
+
+        if constexpr (DIM == 3)
+        {
+            const char *bcZ = simulationElement->Attribute("bcZ");
+            if (strcmp(bcZ, "periodic") == 0)
+                argParameters.bc[2] = PERIODIC;
+            else if (strcmp(bcZ, "non_periodic") == 0)
+                argParameters.bc[2] = NON_PERIODIC;
+        }
+
+        // read density type
+        const char *density_type_Str = simulationElement->Attribute("densityType");
         if (strcmp(density_type_Str, "Summation") == 0)
             argParameters.DENSITY_TYPE = DENSITY_SUMMATION;
         else if (strcmp(density_type_Str, "Differential") == 0)
@@ -69,15 +92,19 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         argParameters.filename += "_";
         argParameters.filename += density_type_Str;
 
+        // read writer type
+        const char *writer_str = simulationElement->Attribute("writerType");
         if (strcmp(writer_str, "VTK") == 0)
             argParameters.WRITER = VTK_WRITER;
         else if (strcmp(writer_str, "CSV") == 0)
             argParameters.WRITER = CSV_WRITER;
 
+        // read time parameters
         simulationElement->QueryDoubleAttribute("time", &(argParameters.t_end));
         simulationElement->QueryDoubleAttribute("write_const", &(argParameters.write_const));
-        const char *custom_str = simulationElement->Attribute("custom_string");
 
+        // read custom string (optional) for custom output names
+        const char *custom_str = simulationElement->Attribute("custom_string");
         if (strcmp(custom_str, "") != 0)
         {
             argParameters.filename += "_";
@@ -174,35 +201,45 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
     // Set boundary conditions periodic or non periodic
     size_t Nbound = (argParameters.BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 
-    if (argParameters.SCENARIO == POISEUILLE ||
-        argParameters.SCENARIO == COUETTE ||
-        argParameters.SCENARIO == CYLINDER_ARRAY ||
-        argParameters.SCENARIO == SQUARE ||
-        argParameters.SCENARIO == TRIANGLE ||
-        argParameters.SCENARIO == TRIANGLE_EQUILATERAL)
-    {
+    if (argParameters.bc[0] == PERIODIC)
         argParameters.Nboundary[0] = 0;
-        argParameters.Nboundary[1] = Nbound;
-        argParameters.bc[0] = PERIODIC;
-        argParameters.bc[1] = NON_PERIODIC;
-    }
-    else if (argParameters.SCENARIO == HYDROSTATIC ||
-             argParameters.SCENARIO == CAVITY ||
-             argParameters.SCENARIO == MOVING_OBSTACLE ||
-             argParameters.SCENARIO == TAYLOR_COUETTE)
-    {
+    else
         argParameters.Nboundary[0] = Nbound;
-        argParameters.Nboundary[1] = Nbound;
-        argParameters.bc[0] = NON_PERIODIC;
-        argParameters.bc[1] = NON_PERIODIC;
-    }
-    else if (argParameters.SCENARIO == CYLINDER_LATTICE || argParameters.SCENARIO == ELLIPSE)
-    {
-        argParameters.Nboundary[0] = 0;
+
+    if (argParameters.bc[1] == PERIODIC)
         argParameters.Nboundary[1] = 0;
-        argParameters.bc[0] = PERIODIC;
-        argParameters.bc[1] = PERIODIC;
-    }
+    else
+        argParameters.Nboundary[1] = Nbound;
+
+    // if (argParameters.SCENARIO == POISEUILLE ||
+    //     argParameters.SCENARIO == COUETTE ||
+    //     argParameters.SCENARIO == CYLINDER_ARRAY ||
+    //     argParameters.SCENARIO == SQUARE ||
+    //     argParameters.SCENARIO == TRIANGLE ||
+    //     argParameters.SCENARIO == TRIANGLE_EQUILATERAL)
+    // {
+    //     argParameters.Nboundary[0] = 0;
+    //     argParameters.Nboundary[1] = Nbound;
+    //     argParameters.bc[0] = PERIODIC;
+    //     argParameters.bc[1] = NON_PERIODIC;
+    // }
+    // else if (argParameters.SCENARIO == HYDROSTATIC ||
+    //          argParameters.SCENARIO == CAVITY ||
+    //          argParameters.SCENARIO == MOVING_OBSTACLE ||
+    //          argParameters.SCENARIO == TAYLOR_COUETTE)
+    // {
+    //     argParameters.Nboundary[0] = Nbound;
+    //     argParameters.Nboundary[1] = Nbound;
+    //     argParameters.bc[0] = NON_PERIODIC;
+    //     argParameters.bc[1] = NON_PERIODIC;
+    // }
+    // else if (argParameters.SCENARIO == CYLINDER_LATTICE || argParameters.SCENARIO == ELLIPSE)
+    // {
+    //     argParameters.Nboundary[0] = 0;
+    //     argParameters.Nboundary[1] = 0;
+    //     argParameters.bc[0] = PERIODIC;
+    //     argParameters.bc[1] = PERIODIC;
+    // }
 
     // Set particle spacing, definition depends on scenario
     if (argParameters.SCENARIO != CYLINDER_ARRAY && argParameters.SCENARIO != CYLINDER_LATTICE)

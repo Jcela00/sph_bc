@@ -125,11 +125,6 @@ void interact_fluid_boundary_new(particles &vd,
         // std::cout << "PressureTerm_x: " << PressureTerm * DW.get(0) << "PressureTerm_y: " << PressureTerm * DW.get(1) << std::endl;
         // std::cout << "ViscosityTerm_x: " << ViscosityTerm.get(0) << "ViscosityTerm_y: " << ViscosityTerm.get(1) << std::endl;
         // std::cout << "GradATerm_x: " << GradATerm.get(0) << "GradATerm_y: " << GradATerm.get(1) << std::endl;
-        if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
-        {
-            obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0));
-            obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1));
-        }
         for (int xyz = 0; xyz < DIM; ++xyz)
         {
             // write to particles
@@ -137,6 +132,11 @@ void interact_fluid_boundary_new(particles &vd,
             vd.getProp<force_transport>(fluid_key)[xyz] += -2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(xyz);
             // vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
             // vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+        }
+        if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+        {
+            obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0));
+            obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1));
         }
 
         if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
@@ -188,15 +188,15 @@ void interact_fluid_boundary_old(particles &vd,
     std::array<Point<DIM, double>, DIM> Af = dyadicProduct(rhof * vf, vdiff_f);
     Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
 
-    if (accumulate_force) // we accumulate x force on cylinder
-    {
-        obstacle_force_x += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf;
-        obstacle_force_y += -1.0 * (Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf;
-    }
     for (int xyz = 0; xyz < DIM; ++xyz)
     {
         vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
         vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(xyz) / massf;
+    }
+    if (accumulate_force) // we accumulate x and y force on obstacle for drag and lift coefficient
+    {
+        obstacle_force_x += -(Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf + 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(0) / massf;
+        obstacle_force_y += -(Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf + 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(1) / massf;
     }
 
     if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
@@ -247,7 +247,7 @@ void interact_fluid_fluid(particles &vd,
     std::array<Point<DIM, double>, DIM> SumA;
     SumA[0] = Aa[0] + Ab[0];
     SumA[1] = Aa[1] + Ab[1];
-    if (DIM == 3)
+    if constexpr (DIM == 3)
         SumA[2] = Aa[2] + Ab[2];
 
     Point<DIM, double> GradATerm = 0.5 * matVec(SumA, DW);

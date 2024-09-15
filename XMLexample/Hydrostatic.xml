@@ -4,10 +4,11 @@
     <simulation
         scenario="Hydrostatic"
         bcType="new"
+        bcX="non_periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
-        time="10"
-        write_const="10"
+        time="1"
+        write_const="100"
         custom_string=""
     />
 

@@ -169,8 +169,8 @@ int main(int argc, char *argv[])
 			vd.write_frame(MainParameters.filename, write, MainParameters.WRITER);
 			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
+			CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters, write);
 			write++;
-			CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters);
 			if (v_cl.getProcessUnitID() == 0)
 			{
 				std::cout << "TIME: " << t << "  write " << MainParameters.cnt << std::endl;

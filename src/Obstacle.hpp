@@ -12,7 +12,7 @@ void AddFlatWallNewBC(particles &vd,
 					  const double dx,
 					  const Point<DIM, double> obstacle_centre,
 					  const Point<DIM, double> obstacle_velocity,
-					  const Point<DIM, double> given_normal = {0.0, 0.0},
+					  const Parameters &arg_p,
 					  const double obstacle_omega = 0.0);
 
 void AddFlatWallModNewBC(particles &vd,
@@ -33,7 +33,7 @@ class Obstacle
 {
 public:
 	Point<DIM, double> Centre_;
-	const Parameters &params;
+	const Parameters &params_;
 	Point<DIM, double> LinearVelocity_;
 	double AngularVelocity_;
 	double refine_factor;

@@ -3,7 +3,8 @@
 
     <simulation
         scenario="CylinderArray"
-        bcType="new"
+        bcType="old"
+        bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
         time="1000"
@@ -20,10 +21,10 @@
     <physics
         rho0="1000.0"
         nu="1e-4"
-        Bfactor="3.0"
+        Bfactor="1.0"
         gamma="1.0"
-        umax="2.5e-3"
-        gravityX="2.5e-4" gravityY="0.0" gravityZ="0.0"
+        umax="2.6e-3"
+        gravityX="2.1e-4" gravityY="0.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />

@@ -4,6 +4,7 @@
     <simulation
         scenario="CylinderLattice"
         bcType="new"
+        bcX="periodic" bcY="periodic"
         densityType="summation"
         writerType="vtk"
         time="10000"

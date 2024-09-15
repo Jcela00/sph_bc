@@ -4,6 +4,7 @@
     <simulation
         scenario="Step"
         bcType="new"
+        bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
         time="2000"

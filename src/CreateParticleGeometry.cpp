@@ -203,8 +203,8 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             Point<DIM, double> LL_corner = {0.0, 0.0};
             Point<DIM, double> UL_corner = {0.0, params.length[1]};
             // Top And Bottom Walls
-            AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, {0.0, 1.0}, 0.0);
-            AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, {0.0, -1.0}, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, 0.0);
         }
         else if (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC) // Box like scenario
         {
@@ -224,12 +224,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             Point<DIM, double> UL_corner = {0.0, params.length[1]};
 
             // Top And Bottom Walls
-            AddFlatWallNewBC(vd, 0, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, 0.0);
-            AddFlatWallNewBC(vd, 0, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, 0.0);
 
             // Left And Right Walls
-            AddFlatWallNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, 0.0);
-            AddFlatWallNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, 0.0);
+            AddFlatWallNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, 0.0);
+            AddFlatWallNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, 0.0);
         }
     }
 
@@ -274,6 +274,15 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 vd.template getLastProp<force_transport>()[xyz] = 0.0;
             }
         }
+
+        // for validating the vorticity calculation, vorticity should be 2w
+        // double w = 5.0;
+        // if (params.SCENARIO == HYDROSTATIC)
+        // {
+        //     vd.template getLastProp<velocity>()[0] = -w * iterator_position.get(1);
+        //     vd.template getLastProp<velocity>()[1] = w * iterator_position.get(0);
+        // }
+
         // Set properties
         vd.template getLastProp<rho>() = params.rho_zero;
         vd.template getLastProp<pressure>() = 0.0;
@@ -350,7 +359,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 vd.add();
 
                 vd.template getLastProp<type>() = BOUNDARY;
-                vd.template getLastProp<rho>() = 0.0;
+                vd.template getLastProp<rho>() = params.rho_zero;
                 vd.template getLastProp<pressure>() = 0.0;
                 vd.template getLastProp<drho>() = 0.0;
 

@@ -8,7 +8,7 @@ void AddFlatWallNewBC(particles &vd,
                       const double dx,
                       const Point<DIM, double> obstacle_centre,
                       const Point<DIM, double> obstacle_velocity,
-                      const Point<DIM, double> given_normal,
+                      const Parameters &arg_p,
                       const double obstacle_omega)
 {
 
@@ -25,11 +25,11 @@ void AddFlatWallNewBC(particles &vd,
             vd.template getLastProp<force>()[xyz] = 0.0;
             vd.template getLastProp<force_transport>()[xyz] = obstacle_centre.get(xyz);
             vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = given_normal.get(xyz);
+            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
         }
 
         vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = 0.0;
+        vd.template getLastProp<rho>() = arg_p.rho_zero;
         vd.template getLastProp<drho>() = 0.0;
         vd.template getLastProp<curvature_boundary>() = 0.0;
         vd.template getLastProp<arc_length>() = dx;
@@ -113,8 +113,8 @@ Obstacle::Obstacle(Point<DIM, double> Centre,
                    const Parameters &p,
                    Point<DIM, double> vel,
                    double omega,
-                   double rf) : Centre_(Centre), params(p), LinearVelocity_(vel), AngularVelocity_(omega), refine_factor(rf) {}
-Obstacle::Obstacle(const Parameters &p) : params(p) {}
+                   double rf) : Centre_(Centre), params_(p), LinearVelocity_(vel), AngularVelocity_(omega), refine_factor(rf) {}
+Obstacle::Obstacle(const Parameters &p) : params_(p) {}
 
 // EmptyObstacle class
 EmptyObstacle::EmptyObstacle(const Parameters &p) : Obstacle(p) {}
@@ -138,8 +138,8 @@ bool CylinderObstacle::isInside(Point<DIM, double> P)
 {
     double radius_aux = Radius_;
 
-    if (params.BC_TYPE == NEW_NO_SLIP)
-        radius_aux = Radius_ + 0.1 * params.dp;
+    // if (params_.BC_TYPE == NEW_NO_SLIP)
+    //     radius_aux = Radius_ + 0.1 * params_.dp;
 
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
@@ -147,15 +147,15 @@ bool CylinderObstacle::isInside(Point<DIM, double> P)
 bool CylinderObstacle::isOutside(Point<DIM, double> P) // for outer cylinder in taylor couette
 {
     double radius_aux = Radius_;
-    if (params.BC_TYPE == NEW_NO_SLIP)
-        radius_aux = Radius_ - 0.1 * params.dp;
+    // if (params_.BC_TYPE == NEW_NO_SLIP)
+    //     radius_aux = Radius_ - 0.1 * params_.dp;
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
 }
 
 void CylinderObstacle::AddObstacle(particles &vd)
 {
-    const double dx_self = params.dp / refine_factor;
+    const double dx_self = params_.dp / refine_factor;
     const double perimeter = 2.0 * M_PI * Radius_;
     const int Np_cylinder = ceil(perimeter / dx_self);
     const double dtheta = 2.0 * M_PI / (double)Np_cylinder;
@@ -188,7 +188,7 @@ void CylinderObstacle::AddObstacle(particles &vd)
         }
 
         vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = 0.0;
+        vd.template getLastProp<rho>() = params_.rho_zero;
         vd.template getLastProp<drho>() = 0.0;
         vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
         vd.template getLastProp<arc_length>() = dxwall;
@@ -205,7 +205,7 @@ EllipticObstacle::EllipticObstacle(double Major,
                                    const Parameters &p,
                                    Point<DIM, double> vel,
                                    double omega,
-                                   double rf) : Obstacle(centre, p, vel, omega, rf), Major_(Major), Minor_(Minor), tilt_(tilt) {}
+                                   double rf) : Obstacle(centre, p, vel, omega, rf), Major_(Major), Minor_(Minor), tilt_(-tilt * M_PI / 180.0) {}
 
 bool EllipticObstacle::isInside(Point<DIM, double> P)
 {
@@ -225,9 +225,8 @@ void EllipticObstacle::AddObstacle(particles &vd)
     const double e = sqrt(1.0 - Minor_ * Minor_ / Major_ / Major_);
     // compute the perimeter
     const double perimeter = 4.0 * Major_ * std::comp_ellint_2(e);
-    const double dx_self = params.dp / refine_factor;
+    const double dx_self = params_.dp / refine_factor;
     const int Np_ellipse_ = ceil(perimeter / dx_self);
-    std::cout << "Theoretical number of points Np_ellipse_ " << Np_ellipse_ << std::endl;
     const double dxwall = perimeter / (double)Np_ellipse_;
 
     const int M = 1e6; // number of points to discretize the ellipse
@@ -236,7 +235,7 @@ void EllipticObstacle::AddObstacle(particles &vd)
     double dtheta = 2.0 * M_PI / (double)M;
 
     Point<DIM, double> P = parametricEllipse(theta);
-    int count = 0;
+
     // add the first particle
     vd.add();
     vd.template getLastProp<type>() = BOUNDARY;
@@ -249,7 +248,6 @@ void EllipticObstacle::AddObstacle(particles &vd)
         vd.template getLastProp<normal_vector>()[xyz] = 0.0;
         vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
     }
-    count++;
 
     vd.template getLastProp<pressure>() = 0.0;
     vd.template getLastProp<rho>() = 0.0;
@@ -294,10 +292,8 @@ void EllipticObstacle::AddObstacle(particles &vd)
 
             // reset accumulated arc
             accumulated_arc = 0.0;
-            count++;
         }
     }
-    std::cout << "Number of points added to the ellipse " << count << std::endl;
 }
 
 Point<DIM, double> EllipticObstacle::parametricEllipse(double theta)
@@ -324,14 +320,14 @@ RectangleObstacle::RectangleObstacle(Point<DIM, double> centre,
     UpperRight_ = Point<DIM, double>{Centre_.get(0) + BaseLength_ / 2.0,
                                      Centre_.get(1) + HeigthLength_ / 2.0};
 
-    // LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * params.dp) / 2.0,
-    //                                 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * params.dp) / 2.0};
-    // LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * params.dp) / 2.0,
-    //                                  Centre_.get(1) - (((double)HeigthLength_ - 1.0) * params.dp) / 2.0};
-    // UpperLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * params.dp) / 2.0,
-    //                                 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * params.dp) / 2.0};
-    // UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * params.dp) / 2.0,
-    //                                  Centre_.get(1) + (((double)HeigthLength_ - 1.0) * params.dp) / 2.0};
+    // LowerLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * params_.dp) / 2.0,
+    //                                 Centre_.get(1) - (((double)HeigthLength_ - 1.0) * params_.dp) / 2.0};
+    // LowerRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * params_.dp) / 2.0,
+    //                                  Centre_.get(1) - (((double)HeigthLength_ - 1.0) * params_.dp) / 2.0};
+    // UpperLeft_ = Point<DIM, double>{Centre_.get(0) - (((double)BaseLength_ - 1.0) * params_.dp) / 2.0,
+    //                                 Centre_.get(1) + (((double)HeigthLength_ - 1.0) * params_.dp) / 2.0};
+    // UpperRight_ = Point<DIM, double>{Centre_.get(0) + (((double)BaseLength_ - 1.0) * params_.dp) / 2.0,
+    //                                  Centre_.get(1) + (((double)HeigthLength_ - 1.0) * params_.dp) / 2.0};
 
     Rectangle_ = Box<DIM, double>(LowerLeft_, UpperRight_);
 }
@@ -344,7 +340,7 @@ bool RectangleObstacle::isInside(Point<DIM, double> P)
 void RectangleObstacle::AddObstacle(particles &vd)
 {
 
-    const double dx_self = params.dp / refine_factor;
+    const double dx_self = params_.dp / refine_factor;
 
     // Horizontal walls
     const int N_bottom = ceil(BaseLength_ / dx_self);
@@ -352,9 +348,9 @@ void RectangleObstacle::AddObstacle(particles &vd)
     Point<DIM, double> Xoffset = {dxwall_bottom, 0.0};
 
     // Lower wall
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, {0.0, -1.0}, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
     // Upper wall
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, UpperRight_, -1.0 * Xoffset, dxwall_bottom, Centre_, LinearVelocity_, {0.0, 1.0}, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, UpperRight_, -1.0 * Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
 
     // Vertical walls
     const int N_right = ceil(HeigthLength_ / dx_self);
@@ -362,9 +358,9 @@ void RectangleObstacle::AddObstacle(particles &vd)
     Point<DIM, double> Yoffset = {0.0, dxwall_right};
 
     // Left wall
-    AddFlatWallNewBC(vd, 1, N_right, LowerLeft_, Yoffset, dxwall_right, Centre_, LinearVelocity_, {-1.0, 0.0}, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right, LowerLeft_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
     // Right wall
-    AddFlatWallNewBC(vd, 1, N_right, UpperRight_, -1.0 * Yoffset, dxwall_right, Centre_, LinearVelocity_, {1.0, 0.0}, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right, UpperRight_, -1.0 * Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
 
     // WHEN using non mod flat wall this are the k and kmax values
     // // Lower wall
@@ -406,23 +402,23 @@ TriangleObstacle::TriangleObstacle(Point<DIM, double> centre,
 
 bool TriangleObstacle::isInside(Point<DIM, double> P)
 {
-    return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P, params.dp));
+    return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P, params_.dp));
 }
 
 void TriangleObstacle::AddObstacle(particles &vd)
 {
-    const double dx_self = params.dp / refine_factor;
+    const double dx_self = params_.dp / refine_factor;
     // Lower wall
     const int N_bottom = ceil(BaseLength_ / dx_self);
     const double dxwall_bottom = BaseLength_ / N_bottom;
     const Point<DIM, double> Xoffset = {dxwall_bottom, 0.0};
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
 
     // Right wall
     const int N_right = ceil(HeigthLength_ / dx_self);
     const double dxwall_right = HeigthLength_ / N_right;
     const Point<DIM, double> Yoffset = {0.0, dxwall_right};
-    AddFlatWallNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
 
     //  Hypothenuse wall
     // We want particles spaced roughly by dp
@@ -433,7 +429,7 @@ void TriangleObstacle::AddObstacle(particles &vd)
     const double cos_theta = BaseLength_ / HypothenuseLength;
     const Point<DIM, double> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
 
-    AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, AngularVelocity_);
 }
 
 TriangleEqui::TriangleEqui(Point<DIM, double> centre,
@@ -459,18 +455,18 @@ TriangleEqui::TriangleEqui(Point<DIM, double> centre,
 
 bool TriangleEqui::isInside(Point<DIM, double> P)
 {
-    return (ContainingRectangle_.isInside(P) && !isAvobeLine(TriangleTip_, UpperRight_, P, params.dp) && !isBelowLine(TriangleTip_, LowerRight_, P, params.dp));
+    return (ContainingRectangle_.isInside(P) && !isAvobeLine(TriangleTip_, UpperRight_, P, params_.dp) && !isBelowLine(TriangleTip_, LowerRight_, P, params_.dp));
 }
 
 void TriangleEqui::AddObstacle(particles &vd)
 {
-    double dx_self = params.dp / refine_factor;
+    double dx_self = params_.dp / refine_factor;
     const int N_wall = ceil(SideLength_ / dx_self);
     const double dxwall = SideLength_ / N_wall;
     Point<DIM, double> Yoffset = {0.0, dxwall};
 
     // Right wall
-    AddFlatWallNewBC(vd, 0, N_wall + 1, LowerRight_, Yoffset, dxwall, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_wall + 1, LowerRight_, Yoffset, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
 
     // Inclined walls
 
@@ -480,7 +476,7 @@ void TriangleEqui::AddObstacle(particles &vd)
     Point<DIM, double> DiagoffsetNW = Diagoffset;
     DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
     //  Hypothenuse upper wall
-    AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
     // Hypothenuse lower wall
-    AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, Centre_, LinearVelocity_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
 }

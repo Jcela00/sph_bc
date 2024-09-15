@@ -17,7 +17,7 @@ LIBS += -ltinyxml2
 # CXX_STD = -std=c++17 -Wall 
 
 # Add flags
-OPT += -Wall
+OPT += 
 
 # Define the target for the executable
 sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))

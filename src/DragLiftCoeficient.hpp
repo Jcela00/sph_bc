@@ -10,6 +10,7 @@ void CalcDragLift(particles &vd,
                   std::ofstream &avgvelstream,
                   double obstacle_force_x,
                   double obstacle_force_y,
-                  const Parameters &params);
+                  const Parameters &params,
+                  size_t write);
 
 #endif // DRAG_LIFT_COEFICIENT_HPP
