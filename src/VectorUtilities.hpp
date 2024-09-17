@@ -89,19 +89,17 @@ inline std::array<Point<DIM, double>, 3> getBoundaryPositions(const Point<DIM, d
 	return r_virtual;
 }
 
-inline Point<DIM, double> crossProduct(const Point<DIM, double> &v, const Point<DIM, double> &w)
+inline double crossProduct2D(const Point<DIM, double> &v, const Point<DIM, double> &w)
+{
+	return v.get(0) * w.get(1) - v.get(1) * w.get(0);
+}
+
+inline Point<DIM, double> crossProduct3D(const Point<DIM, double> &v, const Point<DIM, double> &w)
 {
 	Point<DIM, double> res;
-	if constexpr (DIM == 2)
-	{
-		res.get(0) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
-	}
-	else if constexpr (DIM == 3)
-	{
-		res.get(0) = v.get(1) * w.get(2) - v.get(2) * w.get(1);
-		res.get(1) = v.get(2) * w.get(0) - v.get(0) * w.get(2);
-		res.get(2) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
-	}
+	res.get(0) = v.get(1) * w.get(2) - v.get(2) * w.get(1);
+	res.get(1) = v.get(2) * w.get(0) - v.get(0) * w.get(2);
+	res.get(2) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
 	return res;
 }
 

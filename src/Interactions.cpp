@@ -133,10 +133,11 @@ void interact_fluid_boundary_new(particles &vd,
             // vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
             // vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
         }
-        if (accumulate_force) // we accumulate x force on cylinder ( this is just to compute drag coefficient)
+        if (accumulate_force) // we accumulate x & y force on cylinder ( this is just to compute drag coefficient)
         {
-            obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0));
-            obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1));
+            obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(0);
+            obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(1);
+            // obstacle_force_y += sqrt(std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)), 2) + std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)), 2));
         }
 
         if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
@@ -195,8 +196,9 @@ void interact_fluid_boundary_old(particles &vd,
     }
     if (accumulate_force) // we accumulate x and y force on obstacle for drag and lift coefficient
     {
-        obstacle_force_x += -(Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf + 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(0) / massf;
-        obstacle_force_y += -(Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf + 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(1) / massf;
+        obstacle_force_x += -(Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(0) / massf;
+        obstacle_force_y += -(Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(1) / massf;
+        // obstacle_force_y += sqrt(std::pow((Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)) / massf, 2) + std::pow((Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)) / massf, 2));
     }
 
     if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)

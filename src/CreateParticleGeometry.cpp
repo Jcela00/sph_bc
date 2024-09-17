@@ -483,6 +483,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                                     -Rout - 3.5 * dp},
                                    {Rout + 3.5 * dp,
                                     Rout + 3.5 * dp});
+
     auto out_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box_aux);
     // for each particle inside the fluid box ...
     if (params.BC_TYPE == NO_SLIP)

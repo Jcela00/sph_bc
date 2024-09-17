@@ -65,7 +65,7 @@ const int vd_omega = 12;
 // vorticity
 const int vd_vorticity = 13;
 
-typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double, double[3], double, double[DIM]>> particles;
+typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double, double[3], double, double>> particles;
 //                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |       |
 //                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |       |
 //                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega    vorticity

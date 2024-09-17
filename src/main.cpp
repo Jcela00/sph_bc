@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 	size_t write = 0;
 
 	double t = 0.0;
-	std::ofstream avgvelstream("Drag_Lift.csv");
+	std::ofstream avgvelstream(MainParameters.filename + "_DragLift.csv");
 	bool calc_drag = false;
 	double obstacle_force_x = 0.0;
 	double obstacle_force_y = 0.0;

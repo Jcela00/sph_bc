@@ -94,7 +94,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             Point<DIM, double> va = vd.getProp<velocity>(a);
 
             // initialize vorticity sum
-            Point<DIM, double> vorticity = {0.0, 0.0};
+            double vorticity = 0.0;
 
             // neighborhood particles
             auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
@@ -122,7 +122,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                         const Point<DIM, double> vb = vd.getProp<velocity>(b);
                         // evaluate the kernel gradient
                         Point<DIM, double> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
-                        vorticity += -params.MassFluid * crossProduct(vb - va, Dwab);
+                        vorticity += -params.MassFluid * crossProduct2D(vb - va, Dwab);
                     }
                 }
 
@@ -130,10 +130,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             }
 
             // Store in vorticity property
-            for (int xyz = 0; xyz < DIM; ++xyz)
-            {
-                vd.template getProp<vd_vorticity>(a)[xyz] = vorticity.get(xyz) / vd.getProp<rho>(a);
-            }
+            vd.template getProp<vd_vorticity>(a) = vorticity / vd.getProp<rho>(a);
         }
 
         ++part;
@@ -145,6 +142,14 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the normal vector for a boundary particle based on the other boundary particles inside its kernel.
     // it computes the average of the perpendicular vectors to the vectors pointing to the other boundary particles ( oriented to the fluid )
+
+    const double refinement = params.rf;
+    const double global_dp = params.dp;
+    // const double local_dp = params.dp / refinement;
+    // const double local_H = params.H / refinement;
+    const double local_dp = global_dp;
+    const double local_H = params.H;
+    const double local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
     auto part = vd.getDomainIterator();
 
@@ -195,7 +200,7 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
                     const double r2 = norm2(dr);
 
                     // If the particles interact ...
-                    if (r2 < params.r_threshold * params.r_threshold)
+                    if (r2 < 9.0 * local_H * local_H)
                     {
                         // get perpendicular vector to dr
                         Point<DIM, double> perp = getPerpendicularUnit2D(dr); // this is normalized
@@ -208,7 +213,7 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
                             perp = -1.0 * perp;
 
                         // evaluate kernel
-                        double W = Wab(sqrt(r2), params.H, params.Kquintic);
+                        double W = Wab(sqrt(r2), local_H, local_Kquintic);
                         n_sum += perp * W;
                     }
                 }
@@ -234,35 +239,14 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 {
     // This function computes the curvature of the boundary particles from the divergence of the normal vector
 
-    // // previous step, find the maxcounter in the particles. (stored  in pressure of marker particles)
-    // auto part1 = vd.getDomainIterator();
+    const double refinement = params.rf;
+    const double global_dp = params.dp;
+    // const double local_dp = params.dp / refinement;
+    // const double local_H = params.H / refinement;
+    const double local_dp = global_dp;
+    const double local_H = params.H;
+    const double local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
-    // double max_counter = -1e10;
-    // // For each particle ...
-    // while (part1.isNext())
-    // {
-    // 	// Key of the particle a
-    // 	vect_dist_key_dx a = part1.get();
-
-    // 	// if particle BOUNDARY
-    // 	if (vd.getProp<type>(a) == BOUNDARY)
-    // 	{
-    // 		if (vd.getProp<pressure>(a) > max_counter)
-    // 		{
-    // 			max_counter = vd.getProp<pressure>(a);
-    // 		}
-    // 	}
-    // 	++part1;
-    // }
-    // unsigned int max_counter_int = (int)std::round(max_counter);
-
-    // v_cl.max(max_counter_int);
-    // v_cl.execute();
-
-    // std::cout << "max counter: " << max_counter_int << std::endl;
-    // Now the real calculation
-
-    double dp = params.dp;
     auto part = vd.getDomainIterator();
 
     // Update the cell-list
@@ -270,7 +254,7 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
-    const double max_curvature = 1.0 / (3.0 * dp);
+    const double max_curvature = 1.0 / (1.0 * global_dp);
 
     // For each particle ...
     while (part.isNext())
@@ -311,26 +295,29 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
                     const double r2 = norm2(dr);
 
                     // If the particles interact ...
-                    if (r2 < params.r_threshold * params.r_threshold)
+                    if (r2 < 9.0 * local_H * local_H)
                     {
-                        // OLD CALCULATION
-                        // get normal vector of b
-                        // Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-
-                        // // evaluate kernel
-                        // double W = Wab(sqrt(r2));
-                        // // evaluate kernel gradient
-                        // Point<DIM, double> dW = DWab(dr, sqrt(r2));
-
-                        // K_sum += dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
-                        // w_sum += W;
-
-                        // // NEW CALCULATION
                         if (a.getKey() != b)
                         {
+                            // OLD CALCULATION
+                            // Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
+                            // double r = sqrt(r2);
+                            // double W = Wab(r, local_H, local_Kquintic);
+                            // Point<DIM, double> dW = DWab(dr, r, local_H, local_Kquintic);
+
+                            // double local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+                            // if (local_k > max_curvature)
+                            // {
+                            //     local_k = max_curvature;
+                            // }
+
+                            // K_sum += local_k;
+                            // w_sum += W;
+
+                            // NEW CALCULATION
                             Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
                             double r = sqrt(r2);
-                            double W = Wab(r, params.H, params.Kquintic);
+                            double W = Wab(r, local_H, local_Kquintic);
                             Point<DIM, double> eab = -1.0 * dr / r;
                             double local_k = dotProduct(normal_b - normal_a, eab) / r;
 
@@ -376,7 +363,7 @@ void CalcVolume(particles &vd, double dp)
 
             for (int i = 0; i < 3; i++)
             {
-                vd.template getProp<vd_volume>(a)[i] = 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall;
+                vd.template getProp<vd_volume>(a)[i] = std::max(0.0, 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall);
             }
         }
         ++part;
@@ -537,6 +524,7 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
             double sum_W = 0.0;
 
             auto Np = NN.getNNIterator(NN.getCell(vd.getPos(b)));
+
             // iterate the neighborhood fluid particles
             while (Np.isNext() == true)
             {

@@ -138,8 +138,8 @@ bool CylinderObstacle::isInside(Point<DIM, double> P)
 {
     double radius_aux = Radius_;
 
-    // if (params_.BC_TYPE == NEW_NO_SLIP)
-    //     radius_aux = Radius_ + 0.1 * params_.dp;
+    if (params_.BC_TYPE == NEW_NO_SLIP)
+        radius_aux = Radius_ + 0.1 * params_.dp;
 
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
@@ -147,8 +147,8 @@ bool CylinderObstacle::isInside(Point<DIM, double> P)
 bool CylinderObstacle::isOutside(Point<DIM, double> P) // for outer cylinder in taylor couette
 {
     double radius_aux = Radius_;
-    // if (params_.BC_TYPE == NEW_NO_SLIP)
-    //     radius_aux = Radius_ - 0.1 * params_.dp;
+    if (params_.BC_TYPE == NEW_NO_SLIP)
+        radius_aux = Radius_ - 0.1 * params_.dp;
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
 }
@@ -250,9 +250,9 @@ void EllipticObstacle::AddObstacle(particles &vd)
     }
 
     vd.template getLastProp<pressure>() = 0.0;
-    vd.template getLastProp<rho>() = 0.0;
+    vd.template getLastProp<rho>() = params_.rho_zero;
     vd.template getLastProp<drho>() = 0.0;
-    vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
+    vd.template getLastProp<curvature_boundary>() = 0.0;
     vd.template getLastProp<arc_length>() = dxwall;
     vd.template getLastProp<vd_omega>() = AngularVelocity_;
 
@@ -284,9 +284,9 @@ void EllipticObstacle::AddObstacle(particles &vd)
             }
 
             vd.template getLastProp<pressure>() = 0.0;
-            vd.template getLastProp<rho>() = 0.0;
+            vd.template getLastProp<rho>() = params_.rho_zero;
             vd.template getLastProp<drho>() = 0.0;
-            vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
+            vd.template getLastProp<curvature_boundary>() = 0.0;
             vd.template getLastProp<arc_length>() = dxwall;
             vd.template getLastProp<vd_omega>() = AngularVelocity_;
 

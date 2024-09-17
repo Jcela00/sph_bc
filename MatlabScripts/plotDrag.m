@@ -9,30 +9,41 @@ set(groot, 'defaultFigurePosition', [1440 0 600 600]);
 
 % Load data
 
-data = csvread('../Drag_Lift.csv', 1, 0);
+% accept any filename ended in DragLift.csv from parent folder ../
+filename = dir('../*DragLift.csv').name;
+filename = strcat('../', filename);
+data = csvread(filename, 1, 0);
 
 t = data(:, 1);
-vx = data(:, 2);
-vy = data(:, 3);
-v = data(:, 4);
-vtx = data(:, 5);
-vty = data(:, 6);
-vt = data(:, 7);
-drag = data(:, 8);
-lift = data(:, 9);
+v = data(:, 2);
+drag = data(:, 3);
+lift = data(:, 4);
+vx = data(:, 5);
+drag_alt = data(:, 6);
+lift_alt = data(:, 7);
 
 figure;
-subplot(1, 2, 1);
+subplot(2, 1, 1); hold on;
 plot(t, drag);
-yline(106.6);
-xlabel('Time [s]');
-ylabel('Drag [N]'); axis([[-inf inf 50 200]]);
-subplot(1, 2, 2);
+plot(t, drag_alt);
+yline(106.6, '--k')
+axis([-inf inf 70 130]);
+xlabel('Time [s]'); ylabel('$C_D$'); legend('Drag', 'Drag Alt');
+
+subplot(2, 1, 2); hold on;
 plot(t, lift);
-xlabel('Time [s]');
-ylabel('Lift [N]');
+plot(t, lift_alt);
+yline(106.6, '--k')
+axis([-inf inf 70 130]);
+xlabel('Time [s]'); ylabel('$C_L$'); legend('Lift', 'Lift Alt');
 
 figure;
-plot(t, vx, 'DisplayName', 'vx'); hold on;
-yline(1.2e-4, 'DisplayName', 'vx = 1.2e-4 m/s', 'LineWidth', 1.5);
-xlabel('Time [s]'); legend;
+subplot(2, 1, 1);
+plot(t, vx); hold on;
+yline(1.2e-4, '--k');
+xlabel('Time [s]'); ylabel('$<u_x>$ [m/s]');
+
+subplot(2, 1, 2);
+plot(t, v); hold on;
+yline(1.2e-4, '--k');
+xlabel('Time [s]'); ylabel('$<u>$ [m/s]');

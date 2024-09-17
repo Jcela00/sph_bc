@@ -79,16 +79,19 @@ void calc_forces(particles &vd,
 
                 // take the norm (squared) of this vector
                 double r2 = norm2(dr);
-                bool accumulate_force = true;
+                bool accumulate_force = false;
                 // if they interact
                 if (r2 < params.r_threshold * params.r_threshold)
                 {
                     if (vd.getProp<type>(b) == BOUNDARY)
                     {
-                        if (calc_drag && (xb.get(1) > 2.0 * dp || xb.get(1) < params.length[1] - 2.0 * dp)) // to exclude solid walls
-                            accumulate_force = true;
-                        else
-                            accumulate_force = false;
+                        if (calc_drag)
+                        {
+                            if ((xb.get(1) > 0.0 && xb.get(1) < params.length[1])) // to exclude solid walls
+                                accumulate_force = true;
+                            else
+                                accumulate_force = false;
+                        }
 
                         if (params.BC_TYPE == NO_SLIP)
                             interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
@@ -98,7 +101,7 @@ void calc_forces(particles &vd,
                             // const double kappa = vd.getProp<curvature_boundary>(b);
                             // if (dotProduct(normal_b, dr) > (max_cos / max_curvature) * kappa)
                             // if (dotProduct(normal_b, dr) > 0.0)
-                                interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
+                            interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
                         }
                     }
                     else

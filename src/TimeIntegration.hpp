@@ -111,18 +111,12 @@ void kick_drift_int(particles &vd,
     calc_forces(vd, NN, obstalce_force_x, obstacle_force_y, calc_drag, params);
     if (calc_drag)
     {
-        // obstalce_force_x = obstalce_force_x; //* params.MassFluid;
-        // obstacle_force_y = obstacle_force_y; //* params.MassFluid;
-        // int rank = v_cl.getProcessUnitID();
-        // std::cout << "Rank: " << rank << " t: " << t << " BEFORE REDUCTION force_x: " << obstalce_force_x << " force_y: " << obstacle_force_y << std::endl;
         v_cl.sum(obstalce_force_x);
         v_cl.sum(obstacle_force_y);
         v_cl.execute();
 
         obstalce_force_x = obstalce_force_x * params.MassFluid;
         obstacle_force_y = obstacle_force_y * params.MassFluid;
-
-        // std::cout << "Rank: " << rank << " t: " << t << " AFTER REDUCTION force_x: " << obstalce_force_x << " force_y: " << obstacle_force_y << std::endl;
     }
 
     // vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
