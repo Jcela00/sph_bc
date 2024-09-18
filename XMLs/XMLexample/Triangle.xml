@@ -14,8 +14,8 @@
 
     <geometry
         lengthScale="4.0"
-        rf="4.0"
-        sizeX="160" sizeY="80" sizeZ="0"
+        rf="1.0"
+        sizeX="80" sizeY="40" sizeZ="0"
     />
 
     <physics
@@ -30,7 +30,7 @@
     />
 
     <obstacle
-        ObstacleBase ="1.5"
+        ObstacleBase ="2.5"
         ObstacleHeight="1.5"
         velX="0.0" velY="0.0" velZ="0.0"
         omega="0.0"

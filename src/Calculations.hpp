@@ -254,7 +254,8 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
-    const double max_curvature = 1.0 / (1.0 * global_dp);
+    // const double max_curvature = 1.0 / (1.0 * global_dp);
+    const double max_curvature = 1.0 / (3.0 * global_dp);
 
     // For each particle ...
     while (part.isNext())

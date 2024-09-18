@@ -71,6 +71,7 @@ inline Point<DIM, double> getPerpendicularUnit2D(const Point<DIM, double> &v)
 	Point<DIM, double> perp;
 	perp.get(0) = -v.get(1);
 	perp.get(1) = v.get(0);
+	normalizeVector(perp);
 	return perp;
 }
 

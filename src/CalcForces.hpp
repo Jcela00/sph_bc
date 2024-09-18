@@ -68,7 +68,7 @@ void calc_forces(particles &vd,
                 {
                     ++Np;
                     continue;
-                };
+                }
 
                 // Get the position xb of the particle
                 Point<DIM, double> xb = vd.getPos(b);

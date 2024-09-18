@@ -30,7 +30,7 @@ double calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters &params)
     max_velocity(vd, v_cl, Maxvel);
 
     double dt_u = 0.25 * params.H / (params.cbar + abs(Maxvel));
-    double dt_visc = 0.125 * params.H * params.H / (params.nu);
+    double dt_visc = 0.25 * params.H * params.H / (params.nu);
     double dt_g = 0.25 * sqrt(params.H / getVectorNorm(params.gravity_vector));
     double dt = params.CFLnumber * std::min({dt_u, dt_visc, dt_g});
     // if (dt < DtMin)

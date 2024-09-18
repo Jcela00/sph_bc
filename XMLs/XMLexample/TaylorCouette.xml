@@ -3,7 +3,7 @@
 
     <simulation
         scenario="TaylorCouette"
-        bcType="new"
+        bcType="old"
         bcX="non_periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"

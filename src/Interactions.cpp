@@ -31,6 +31,7 @@ void interact_fluid_boundary_new(particles &vd,
         const Point<DIM, double> radial_vec = {xw.get(0) - vd.getProp<force_transport>(boundary_key)[0],
                                                xw.get(1) - vd.getProp<force_transport>(boundary_key)[1]};
         const double radius = getVectorNorm(radial_vec);
+        std::cout << "radius: " << radius << std::endl;
 
         // get vector tangential to the radial vector, rotation velocity is in this direction
         const Point<DIM, double> tangential_rotation = getPerpendicularUnit2D(radial_vec);

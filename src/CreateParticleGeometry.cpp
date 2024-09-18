@@ -457,8 +457,6 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     // Write constants on file
     double rf = params.rf;
 
-    // WriteParameters(v_cl, params);
-
     // Set cylindrical object parameters
     Point<DIM, double> CylinderCentre = {0.0, 0.0};
 
@@ -484,8 +482,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                                    {Rout + 3.5 * dp,
                                     Rout + 3.5 * dp});
 
+    // Outer Cylinder boundary particles
     auto out_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box_aux);
-    // for each particle inside the fluid box ...
     if (params.BC_TYPE == NO_SLIP)
     {
         while (out_it.isNext())
@@ -537,10 +535,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
         }
     }
 
-    // return an iterator to the fluid particles to add to vd
+    // Inner Cylinder boundary particles and fluid particles
     auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
-
-    // for each particle inside the fluid box ...
     while (fluid_it.isNext())
     {
 
