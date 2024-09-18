@@ -1,3 +1,7 @@
+.vscode/
+MatlabScripts/figs/
+MatlabScripts/figures/
+MatlabScripts/results/
 VTPDATA
 *.vtp
 *.pvtp
