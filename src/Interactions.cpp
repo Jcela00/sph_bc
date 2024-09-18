@@ -19,7 +19,7 @@ void interact_fluid_boundary_new(particles &vd,
     double dp = params.dp;
     // Points from fluid to wall
     Point<DIM, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
-    // double dist2marker = getVectorNorm(r_fluid_to_wall);
+    double dist2marker = getVectorNorm(r_fluid_to_wall);
     Point<DIM, double> vw = vd.getProp<velocity>(boundary_key);
 
     double ang_vel = vd.getProp<vd_omega>(boundary_key);
@@ -53,7 +53,7 @@ void interact_fluid_boundary_new(particles &vd,
     const Point<DIM, double> vdiff_f = vtf - vf;
 
     // get curvature, and arc length
-    // double kappa = vd.getProp<curvature_boundary>(boundary_key);
+    double kappa = vd.getProp<curvature_boundary>(boundary_key);
 
     // Project vf and vw on tangential and normal directions
     double vt = dotProduct(vf, tangential);
@@ -85,67 +85,60 @@ void interact_fluid_boundary_new(particles &vd,
 
     for (int i = 0; i < 3; i++) // for the 3 boundary particles
     {
-        // double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
-        // double rmin = (3.0 - (0.5 + (double)i)) * dp;
-        // double kappa_max = 1.0 / (3.0 * dp);
+        double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
+        double rmin = (3.0 - (0.5 + (double)i)) * dp;
+        double kappa_max = 1.0 / (3.0 * dp);
 
         // kappa 0 gets rmax, kappa = kappa_max gets rmin
-        // double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
-        // double r_interp = rmin;
-        // if (dist2marker < r_interp)
-        // {
-        const double Mass_boundary = vol[i] * params.rho_zero;
-        const Point<DIM, double> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
-        const double p_boundary = Pf - rhof * (g_normal - a_normal) * (lf + lwall[i]); //  dot(r_boundary,normal) = -(lf+lw)
-        const double rho_boundary = InvEqState_particle(p_boundary, params.rho_zero, params.B, params.gamma_, params.xi);
-        // if (i == 0)
-        // {
-        //     // set the marker particle properties equal to the first boundary particle, for visualization purposes only, they are not used in the simulation
-        //     vd.getProp<pressure>(boundary_key) = p_boundary;
-        //     vd.getProp<rho>(boundary_key) = rho_boundary;
-        // }
-
-        // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
-        r_boundary[i] = -1.0 * r_boundary[i];
-
-        // Evaluate kernel gradient
-        const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i], params.H, params.Kquintic);
-
-        // Compute forces
-        const Point<DIM, double> v_rel = vf - v_boundary;
-        // const double Va2 = (massf / rhof) * (massf / rhof);
-        // const double Vb2 = Volumes[i] * Volumes[i];
-        // const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
-        const double Vb = (Mass_boundary / rho_boundary);
-        // But I found no big difference with the commented out expression
-
-        const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW, params.eta);
-        const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary); //-p_boundary - Pf;
-        const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
-
-        // std::cout << "PressureTerm_x: " << PressureTerm * DW.get(0) << "PressureTerm_y: " << PressureTerm * DW.get(1) << std::endl;
-        // std::cout << "ViscosityTerm_x: " << ViscosityTerm.get(0) << "ViscosityTerm_y: " << ViscosityTerm.get(1) << std::endl;
-        // std::cout << "GradATerm_x: " << GradATerm.get(0) << "GradATerm_y: " << GradATerm.get(1) << std::endl;
-        for (int xyz = 0; xyz < DIM; ++xyz)
+        double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
+        if (dist2marker < r_interp)
         {
-            // write to particles
-            vd.getProp<force>(fluid_key)[xyz] += 2.0 * (Vb / rhof) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz));
-            vd.getProp<force_transport>(fluid_key)[xyz] += -2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(xyz);
-            // vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
-            // vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
-        }
-        if (accumulate_force) // we accumulate x & y force on cylinder ( this is just to compute drag coefficient)
-        {
-            obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(0);
-            obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(1);
-            // obstacle_force_y += sqrt(std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)), 2) + std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)), 2));
-        }
+            const double Mass_boundary = vol[i] * params.rho_zero;
+            const Point<DIM, double> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
+            const double p_boundary = Pf - rhof * (g_normal - a_normal) * (lf + lwall[i]); //  dot(r_boundary,normal) = -(lf+lw)
+            const double rho_boundary = InvEqState_particle(p_boundary, params.rho_zero, params.B, params.gamma_, params.xi);
 
-        if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
-        {
-            vd.getProp<drho>(fluid_key) += Mass_boundary * dotProduct(v_rel, DW);
+            // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+            r_boundary[i] = -1.0 * r_boundary[i];
+
+            // Evaluate kernel gradient
+            const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i], params.H, params.Kquintic);
+
+            // Compute forces
+            const Point<DIM, double> v_rel = vf - v_boundary;
+            // const double Va2 = (massf / rhof) * (massf / rhof);
+            // const double Vb2 = Volumes[i] * Volumes[i];
+            // const double Vb2 = (Mass_boundary / rho_boundary) * (Mass_boundary / rho_boundary); // this is Vol_boundary^2*(rhob/rho0)^2 therefore considers density changes,
+            const double Vb = (Mass_boundary / rho_boundary);
+            // But I found no big difference with the commented out expression
+
+            const Point<DIM, double> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW, params.eta);
+            const double PressureTerm = PressureForce(rhof, rho_boundary, Pf, p_boundary); //-p_boundary - Pf;
+            const Point<DIM, double> GradATerm = 0.5 * matVec(Af, DW);
+
+            // std::cout << "PressureTerm_x: " << PressureTerm * DW.get(0) << "PressureTerm_y: " << PressureTerm * DW.get(1) << std::endl;
+            // std::cout << "ViscosityTerm_x: " << ViscosityTerm.get(0) << "ViscosityTerm_y: " << ViscosityTerm.get(1) << std::endl;
+            // std::cout << "GradATerm_x: " << GradATerm.get(0) << "GradATerm_y: " << GradATerm.get(1) << std::endl;
+            for (int xyz = 0; xyz < DIM; ++xyz)
+            {
+                // write to particles
+                vd.getProp<force>(fluid_key)[xyz] += 2.0 * (Vb / rhof) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz));
+                vd.getProp<force_transport>(fluid_key)[xyz] += -2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(xyz);
+                // vd.getProp<force>(fluid_key)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + GradATerm.get(xyz)) / massf;
+                // vd.getProp<force_transport>(fluid_key)[xyz] += -1.0 * (Va2 + Vb2) * (Pbackground)*DW.get(xyz) / massf;
+            }
+            if (accumulate_force) // we accumulate x & y force on cylinder ( this is just to compute drag coefficient)
+            {
+                obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(0);
+                obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)); //+ 2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(1);
+                // obstacle_force_y += sqrt(std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + GradATerm.get(0)), 2) + std::pow(-2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + GradATerm.get(1)), 2));
+            }
+
+            if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
+            {
+                vd.getProp<drho>(fluid_key) += Mass_boundary * dotProduct(v_rel, DW);
+            }
         }
-        // }
     }
 }
 

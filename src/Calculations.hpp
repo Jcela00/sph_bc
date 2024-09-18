@@ -376,6 +376,7 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the density of particles from the summation of the kernel
 
+    double dp = params.dp;
     auto part = vd.getDomainIterator();
 
     // Update the cell-list
@@ -444,34 +445,31 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
                             // get normal vector of b
                             const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
                             // get volumes, and curvature of dummy particles
-                            const Point<3, double> vol = vd.template getProp<vd_volume>(b);
-                            // const double kappa = vd.template getProp<curvature_boundary>(b);
+                            const Point<3, double> vol = vd.getProp<vd_volume>(b);
+                            const double kappa = vd.getProp<curvature_boundary>(b);
                             // Apply offsets to dr to get 3 vectrors pointing to dummy particles
                             const std::array<Point<DIM, double>, 3> R_dummy = getBoundaryPositions(-1.0 * dr, normal, params.dp);
 
                             // distance to the marker particle
-                            // const double dist2marker = sqrt(r2);
-
-                            // double k = vd.template getProp<vd_volume>(b)[0];
+                            const double dist2marker = sqrt(r2);
 
                             // if (dotProduct(dr, normal) > 0.0)
                             // {
 
                             for (int i = 0; i < 3; i++)
                             {
-                                // double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
-                                // double rmin = (3.0 - (0.5 + (double)i)) * dp;
-                                // double kappa_max = 1.0 / (3.0 * dp);
+                                double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
+                                double rmin = (3.0 - (0.5 + (double)i)) * dp;
+                                double kappa_max = 1.0 / (3.0 * dp);
 
-                                // kappa 0 gets rmax, kappa = kappa_max gets rmin
-                                // double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
-                                ////
-                                // if (dist2marker < r_interp)
-                                // {
+                                // kappa = 0 gets rmax, kappa = kappa_max gets rmin
+                                double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
 
-                                const double W = Wab(getVectorNorm(R_dummy[i]), params.H, params.Kquintic);
-                                rho_sum += W * vol[i] * params.rho_zero; // W*mass
-                                                                         // }
+                                if (dist2marker < r_interp)
+                                {
+                                    const double W = Wab(getVectorNorm(R_dummy[i]), params.H, params.Kquintic);
+                                    rho_sum += W * vol[i] * params.rho_zero; // W*mass
+                                }
                             }
                             // }
                         }
