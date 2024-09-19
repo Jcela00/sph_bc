@@ -5,7 +5,7 @@ set(groot, 'defaultTextInterpreter', 'latex');
 set(groot, 'defaultAxesFontSize', 16);
 set(groot, 'defaultLineLineWidth', 1.5);
 set(groot, 'defaultLineMarkerSize', 8);
-set(groot, 'defaultFigurePosition', [1440 0 600 600]);
+% set(groot, 'defaultFigurePosition', [1440 0 600 600]);
 
 % Load data
 
@@ -15,35 +15,31 @@ filename = strcat('../', filename);
 data = csvread(filename, 1, 0);
 
 t = data(:, 1);
-v = data(:, 2);
-drag = data(:, 3);
-lift = data(:, 4);
-vx = data(:, 5);
-drag_alt = data(:, 6);
-lift_alt = data(:, 7);
+vx = data(:, 2);
+vx2 = data(:, 3);
+drag = data(:, 4);
+drag2 = data(:, 5);
+lift = data(:, 6);
 
+t0 = 0.02/1.2e-4;
+t = t / t0;
 figure;
-subplot(2, 1, 1); hold on;
+subplot(2, 1, 1);
+hold on;
 plot(t, drag);
-plot(t, drag_alt);
+plot(t, drag2);
 yline(106.6, '--k')
 axis([-inf inf 70 130]);
-xlabel('Time [s]'); ylabel('$C_D$'); legend('Drag', 'Drag Alt');
+xlabel('Time [s]'); ylabel('$C_D$'); legend('Drag method 1', 'Drag method 2', 'Reference Value 106.6');
 
 subplot(2, 1, 2); hold on;
 plot(t, lift);
-plot(t, lift_alt);
-yline(106.6, '--k')
-axis([-inf inf 70 130]);
-xlabel('Time [s]'); ylabel('$C_L$'); legend('Lift', 'Lift Alt');
+% axis([-inf inf 70 130]);
+xlabel('Time [s]'); ylabel('$C_L$'); legend('Lift');
 
 figure;
-subplot(2, 1, 1);
 plot(t, vx); hold on;
+plot(t, vx2);
 yline(1.2e-4, '--k');
 xlabel('Time [s]'); ylabel('$<u_x>$ [m/s]');
-
-subplot(2, 1, 2);
-plot(t, v); hold on;
-yline(1.2e-4, '--k');
-xlabel('Time [s]'); ylabel('$<u>$ [m/s]');
+legend('$<u_x>$ method 1', '$<u_x>$ method 2', 'Reference 1.2e-4');

@@ -59,17 +59,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
         else // periodic, open ended
         {
-            params.Nfluid[xyz] -= 1;
-
-            sz[xyz] = params.Nfluid[xyz] + 2;
+            sz[xyz] = params.Nfluid[xyz] + 1;
 
             offset_domain_left[xyz] = 0.0;
             offset_domain_right[xyz] = dp;
             offset_periodic_fluid[xyz] = 0.75 * dp;
             offset_periodic_recipient[xyz] = 0.85 * dp;
-
-            // correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
-            params.Nfluid[xyz] += 1;
         }
     }
 
@@ -443,16 +438,6 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     // create particle object
     particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
     vd = vd_loc;
-
-    // correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
-    for (int dim = 0; dim < DIM; dim++)
-    {
-        if (params.bc[dim] == PERIODIC)
-        {
-            params.Nfluid[dim] += 1;
-            params.length[dim] += dp;
-        }
-    }
 
     // Write constants on file
     double rf = params.rf;

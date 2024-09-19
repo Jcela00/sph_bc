@@ -137,18 +137,16 @@ CylinderObstacle::CylinderObstacle(double Radius,
 bool CylinderObstacle::isInside(Point<DIM, double> P)
 {
     double radius_aux = Radius_;
-
-    if (params_.BC_TYPE == NEW_NO_SLIP)
-        radius_aux = Radius_ + 0.1 * params_.dp;
-
+    // if (params_.BC_TYPE == NEW_NO_SLIP)
+    //     radius_aux = Radius_ + 0.1 * params_.dp;
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
 }
 bool CylinderObstacle::isOutside(Point<DIM, double> P) // for outer cylinder in taylor couette
 {
     double radius_aux = Radius_;
-    if (params_.BC_TYPE == NEW_NO_SLIP)
-        radius_aux = Radius_ - 0.1 * params_.dp;
+    // if (params_.BC_TYPE == NEW_NO_SLIP)
+    //     radius_aux = Radius_ - 0.1 * params_.dp;
     Sphere<DIM, double> Cylinderaux(Centre_, radius_aux);
     return Cylinderaux.isInside(P);
 }
