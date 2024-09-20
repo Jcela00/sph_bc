@@ -245,3 +245,68 @@ void interact_fluid_fluid(particles &vd,
         vd.getProp<drho>(a_key) += massb * dotProduct(v_rel, DW);
     }
 }
+
+void interact_fluid_boundary_new_regularize(particles &vd,
+                                            vect_dist_key_dx fluid_key,
+                                            const double &rhof,
+                                            const Point<DIM, double> &r_wall_to_fluid,
+                                            unsigned long &boundary_key,
+                                            const Parameters &params)
+{
+
+    double dp = params.dp;
+    // Points from fluid to wall
+    Point<DIM, double> r_fluid_to_wall = -1.0 * r_wall_to_fluid;
+
+    // Get normal and tangential vectors for velocity mirroring
+    const Point<DIM, double> normal = vd.getProp<normal_vector>(boundary_key);
+
+    // Get array of vectors from fluid to 3 boundary particles and its norms
+    std::array<Point<DIM, double>, 3> r_boundary = getBoundaryPositions(r_fluid_to_wall, normal, dp);
+    std::array<double, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
+
+    const Point<3, double> vol = vd.getProp<vd_volume>(boundary_key);
+    for (int i = 0; i < 3; i++) // for the 3 boundary particles
+    {
+
+        // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+        r_boundary[i] = -1.0 * r_boundary[i];
+
+        // Evaluate kernel gradient
+        const Point<DIM, double> DW = DWab(r_boundary[i], r_boundary_norm[i], params.H, params.Kquintic);
+
+        // Compute forces
+        const double Vb = vol[i];
+
+        for (int xyz = 0; xyz < DIM; ++xyz)
+        {
+            vd.getProp<force_transport>(fluid_key)[xyz] += -2.0 * (Vb / rhof) * (params.Pbackground) * DW.get(xyz);
+        }
+    }
+}
+
+void interact_fluid_fluid_regularize(particles &vd,
+                                     const vect_dist_key_dx &a_key,
+                                     const double &massa,
+                                     const double &rhoa,
+                                     const Point<DIM, double> &r_ab,
+                                     const double &r2,
+                                     const unsigned long &b_key,
+                                     const Parameters &params)
+{
+
+    const double massb = params.MassFluid;
+    const double rhob = vd.getProp<rho>(b_key);
+    const double Pb = vd.getProp<pressure>(b_key);
+
+    const double r = sqrt(r2);
+    const Point<DIM, double> DW = DWab(r_ab, r, params.H, params.Kquintic);
+
+    const double Va2 = (massa / rhoa) * (massa / rhoa);
+    const double Vb2 = (massb / rhob) * (massb / rhob);
+
+    for (int xyz = 0; xyz < DIM; ++xyz)
+    {
+        vd.getProp<force_transport>(a_key)[xyz] += -1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(xyz) / massa;
+    }
+}

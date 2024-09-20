@@ -102,6 +102,19 @@ int main(int argc, char *argv[])
 		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 	}
 
+	// // regularize configuration
+	// vd.write_frame("reg", 0, MainParameters.WRITER);
+	// double dt_tmp = 10 * calc_deltaT(vd, v_cl, MainParameters);
+	// size_t Niters = 1e4;
+	// size_t iter = 0;
+	// while (iter < Niters)
+	// {
+	// 	kick_drift_int_regularize(vd, NN, dt_tmp, v_cl, iter, MainParameters);
+	// 	if (iter % 100 == 0)
+	// 		vd.write_frame("reg", iter, MainParameters.WRITER);
+	// }
+	// vd.write_frame("reg", iter, MainParameters.WRITER);
+
 	// Evolve
 	size_t write = 0;
 

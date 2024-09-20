@@ -50,4 +50,20 @@ void interact_fluid_fluid(particles &vd,
                           const unsigned long &b_key,
                           const Parameters &params);
 
+void interact_fluid_boundary_new_regularize(particles &vd,
+                                            vect_dist_key_dx fluid_key,
+                                            const double &rhof,
+                                            const Point<DIM, double> &r_wall_to_fluid,
+                                            unsigned long &boundary_key,
+                                            const Parameters &params);
+
+void interact_fluid_fluid_regularize(particles &vd,
+                                     const vect_dist_key_dx &a_key,
+                                     const double &massa,
+                                     const double &rhoa,
+                                     const Point<DIM, double> &r_ab,
+                                     const double &r2,
+                                     const unsigned long &b_key,
+                                     const Parameters &params);
+
 #endif // INTERACTIONS_H

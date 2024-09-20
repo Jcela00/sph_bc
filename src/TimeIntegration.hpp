@@ -159,4 +159,76 @@ void kick_drift_int(particles &vd,
     params.cnt++;
 }
 
+template <typename CellList>
+void kick_drift_int_regularize(particles &vd,
+                               CellList &NN,
+                               const double dt,
+                               Vcluster<> &v_cl,
+                               size_t &niter,
+                               Parameters &params)
+{
+    // particle iterator
+    auto part = vd.getDomainIterator();
+
+    const double dt_2 = dt * 0.5;
+    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+
+    // For each particle ...
+    while (part.isNext())
+    {
+        // get particle a key
+        vect_dist_key_dx a = part.get();
+
+        if (vd.template getProp<type>(a) == FLUID)
+        {
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+                vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
+            }
+        }
+        ++part;
+    }
+
+    // map particles if they have gone outside the domain
+    vd.map();
+    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+
+    // in density summation we need to update the density after moving the particles
+    if (params.DENSITY_TYPE == DENSITY_SUMMATION)
+    {
+        CalcDensity(vd, NN, params);
+        vd.ghost_get<rho>(KEEP_PROPERTIES);
+    }
+
+    // Calculate pressure from the density
+    EqState(vd, params.rho_zero, params.B, params.gamma_, params.xi);
+    vd.ghost_get<pressure>(KEEP_PROPERTIES);
+
+    calc_forces_regularize(vd, NN, params);
+
+    // particle iterator
+    auto part2 = vd.getDomainIterator();
+
+    // For each particle ...
+    while (part2.isNext())
+    {
+        // get particle a key
+        vect_dist_key_dx a = part2.get();
+
+        if (vd.template getProp<type>(a) == FLUID)
+        {
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+            }
+        }
+
+        ++part2;
+    }
+
+    // increment the iteration counter
+    niter++;
+}
+
 #endif // TIMEINTEGRATION_HPP

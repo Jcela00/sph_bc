@@ -7,8 +7,8 @@
 template <typename CellList>
 void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
 {
-    // This function computes the vector pointing to the average position of the fluid particles with respect to the boundary particle
-
+    // This function computes the vector pointing to the average position of the fluid particles for each boundary particle
+    // Knowing this vector is useful to later compute the normal vector in the correct direction
     auto part = vd.getDomainIterator();
 
     // Update the cell-list
@@ -61,11 +61,12 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
             }
             normalizeVector(r_fluid_sum);
 
+            // store in normal temporally, this vector is only needed for computing normals oriented "outside"
+            // later is overwritten by the normal vector
             for (int xyz = 0; xyz < DIM; ++xyz)
             {
                 vd.template getProp<normal_vector>(a)[xyz] = r_fluid_sum.get(xyz);
             }
-            // store in normal temporally, this vector is only needed for computing normals oriented "outside"
         }
 
         ++part;
@@ -91,6 +92,8 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
         {
             // Get the position xa of the particle a
             Point<DIM, double> xa = vd.getPos(a);
+
+            // Get the velocity of the particle a
             Point<DIM, double> va = vd.getProp<velocity>(a);
 
             // initialize vorticity sum
@@ -141,7 +144,7 @@ template <typename CellList>
 void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the normal vector for a boundary particle based on the other boundary particles inside its kernel.
-    // it computes the average of the perpendicular vectors to the vectors pointing to the other boundary particles ( oriented to the fluid )
+    // it computes the average (kernel weighted) of the vectors perpendicular to the vectors pointing to the other boundary particles ( oriented to the fluid )
 
     const double refinement = params.rf;
     const double global_dp = params.dp;
@@ -346,7 +349,7 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 
 void CalcVolume(particles &vd, double dp)
 {
-    // This function computes the curvature of the boundary particles from the divergence of the normal vector
+    // This function computes the volume of the virtual particles for the new no-slip BC
 
     auto part = vd.getDomainIterator();
 
@@ -374,7 +377,7 @@ void CalcVolume(particles &vd, double dp)
 template <typename CellList>
 void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
 {
-    // This function computes the density of particles from the summation of the kernel
+    // This function computes the density of particles from the summation formulation
 
     auto part = vd.getDomainIterator();
 
@@ -396,7 +399,6 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
 
             // initialize density sum
             double rho_sum = 0.0;
-            // double w_sum = 0.0;
             auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
@@ -424,56 +426,34 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
 
                         // evaluate kernel
                         const double w = Wab(r, params.H, params.Kquintic);
-                        // w_sum += w * dp * dp;
-
                         rho_sum += w * params.MassFluid;
                     }
-                    else
+                    else // if boundary particle
                     {
                         if (params.BC_TYPE == NO_SLIP)
                         {
                             const double r = sqrt(r2);
-
                             // evaluate kernel
                             const double w = Wab(r, params.H, params.Kquintic);
-                            // w_sum += w * dp * dp;
                             rho_sum += w * params.MassBound;
                         }
-                        else if (params.BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at dummy particles
+                        else if (params.BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at virtual particles
                         {
                             // get normal vector of b
                             const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
-                            // get volumes, and curvature of dummy particles
+                            // get volumes, and curvature of virtual particles
                             const Point<3, double> vol = vd.template getProp<vd_volume>(b);
                             // const double kappa = vd.template getProp<curvature_boundary>(b);
-                            // Apply offsets to dr to get 3 vectrors pointing to dummy particles
-                            const std::array<Point<DIM, double>, 3> R_dummy = getBoundaryPositions(-1.0 * dr, normal, params.dp);
 
-                            // distance to the marker particle
-                            // const double dist2marker = sqrt(r2);
+                            // Apply offsets to dr to get 3 vectrors pointing to virtual particles
+                            const std::array<Point<DIM, double>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, params.dp);
 
-                            // double k = vd.template getProp<vd_volume>(b)[0];
-
-                            // if (dotProduct(dr, normal) > 0.0)
-                            // {
-
+                            // iterate the 3 virtual particles
                             for (int i = 0; i < 3; i++)
                             {
-                                // double rmax = sqrt(3.0 * 3.0 - (0.5 + (double)i) * (0.5 + (double)i)) * dp;
-                                // double rmin = (3.0 - (0.5 + (double)i)) * dp;
-                                // double kappa_max = 1.0 / (3.0 * dp);
-
-                                // kappa 0 gets rmax, kappa = kappa_max gets rmin
-                                // double r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
-                                ////
-                                // if (dist2marker < r_interp)
-                                // {
-
-                                const double W = Wab(getVectorNorm(R_dummy[i]), params.H, params.Kquintic);
-                                rho_sum += W * vol[i] * params.rho_zero; // W*mass
-                                                                         // }
+                                const double W = Wab(getVectorNorm(R_virtual[i]), params.H, params.Kquintic);
+                                rho_sum += W * vol[i] * params.rho_zero; // this is equivalent to +=W*mass
                             }
-                            // }
                         }
                     }
                 }
@@ -498,7 +478,7 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
 template <typename CellList>
 void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
 {
-    // This function fills the value of v_transport for the boundary particles, with the velocity for no slip BC
+    // This function fills the value of v_transport for the boundary particles, with the extrapolated velocity for the old no slip BC
 
     auto part = vd.getDomainIterator();
 
@@ -588,7 +568,7 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
                 // Set the velocity of the boundary particle b ( to be used in the momentum equation to impose BC)
                 // We use the v_transport field because boundary particles dont use this array
 
-                // marker particles store centre of solid body in force_transport since it is unused
+                // solid particles store the centre of rotation in the force transport field since it is unused
                 // vector pointing from centre of rotation to marker particle
                 const Point<DIM, double> radial_vec = {xb.get(0) - vd.getProp<force_transport>(b)[0], xb.get(1) - vd.getProp<force_transport>(b)[1]};
                 const double radial = getVectorNorm(radial_vec);

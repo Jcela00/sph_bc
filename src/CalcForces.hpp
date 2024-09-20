@@ -12,10 +12,10 @@ void calc_forces(particles &vd,
                  bool calc_drag,
                  const Parameters &params)
 {
+    // get domain iterator
     vector_dist_iterator part = vd.getDomainIterator();
 
     const double dp = params.dp;
-    // const double max_curvature = 1.0 / (3.0 * dp);
 
     // Update the cell-list
     vd.updateCellList(NN);
@@ -24,27 +24,17 @@ void calc_forces(particles &vd,
     while (part.isNext())
     {
         // get key of particle a
-
         auto a = part.get();
 
-        // We threat FLUID particle differently from BOUNDARY PARTICLES
-        // Boundary particles dont need any force computation
-
-        if (vd.getProp<type>(a) == FLUID) // INTERACTION OF A FLUID PARTICLE WITH ITS NEIGHBORHOOD
+        // if the particle is FLUID
+        if (vd.getProp<type>(a) == FLUID)
         {
 
-            // Get the position xp of the particle
-            Point<DIM, double> xa = vd.getPos(a);
-
-            // Take the mass of the particle dependently if it is FLUID or BOUNDARY
-            double massa = params.MassFluid;
-
-            // Get the density and pressure of the particle a
-            double rhoa = vd.getProp<rho>(a);
-            double Pa = vd.getProp<pressure>(a);
-
-            // Get the Velocity of the particle a
-            Point<DIM, double> va = vd.getProp<velocity>(a);
+            const Point<DIM, double> xa = vd.getPos(a);
+            const double massa = params.MassFluid;
+            const double rhoa = vd.getProp<rho>(a);
+            const double Pa = vd.getProp<pressure>(a);
+            const Point<DIM, double> va = vd.getProp<velocity>(a);
 
             // Reset the force counter (0 + gravity)
             for (int xyz = 0; xyz < DIM; xyz++)
@@ -52,6 +42,8 @@ void calc_forces(particles &vd,
                 vd.template getProp<force>(a)[xyz] = params.gravity_vector.get(xyz);
                 vd.template getProp<force_transport>(a)[xyz] = 0.0;
             }
+
+            // Reset the density difference
             vd.template getProp<drho>(a) = 0.0;
 
             // Get an iterator over the neighborhood particles of p
@@ -60,7 +52,7 @@ void calc_forces(particles &vd,
             // For each neighborhood particle
             while (Np.isNext() == true)
             {
-                // get particle b
+                // get key of particle b
                 unsigned long b = Np.get();
 
                 // if (a == b) skip this particle
@@ -79,34 +71,113 @@ void calc_forces(particles &vd,
 
                 // take the norm (squared) of this vector
                 double r2 = norm2(dr);
+
+                // in general we do not accumulate force, only in the case of interacting with an obstacle
                 bool accumulate_force = false;
+
                 // if they interact
                 if (r2 < params.r_threshold * params.r_threshold)
                 {
                     if (vd.getProp<type>(b) == BOUNDARY)
                     {
-                        if (calc_drag)
-                        {
-                            if ((xb.get(1) > 0.0 && xb.get(1) < params.length[1])) // to exclude solid walls
-                                accumulate_force = true;
-                            else
-                                accumulate_force = false;
-                        }
+                        if (calc_drag && ((xb.get(1) > 0.0 && xb.get(1) < params.length[1])))
+                            accumulate_force = true;
+                        else
+                            accumulate_force = false;
 
                         if (params.BC_TYPE == NO_SLIP)
                             interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
                         else if (params.BC_TYPE == NEW_NO_SLIP)
-                        {
-                            // const Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-                            // const double kappa = vd.getProp<curvature_boundary>(b);
-                            // if (dotProduct(normal_b, dr) > (max_cos / max_curvature) * kappa)
-                            // if (dotProduct(normal_b, dr) > 0.0)
                             interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
-                        }
                     }
                     else
                     {
                         interact_fluid_fluid(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, params);
+                    }
+                }
+                ++Np;
+            }
+        }
+
+        ++part;
+    }
+}
+
+template <typename CellList>
+void calc_forces_regularize(particles &vd,
+                            CellList &NN,
+                            const Parameters &params)
+{
+    // get domain iterator
+    vector_dist_iterator part = vd.getDomainIterator();
+
+    // Update the cell-list
+    vd.updateCellList(NN);
+
+    // For each particle ...
+    while (part.isNext())
+    {
+        // get key of particle a
+        auto a = part.get();
+
+        // if the particle is FLUID
+        if (vd.getProp<type>(a) == FLUID)
+        {
+            const Point<DIM, double> xa = vd.getPos(a);
+            const double massa = params.MassFluid;
+            const double rhoa = vd.getProp<rho>(a);
+
+            // Reset the force counter (0 + gravity)
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.template getProp<force_transport>(a)[xyz] = 0.0;
+            }
+
+            // Reset the density difference
+            vd.template getProp<drho>(a) = 0.0;
+
+            // Get an iterator over the neighborhood particles of p
+            auto Np = NN.getNNIterator(NN.getCell(xa));
+
+            // For each neighborhood particle
+            while (Np.isNext() == true)
+            {
+                // get key of particle b
+                unsigned long b = Np.get();
+
+                // if (a == b) skip this particle
+                if (a.getKey() == b)
+                {
+                    ++Np;
+                    continue;
+                }
+
+                // Get the position xb of the particle
+                Point<DIM, double> xb = vd.getPos(b);
+
+                // Get the distance between a and b
+                // in fluid - boundary its xf-xb i.e. vector pointing at fluid from boundary
+                Point<DIM, double> dr = xa - xb;
+
+                // take the norm (squared) of this vector
+                double r2 = norm2(dr);
+
+                // if they interact
+                if (r2 < params.r_threshold * params.r_threshold)
+                {
+                    if (vd.getProp<type>(b) == BOUNDARY)
+                    {
+                        if (params.BC_TYPE == NO_SLIP)
+                        {
+                            // interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, accumulate_force, obstacle_force_x, obstacle_force_y, params);
+                            // NOT READY YET
+                        }
+                        else if (params.BC_TYPE == NEW_NO_SLIP)
+                            interact_fluid_boundary_new_regularize(vd, a, rhoa, dr, b, params);
+                    }
+                    else
+                    {
+                        interact_fluid_fluid_regularize(vd, a, massa, rhoa, dr, r2, b, params);
                     }
                 }
                 ++Np;
