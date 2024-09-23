@@ -5,29 +5,29 @@
 #include "VectorUtilities.hpp"
 #include "Physics.hpp"
 
-void max_velocity(particles &vd, Vcluster<> &v_cl, double &max_vel);
-double calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters &params);
-Point<DIM, double> SolidBodyAcceleration(double t, const Parameters &params);
+void max_velocity(particles &vd, Vcluster<> &v_cl, real_number &max_vel);
+real_number calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters &params);
+Point<DIM, real_number> SolidBodyAcceleration(real_number t, const Parameters &params);
 
 template <typename CellList>
 void kick_drift_int(particles &vd,
                     CellList &NN,
-                    const double dt,
+                    const real_number dt,
                     Vcluster<> &v_cl,
-                    double &obstalce_force_x,
-                    double &obstacle_force_y,
+                    real_number &obstalce_force_x,
+                    real_number &obstacle_force_y,
                     bool calc_drag,
-                    double t,
+                    real_number t,
                     Parameters &params)
 {
     // particle iterator
     auto part = vd.getDomainIterator();
 
-    const double dt_2 = dt * 0.5;
+    const real_number dt_2 = dt * 0.5;
     // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
-    Point<DIM, double> aSolid_minus = SolidBodyAcceleration(t - dt_2, params);
-    Point<DIM, double> aSolid_plus = SolidBodyAcceleration(t + dt_2, params);
+    Point<DIM, real_number> aSolid_minus = SolidBodyAcceleration(t - dt_2, params);
+    Point<DIM, real_number> aSolid_plus = SolidBodyAcceleration(t + dt_2, params);
 
     // For each particle ...
     while (part.isNext())
@@ -56,12 +56,12 @@ void kick_drift_int(particles &vd,
             // also rotate
             if (vd.template getProp<vd_omega>(a) != 0.0) // if rotating
             {
-                double theta = vd.template getProp<vd_omega>(a) * dt;
-                Point<DIM, double> normal = vd.template getProp<normal_vector>(a);
+                real_number theta = vd.template getProp<vd_omega>(a) * dt;
+                Point<DIM, real_number> normal = vd.template getProp<normal_vector>(a);
 
                 // apply rotation
-                Point<DIM, double> centre = vd.getProp<force_transport>(a); // stored in force_transport
-                Point<DIM, double> x = vd.getPos(a);
+                Point<DIM, real_number> centre = vd.getProp<force_transport>(a); // stored in force_transport
+                Point<DIM, real_number> x = vd.getPos(a);
                 ApplyRotation(x, theta, centre);
                 vd.getPos(a)[0] = x.get(0);
                 vd.getPos(a)[1] = x.get(1);
@@ -162,7 +162,7 @@ void kick_drift_int(particles &vd,
 template <typename CellList>
 void kick_drift_int_regularize(particles &vd,
                                CellList &NN,
-                               const double dt,
+                               const real_number dt,
                                Vcluster<> &v_cl,
                                size_t &niter,
                                Parameters &params)
@@ -170,7 +170,7 @@ void kick_drift_int_regularize(particles &vd,
     // particle iterator
     auto part = vd.getDomainIterator();
 
-    const double dt_2 = dt * 0.5;
+    const real_number dt_2 = dt * 0.5;
     // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
     // For each particle ...

@@ -2,15 +2,15 @@
 #define KERNEL_HPP
 #include "Definitions.hpp"
 
-// double Wab(double r, const double H, const double Kquintic);
-// Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r, const double H, const double Kquintic);
+// real_number Wab(real_number r, const real_number H, const real_number Kquintic);
+// Point<DIM, real_number> DWab(const Point<DIM, real_number> &dx, const real_number r, const real_number H, const real_number Kquintic);
 
-inline double Wab(double r, const double H, const double Kquintic)
+inline real_number Wab(real_number r, const real_number H, const real_number Kquintic)
 {
-    const double q = r / H;
-    const double tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
-    const double tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
-    const double tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
+    const real_number q = r / H;
+    const real_number tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
+    const real_number tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
+    const real_number tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
 
     if (q < 0.0)
         return 0.0;
@@ -24,17 +24,17 @@ inline double Wab(double r, const double H, const double Kquintic)
         return 0.0;
 }
 
-inline Point<DIM, double> DWab(const Point<DIM, double> &dx, const double r, const double H, const double Kquintic)
+inline Point<DIM, real_number> DWab(const Point<DIM, real_number> &dx, const real_number r, const real_number H, const real_number Kquintic)
 {
-    Point<DIM, double> DW;
-    const double q = r / H;
+    Point<DIM, real_number> DW;
+    const real_number q = r / H;
 
-    const double tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
-    const double tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
-    const double tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
+    const real_number tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
+    const real_number tmp2 = (2.0 - q) * (2.0 - q) * (2.0 - q) * (2.0 - q);
+    const real_number tmp1 = (1.0 - q) * (1.0 - q) * (1.0 - q) * (1.0 - q);
 
-    const double c1 = -5.0 * Kquintic / H;
-    double factor;
+    const real_number c1 = -5.0 * Kquintic / H;
+    real_number factor;
 
     if (q < 1.0)
     {

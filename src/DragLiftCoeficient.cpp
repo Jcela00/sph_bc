@@ -2,15 +2,15 @@
 
 void CalcDragLift(particles &vd,
                   Vcluster<> &v_cl,
-                  double t,
+                  real_number t,
                   std::ofstream &avgvelstream,
-                  double obstacle_force_x,
-                  double obstacle_force_y,
+                  real_number obstacle_force_x,
+                  real_number obstacle_force_y,
                   const Parameters &params,
                   size_t write)
 {
 
-    double vx = 0.0;
+    real_number vx = 0.0;
 
     auto it = vd.getDomainIterator();
     while (it.isNext())
@@ -32,11 +32,11 @@ void CalcDragLift(particles &vd,
     v_cl.sum(vx);
     v_cl.execute();
 
-    vx = vx / (double)normalization;
+    vx = vx / (real_number)normalization;
 
     // compute drag and lift
-    double drag = obstacle_force_x / (params.eta * vx);
-    double lift = obstacle_force_y / (params.eta * vx);
+    real_number drag = obstacle_force_x / (params.eta * vx);
+    real_number lift = obstacle_force_y / (params.eta * vx);
 
     if (v_cl.getProcessUnitID() == 0)
     {

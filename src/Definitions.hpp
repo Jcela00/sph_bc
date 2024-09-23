@@ -4,8 +4,10 @@
 #include "Vector/vector_dist.hpp"
 #include "Draw/DrawParticles.hpp"
 
-// Number of dimensions, changes size of arrays,
-// changes the normalizations of the kernels
+// Type of floating point number
+typedef float real_number;
+
+// Number of dimensions, changes size of arrays, changes the normalizations of the kernels
 #define DIM 2
 
 // Type of particles
@@ -65,18 +67,18 @@ const int vd_omega = 12;
 // vorticity
 const int vd_vorticity = 13;
 
-typedef vector_dist<DIM, double, aggregate<size_t, double, double, double, double[DIM], double[DIM], double[DIM], double[DIM], double[DIM], double, double, double[3], double, double>> particles;
+typedef vector_dist<DIM, real_number, aggregate<size_t, real_number, real_number, real_number, real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number, real_number, real_number[3], real_number, real_number>> particles;
 //                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |       |
 //                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |       |
 //                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega    vorticity
 //                                                                 density
 
-typedef vector_dist<DIM, double, aggregate<double>> probe_particles;
+typedef vector_dist<DIM, real_number, aggregate<real_number>> probe_particles;
 
 class Parameters
 {
 public:
-    double dp;
+    real_number dp;
 
     int SCENARIO;
     int BC_TYPE;
@@ -90,7 +92,7 @@ public:
     std::vector<std::string> probe_filenames;
     // Physical size of the fluid domain, it goes from (0,0,0) to (length[0],length[1],length[2])
     // First fluid particle will be placed at (dp/2,dp/2,dp/2) and the last particle will be placed at (length[0]-dp/2,length[1]-dp/2,length[2]-dp/2)
-    double length[DIM];
+    real_number length[DIM];
 
     // Boundary conditions
     size_t bc[DIM];
@@ -100,73 +102,73 @@ public:
     size_t Nfluid[DIM];
 
     // problem specific length scale to compute the Reynolds number
-    double LengthScale;
-    double rf;
+    real_number LengthScale;
+    real_number rf;
     // Factor relating H (smoothing length) and dp (particle spacing)
-    const double Hconst = 1.0;
+    const real_number Hconst = 1.0;
     // Smoothing length
-    double H;
+    real_number H;
     // Radius of the kernel support
-    double r_threshold;
+    real_number r_threshold;
     // Normalization constant for the kernels
-    // double Kcubic;
-    double Kquintic;
+    // real_number Kcubic;
+    real_number Kquintic;
     // Reynolds number
-    double Re;
+    real_number Re;
     // maximum velocity
-    double umax;
+    real_number umax;
     // Reference density
-    double rho_zero;
+    real_number rho_zero;
     // Gamma in eq of state
-    double gamma_;
+    real_number gamma_;
     // Constant used for the sound speed, number of times the max velocity
-    const double coeff_sound = 10.0;
+    const real_number coeff_sound = 10.0;
     // Sound speed
-    double cbar;
+    real_number cbar;
     // Eq of state constant ( p0 )
-    double B;
+    real_number B;
     // background pressure in eq of state
-    const double xi = 0.0;
+    const real_number xi = 0.0;
     // Gravity vector and magnitude
-    Point<DIM, double> gravity_vector = {0.0};
-    double gravity = 0.0;
+    Point<DIM, real_number> gravity_vector = {0.0};
+    real_number gravity = 0.0;
     // wall velocity
-    Point<DIM, double> vw_top = {0.0};
-    Point<DIM, double> vw_bottom = {0.0};
+    Point<DIM, real_number> vw_top = {0.0};
+    Point<DIM, real_number> vw_bottom = {0.0};
     // Mass of the fluid and boundary particles
-    double MassFluid;
-    double MassBound;
+    real_number MassFluid;
+    real_number MassBound;
     // Kinematic viscosity
-    double nu;
+    real_number nu;
     // Dynamic viscosity
-    double eta;
+    real_number eta;
     // Factor relating Pbackground and B, Pbackground = Bfactor*B
-    double Bfactor;
+    real_number Bfactor;
     // Background pressure in the transport force
-    double Pbackground;
+    real_number Pbackground;
     // End simulation time
-    double t_end;
+    real_number t_end;
     // Constant used to define time integration
-    const double CFLnumber = 0.1;
+    const real_number CFLnumber = 0.1;
     // Controls otput file frequency, 1 means 1 file per time unit, 10 means 10 files per time unit, etc.
-    double write_const;
+    real_number write_const;
     // iteration counter
     size_t cnt = 0;
 
-    Point<DIM, double> ObstacleCenter;
-    Point<DIM, double> ObstacleVelocity;
-    double ObstacleOmega;
+    Point<DIM, real_number> ObstacleCenter;
+    Point<DIM, real_number> ObstacleVelocity;
+    real_number ObstacleOmega;
 
     // Taylor Couette
-    double Rin;
-    double Rout;
-    double Win;
-    double Wout;
+    real_number Rin;
+    real_number Rout;
+    real_number Win;
+    real_number Wout;
 
     // Obstacle
-    double ObstacleBase;
-    double ObstacleHeight;
-    double ObstacleTilt;
+    real_number ObstacleBase;
+    real_number ObstacleHeight;
+    real_number ObstacleTilt;
     // // custom string
     // std::string custom_string = "";
 };

@@ -5,25 +5,30 @@
 #include "VectorUtilities.hpp"
 
 // Declaration
-void EqState(particles &vd, const double rho0, const double B, const double gamma, const double xi);
+void EqState(particles &vd, const real_number rho0, const real_number B, const real_number gamma, const real_number xi);
 
 // Declaration And Definition because of inline
-inline double InvEqState_particle(const double p, const double rho0, const double B, const double gamma, const double xi)
+inline real_number InvEqState_particle(const real_number p, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
 {
     return rho0 * std::pow(((p - xi) / B + 1.0), 1.0 / gamma);
 }
 
-inline double EqState_particle(const double rho, const double rho0, const double B, const double gamma, const double xi)
+inline real_number EqState_particle(const real_number rho, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
 {
     return B * (std::pow(rho / rho0, gamma) - 1.0) + xi;
 }
 
-inline Point<DIM, double> Pi_physical(const Point<DIM, double> &dr, const double &r, const Point<DIM, double> &dv, const Point<DIM, double> &dW, const double eta)
+inline Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, const real_number &r, const Point<DIM, real_number> &dv, const Point<DIM, real_number> &dW, const real_number eta)
 {
-    return eta * (dv * dotProduct(dr, dW)) / (r * r);
+    real_number denominator = r * r;
+    Point<DIM, real_number> result = (eta * (dv * dotProduct(dr, dW)));
+    result = result / denominator;
+    // return eta * (dv * dotProduct(dr, dW)) / (r * r); // USED to be like this but when changing to real_number the quotient cant be done in one line
+
+    return result;
 }
 
-inline double PressureForce(const double &rhoa, const double &rhob, const double &prsa, const double &prsb)
+inline real_number PressureForce(const real_number &rhoa, const real_number &rhob, const real_number &prsa, const real_number &prsb)
 {
     return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob);
 }

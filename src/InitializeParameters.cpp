@@ -10,6 +10,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         std::cerr << "Error: Unable to load XML file: " << filename << std::endl;
         return;
     }
+    // to read double values and later cast to real_number
+    double tmpdouble;
 
     // Parse <simulation> element
     tinyxml2::XMLElement *simulationElement = doc.FirstChildElement("configuration")->FirstChildElement("simulation");
@@ -100,8 +102,10 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
             argParameters.WRITER = CSV_WRITER;
 
         // read time parameters
-        simulationElement->QueryDoubleAttribute("time", &(argParameters.t_end));
-        simulationElement->QueryDoubleAttribute("write_const", &(argParameters.write_const));
+        simulationElement->QueryDoubleAttribute("time", &tmpdouble);
+        argParameters.t_end = static_cast<real_number>(tmpdouble);
+        simulationElement->QueryDoubleAttribute("write_const", &tmpdouble);
+        argParameters.write_const = static_cast<real_number>(tmpdouble);
 
         // read custom string (optional) for custom output names
         const char *custom_str = simulationElement->Attribute("custom_string");
@@ -116,8 +120,11 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
     tinyxml2::XMLElement *geometryElement = doc.FirstChildElement("configuration")->FirstChildElement("geometry");
     if (geometryElement)
     {
-        geometryElement->QueryDoubleAttribute("lengthScale", &argParameters.LengthScale);
-        geometryElement->QueryDoubleAttribute("rf", &argParameters.rf);
+
+        geometryElement->QueryDoubleAttribute("lengthScale", &tmpdouble);
+        argParameters.LengthScale = static_cast<real_number>(tmpdouble);
+        geometryElement->QueryDoubleAttribute("rf", &tmpdouble);
+        argParameters.rf = static_cast<real_number>(tmpdouble);
         geometryElement->QueryAttribute("sizeX", &(argParameters.Nfluid[0]));
         geometryElement->QueryAttribute("sizeY", &(argParameters.Nfluid[1]));
 
@@ -132,24 +139,45 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
     if (physicsElement)
     {
 
-        physicsElement->QueryDoubleAttribute("rho0", &argParameters.rho_zero);
-        physicsElement->QueryDoubleAttribute("nu", &argParameters.nu);
-        physicsElement->QueryDoubleAttribute("Bfactor", &argParameters.Bfactor);
-        physicsElement->QueryDoubleAttribute("gamma", &argParameters.gamma_);
-        physicsElement->QueryDoubleAttribute("umax", &argParameters.umax);
-        physicsElement->QueryDoubleAttribute("gravityX", &(argParameters.gravity_vector.get(0)));
-        physicsElement->QueryDoubleAttribute("gravityY", &(argParameters.gravity_vector.get(1)));
+        physicsElement->QueryDoubleAttribute("rho0", &tmpdouble);
+        argParameters.rho_zero = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("nu", &tmpdouble);
+        argParameters.nu = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("Bfactor", &tmpdouble);
+        argParameters.Bfactor = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("gamma", &tmpdouble);
+        argParameters.gamma_ = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("umax", &tmpdouble);
+        argParameters.umax = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("gravityX", &tmpdouble);
+        argParameters.gravity_vector.get(0) = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("gravityY", &tmpdouble);
+        argParameters.gravity_vector.get(1) = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
-            physicsElement->QueryDoubleAttribute("gravityZ", &(argParameters.gravity_vector.get(2)));
-        physicsElement->QueryDoubleAttribute("vTopX", &(argParameters.vw_top.get(0)));
-        physicsElement->QueryDoubleAttribute("vTopY", &(argParameters.vw_top.get(1)));
-        if constexpr (DIM == 3)
-            physicsElement->QueryDoubleAttribute("vTopZ", &(argParameters.vw_top.get(2)));
+        {
+            physicsElement->QueryDoubleAttribute("gravityZ", &tmpdouble);
+            argParameters.gravity_vector.get(2) = static_cast<real_number>(tmpdouble);
+        }
 
-        physicsElement->QueryDoubleAttribute("vBotX", &(argParameters.vw_bottom.get(0)));
-        physicsElement->QueryDoubleAttribute("vBotY", &(argParameters.vw_bottom.get(1)));
+        physicsElement->QueryDoubleAttribute("vTopX", &tmpdouble);
+        argParameters.vw_top.get(0) = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("vTopY", &tmpdouble);
+        argParameters.vw_top.get(1) = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
-            physicsElement->QueryDoubleAttribute("vBotZ", &(argParameters.vw_bottom.get(2)));
+        {
+            physicsElement->QueryDoubleAttribute("vTopZ", &tmpdouble);
+            argParameters.vw_top.get(2) = static_cast<real_number>(tmpdouble);
+        }
+
+        physicsElement->QueryDoubleAttribute("vBotX", &tmpdouble);
+        argParameters.vw_bottom.get(0) = static_cast<real_number>(tmpdouble);
+        physicsElement->QueryDoubleAttribute("vBotY", &tmpdouble);
+        argParameters.vw_bottom.get(1) = static_cast<real_number>(tmpdouble);
+        if constexpr (DIM == 3)
+        {
+            physicsElement->QueryDoubleAttribute("vBotZ", &tmpdouble);
+            argParameters.vw_bottom.get(2) = static_cast<real_number>(tmpdouble);
+        }
     }
 
     // Parse <obstacle> element
@@ -176,22 +204,32 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
             argParameters.ObstacleTilt = std::stod(tiltStr); // Convert to float
         }
 
-        obstacleElement->QueryDoubleAttribute("velX", &(argParameters.ObstacleVelocity.get(0)));
-        obstacleElement->QueryDoubleAttribute("velY", &(argParameters.ObstacleVelocity.get(1)));
+        obstacleElement->QueryDoubleAttribute("velX", &tmpdouble);
+        argParameters.ObstacleVelocity.get(0) = static_cast<real_number>(tmpdouble);
+        obstacleElement->QueryDoubleAttribute("velY", &tmpdouble);
+        argParameters.ObstacleVelocity.get(1) = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
-            obstacleElement->QueryDoubleAttribute("velZ", &(argParameters.ObstacleVelocity.get(2)));
+        {
+            obstacleElement->QueryDoubleAttribute("velZ", &tmpdouble);
+            argParameters.ObstacleVelocity.get(2) = static_cast<real_number>(tmpdouble);
+        }
 
-        obstacleElement->QueryDoubleAttribute("omega", &argParameters.ObstacleOmega);
+        obstacleElement->QueryDoubleAttribute("omega", &tmpdouble);
+        argParameters.ObstacleOmega = static_cast<real_number>(tmpdouble);
     }
 
     // Parse <TaylorCouette> element
     tinyxml2::XMLElement *taylorCouetteElement = doc.FirstChildElement("configuration")->FirstChildElement("TaylorCouette");
     if (taylorCouetteElement)
     {
-        taylorCouetteElement->QueryDoubleAttribute("Rin", &argParameters.Rin);
-        taylorCouetteElement->QueryDoubleAttribute("Rout", &argParameters.Rout);
-        taylorCouetteElement->QueryDoubleAttribute("Win", &argParameters.Win);
-        taylorCouetteElement->QueryDoubleAttribute("Wout", &argParameters.Wout);
+        taylorCouetteElement->QueryDoubleAttribute("Rin", &tmpdouble);
+        argParameters.Rin = static_cast<real_number>(tmpdouble);
+        taylorCouetteElement->QueryDoubleAttribute("Rout", &tmpdouble);
+        argParameters.Rout = static_cast<real_number>(tmpdouble);
+        taylorCouetteElement->QueryDoubleAttribute("Win", &tmpdouble);
+        argParameters.Win = static_cast<real_number>(tmpdouble);
+        taylorCouetteElement->QueryDoubleAttribute("Wout", &tmpdouble);
+        argParameters.Wout = static_cast<real_number>(tmpdouble);
     }
 }
 void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
@@ -249,9 +287,9 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
     else
     {
         if (argParameters.SCENARIO == CYLINDER_ARRAY) // chanel height is 4 times the cylinder radius
-            argParameters.dp = 4.0 * argParameters.LengthScale / (double)argParameters.Nfluid[1];
+            argParameters.dp = 4.0 * argParameters.LengthScale / (real_number)argParameters.Nfluid[1];
         else if (argParameters.SCENARIO == CYLINDER_LATTICE) // chanel height is 5 times the cylinder radius
-            argParameters.dp = 5.0 * argParameters.LengthScale / (double)argParameters.Nfluid[1];
+            argParameters.dp = 5.0 * argParameters.LengthScale / (real_number)argParameters.Nfluid[1];
     }
 
     argParameters.length[0] = argParameters.dp * (argParameters.Nfluid[0] - argParameters.bc[0]);
@@ -299,7 +337,7 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
     argParameters.eta = argParameters.nu * argParameters.rho_zero;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
     argParameters.gravity = getVectorNorm(argParameters.gravity_vector);
-    argParameters.ObstacleCenter = {(argParameters.length[0] + argParameters.bc[0] * argParameters.dp) / 2.0, (argParameters.length[1] + argParameters.bc[1] * argParameters.dp) / 2.0};
+    argParameters.ObstacleCenter = {(argParameters.length[0] + (real_number)argParameters.bc[0] * argParameters.dp) / 2.0f, (argParameters.length[1] + (real_number)argParameters.bc[1] * argParameters.dp) / 2.0f};
 
     // add the number of processors to the filename
     const long int Nprc = v_cl.getProcessingUnits();

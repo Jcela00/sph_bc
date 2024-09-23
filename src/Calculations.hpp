@@ -24,13 +24,13 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
         if (vd.getProp<type>(a) == BOUNDARY)
         {
             // Get the position xa of the particle a
-            Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, real_number> xa = vd.getPos(a);
 
             // initialize sum
-            Point<DIM, double> r_fluid_sum = {0.0, 0.0};
+            Point<DIM, real_number> r_fluid_sum = {0.0, 0.0};
 
             // neighborhood particles
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
             while (Np.isNext() == true)
@@ -41,13 +41,13 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
                 if (vd.getProp<type>(b) == FLUID)
                 {
                     // Get the position xb of the particle b
-                    const Point<DIM, double> xb = vd.getPos(b);
+                    const Point<DIM, real_number> xb = vd.getPos(b);
 
                     // Get the vector pointing at fluid from boundary
-                    Point<DIM, double> dr = xb - xa;
+                    Point<DIM, real_number> dr = xb - xa;
 
                     // take the norm squared of this vector
-                    const double r2 = norm2(dr);
+                    const real_number r2 = norm2(dr);
 
                     // If the particles interact ...
                     if (r2 < params.r_threshold * params.r_threshold)
@@ -91,16 +91,16 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
         if (vd.getProp<type>(a) == FLUID)
         {
             // Get the position xa of the particle a
-            Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, real_number> xa = vd.getPos(a);
 
             // Get the velocity of the particle a
-            Point<DIM, double> va = vd.getProp<velocity>(a);
+            Point<DIM, real_number> va = vd.getProp<velocity>(a);
 
             // initialize vorticity sum
-            double vorticity = 0.0;
+            real_number vorticity = 0.0;
 
             // neighborhood particles
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
             while (Np.isNext() == true)
@@ -112,19 +112,19 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                 if (vd.getProp<type>(b) == FLUID)
                 {
                     // Get the position ( and vel ) of particle b
-                    const Point<DIM, double> xb = vd.getPos(b);
+                    const Point<DIM, real_number> xb = vd.getPos(b);
 
                     // Get the vector pointing at A from B
-                    Point<DIM, double> dr = xa - xb;
+                    Point<DIM, real_number> dr = xa - xb;
                     // get the norm squared of this vector
-                    const double r2 = norm2(dr);
+                    const real_number r2 = norm2(dr);
 
                     if (r2 < params.r_threshold * params.r_threshold)
                     {
                         // Get the velocity of particle b
-                        const Point<DIM, double> vb = vd.getProp<velocity>(b);
+                        const Point<DIM, real_number> vb = vd.getProp<velocity>(b);
                         // evaluate the kernel gradient
-                        Point<DIM, double> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
+                        Point<DIM, real_number> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
                         vorticity += -params.MassFluid * crossProduct2D(vb - va, Dwab);
                     }
                 }
@@ -146,13 +146,13 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
     // This function computes the normal vector for a boundary particle based on the other boundary particles inside its kernel.
     // it computes the average (kernel weighted) of the vectors perpendicular to the vectors pointing to the other boundary particles ( oriented to the fluid )
 
-    const double refinement = params.rf;
-    const double global_dp = params.dp;
-    // const double local_dp = params.dp / refinement;
-    // const double local_H = params.H / refinement;
-    const double local_dp = global_dp;
-    const double local_H = params.H;
-    const double local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
+    const real_number refinement = params.rf;
+    const real_number global_dp = params.dp;
+    // const real_number local_dp = params.dp / refinement;
+    // const real_number local_H = params.H / refinement;
+    const real_number local_dp = global_dp;
+    const real_number local_H = params.H;
+    const real_number local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
     auto part = vd.getDomainIterator();
 
@@ -169,16 +169,16 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
         if (vd.getProp<type>(a) == BOUNDARY)
         {
             // Get the position xa of the particle a
-            Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, real_number> xa = vd.getPos(a);
 
             // get vector that points at fluid
-            Point<DIM, double> Rfluid = vd.getProp<normal_vector>(a);
+            Point<DIM, real_number> Rfluid = vd.getProp<normal_vector>(a);
 
             // initialize sum
-            Point<DIM, double> n_sum = {0.0};
+            Point<DIM, real_number> n_sum = {0.0};
 
             // neighborhood particles
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
             while (Np.isNext() == true)
@@ -194,29 +194,29 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
                 if (vd.getProp<type>(b) == BOUNDARY)
                 {
                     // Get the position xb of the particle b
-                    const Point<DIM, double> xb = vd.getPos(b);
+                    const Point<DIM, real_number> xb = vd.getPos(b);
 
                     // Get the vector pointing at a from b
-                    const Point<DIM, double> dr = xa - xb;
+                    const Point<DIM, real_number> dr = xa - xb;
 
                     // take the norm squared of this vector
-                    const double r2 = norm2(dr);
+                    const real_number r2 = norm2(dr);
 
                     // If the particles interact ...
                     if (r2 < 9.0 * local_H * local_H)
                     {
                         // get perpendicular vector to dr
-                        Point<DIM, double> perp = getPerpendicularUnit2D(dr); // this is normalized
+                        Point<DIM, real_number> perp = getPerpendicularUnit2D(dr); // this is normalized
 
                         // get scalar product of perp and Rfluid
-                        const double perp_dot_fluid = dotProduct(perp, Rfluid);
+                        const real_number perp_dot_fluid = dotProduct(perp, Rfluid);
 
                         // we want perp to point towards the fluid
                         if (perp_dot_fluid < 0.0)
                             perp = -1.0 * perp;
 
                         // evaluate kernel
-                        double W = Wab(sqrt(r2), local_H, local_Kquintic);
+                        real_number W = Wab(sqrt(r2), local_H, local_Kquintic);
                         n_sum += perp * W;
                     }
                 }
@@ -242,13 +242,13 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 {
     // This function computes the curvature of the boundary particles from the divergence of the normal vector
 
-    const double refinement = params.rf;
-    const double global_dp = params.dp;
-    // const double local_dp = params.dp / refinement;
-    // const double local_H = params.H / refinement;
-    const double local_dp = global_dp;
-    const double local_H = params.H;
-    const double local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
+    const real_number refinement = params.rf;
+    const real_number global_dp = params.dp;
+    // const real_number local_dp = params.dp / refinement;
+    // const real_number local_H = params.H / refinement;
+    const real_number local_dp = global_dp;
+    const real_number local_H = params.H;
+    const real_number local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
     auto part = vd.getDomainIterator();
 
@@ -257,8 +257,8 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
 
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
-    // const double max_curvature = 1.0 / (1.0 * global_dp);
-    const double max_curvature = 1.0 / (3.0 * global_dp);
+    // const real_number max_curvature = 1.0 / (1.0 * global_dp);
+    const real_number max_curvature = 1.0 / (3.0 * global_dp);
 
     // For each particle ...
     while (part.isNext())
@@ -270,16 +270,16 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
         if (vd.getProp<type>(a) == BOUNDARY)
         {
             // Get the position xa of the particle a
-            Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, real_number> xa = vd.getPos(a);
 
             // get normal of a
-            Point<DIM, double> normal_a = vd.getProp<normal_vector>(a);
+            Point<DIM, real_number> normal_a = vd.getProp<normal_vector>(a);
 
             // initialize sums
-            double K_sum = 0.0;
-            double w_sum = 0.0;
+            real_number K_sum = 0.0;
+            real_number w_sum = 0.0;
 
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
             while (Np.isNext() == true)
@@ -290,13 +290,13 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
                 if (vd.getProp<type>(b) == BOUNDARY)
                 {
                     // Get the position xb of the particle b
-                    const Point<DIM, double> xb = vd.getPos(b);
+                    const Point<DIM, real_number> xb = vd.getPos(b);
 
                     // Get the vector pointing at a from b
-                    const Point<DIM, double> dr = xa - xb;
+                    const Point<DIM, real_number> dr = xa - xb;
 
                     // take the norm squared of this vector
-                    const double r2 = norm2(dr);
+                    const real_number r2 = norm2(dr);
 
                     // If the particles interact ...
                     if (r2 < 9.0 * local_H * local_H)
@@ -304,12 +304,12 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
                         if (a.getKey() != b)
                         {
                             // OLD CALCULATION
-                            // Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-                            // double r = sqrt(r2);
-                            // double W = Wab(r, local_H, local_Kquintic);
-                            // Point<DIM, double> dW = DWab(dr, r, local_H, local_Kquintic);
+                            // Point<DIM, real_number> normal_b = vd.getProp<normal_vector>(b);
+                            // real_number r = sqrt(r2);
+                            // real_number W = Wab(r, local_H, local_Kquintic);
+                            // Point<DIM, real_number> dW = DWab(dr, r, local_H, local_Kquintic);
 
-                            // double local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+                            // real_number local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
                             // if (local_k > max_curvature)
                             // {
                             //     local_k = max_curvature;
@@ -319,11 +319,12 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
                             // w_sum += W;
 
                             // NEW CALCULATION
-                            Point<DIM, double> normal_b = vd.getProp<normal_vector>(b);
-                            double r = sqrt(r2);
-                            double W = Wab(r, local_H, local_Kquintic);
-                            Point<DIM, double> eab = -1.0 * dr / r;
-                            double local_k = dotProduct(normal_b - normal_a, eab) / r;
+                            Point<DIM, real_number> normal_b = vd.getProp<normal_vector>(b);
+                            real_number r = sqrt(r2);
+                            real_number W = Wab(r, local_H, local_Kquintic);
+                            Point<DIM, real_number> eab = -1.0 * dr;
+                            eab = eab / r;
+                            real_number local_k = dotProduct(normal_b - normal_a, eab) / r;
 
                             if (local_k > max_curvature)
                             {
@@ -347,7 +348,7 @@ void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Paramete
     }
 }
 
-void CalcVolume(particles &vd, double dp)
+void CalcVolume(particles &vd, real_number dp)
 {
     // This function computes the volume of the virtual particles for the new no-slip BC
 
@@ -362,8 +363,8 @@ void CalcVolume(particles &vd, double dp)
         // if particle BOUNDARY
         if (vd.getProp<type>(a) == BOUNDARY)
         {
-            double kappa = vd.getProp<curvature_boundary>(a);
-            double dxwall = vd.getProp<arc_length>(a);
+            real_number kappa = vd.getProp<curvature_boundary>(a);
+            real_number dxwall = vd.getProp<arc_length>(a);
 
             for (int i = 0; i < 3; i++)
             {
@@ -395,11 +396,11 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
         {
 
             // Get the position xb of the particle a
-            Point<DIM, double> xa = vd.getPos(a);
+            Point<DIM, real_number> xa = vd.getPos(a);
 
             // initialize density sum
-            double rho_sum = 0.0;
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(a)));
+            real_number rho_sum = 0.0;
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
             // iterate the neighborhood particles
             while (Np.isNext() == true)
@@ -408,14 +409,14 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
                 unsigned long b = Np.get();
 
                 // Get the position xb of the particle b
-                const Point<DIM, double> xb = vd.getPos(b);
+                const Point<DIM, real_number> xb = vd.getPos(b);
 
                 // Get the vector pointing at xa from xb
-                const Point<DIM, double> dr = xa - xb;
+                const Point<DIM, real_number> dr = xa - xb;
 
                 // take the norm squared of this vector
-                const double r2 = norm2(dr);
-                const double r = sqrt(r2);
+                const real_number r2 = norm2(dr);
+                const real_number r = sqrt(r2);
 
                 // If the particles interact ...
                 if (r < params.r_threshold)
@@ -425,33 +426,33 @@ void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
                     {
 
                         // evaluate kernel
-                        const double w = Wab(r, params.H, params.Kquintic);
+                        const real_number w = Wab(r, params.H, params.Kquintic);
                         rho_sum += w * params.MassFluid;
                     }
                     else // if boundary particle
                     {
                         if (params.BC_TYPE == NO_SLIP)
                         {
-                            const double r = sqrt(r2);
+                            const real_number r = sqrt(r2);
                             // evaluate kernel
-                            const double w = Wab(r, params.H, params.Kquintic);
+                            const real_number w = Wab(r, params.H, params.Kquintic);
                             rho_sum += w * params.MassBound;
                         }
                         else if (params.BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at virtual particles
                         {
                             // get normal vector of b
-                            const Point<DIM, double> normal = vd.getProp<normal_vector>(b);
+                            const Point<DIM, real_number> normal = vd.getProp<normal_vector>(b);
                             // get volumes, and curvature of virtual particles
-                            const Point<3, double> vol = vd.template getProp<vd_volume>(b);
-                            // const double kappa = vd.template getProp<curvature_boundary>(b);
+                            const Point<3, real_number> vol = vd.template getProp<vd_volume>(b);
+                            // const real_number kappa = vd.template getProp<curvature_boundary>(b);
 
                             // Apply offsets to dr to get 3 vectrors pointing to virtual particles
-                            const std::array<Point<DIM, double>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, params.dp);
+                            const std::array<Point<DIM, real_number>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, params.dp);
 
                             // iterate the 3 virtual particles
                             for (int i = 0; i < 3; i++)
                             {
-                                const double W = Wab(getVectorNorm(R_virtual[i]), params.H, params.Kquintic);
+                                const real_number W = Wab(getVectorNorm(R_virtual[i]), params.H, params.Kquintic);
                                 rho_sum += W * vol[i] * params.rho_zero; // this is equivalent to +=W*mass
                             }
                         }
@@ -496,15 +497,15 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
         {
 
             // Get the position xb of the boundary particle
-            Point<DIM, double> xb = vd.getPos(b);
+            Point<DIM, real_number> xb = vd.getPos(b);
 
             // initialize sums
-            Point<DIM, double> sum_vW = (DIM == 2) ? Point<DIM, double>{0.0, 0.0} : Point<DIM, double>{0.0, 0.0, 0.0};
+            Point<DIM, real_number> sum_vW = (DIM == 2) ? Point<DIM, real_number>{0.0, 0.0} : Point<DIM, real_number>{0.0, 0.0, 0.0};
 
-            double sum_pW = 0.0;
-            double sum_W = 0.0;
+            real_number sum_pW = 0.0;
+            real_number sum_W = 0.0;
 
-            auto Np = NN.getNNIterator(NN.getCell(vd.getPos(b)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(b)));
 
             // iterate the neighborhood fluid particles
             while (Np.isNext() == true)
@@ -526,37 +527,37 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
                 }
 
                 // Get the position xf of the fluid particle
-                Point<DIM, double> xf = vd.getPos(f);
+                Point<DIM, real_number> xf = vd.getPos(f);
 
                 // Get the velocity of the fluid particle
-                Point<DIM, double> vf = vd.getProp<velocity>(f);
+                Point<DIM, real_number> vf = vd.getProp<velocity>(f);
 
                 // Get the density of the fluid particle
-                double rhof = vd.getProp<rho>(f);
+                real_number rhof = vd.getProp<rho>(f);
 
                 // Get the pressure of the fluid particle
-                double Pf = vd.getProp<pressure>(f);
+                real_number Pf = vd.getProp<pressure>(f);
 
                 // Get the vector pointing at xb from xf rwf
-                Point<DIM, double> dr = xb - xf;
+                Point<DIM, real_number> dr = xb - xf;
 
                 // take the norm squared of this vector
-                double r2 = norm2(dr);
+                real_number r2 = norm2(dr);
 
                 // If the particles interact ...
                 if (r2 < params.r_threshold * params.r_threshold)
                 {
                     // calculate distance
-                    double r = sqrt(r2);
+                    real_number r = sqrt(r2);
 
                     // evaluate kernel
-                    double w = Wab(r, params.H, params.Kquintic);
+                    real_number w = Wab(r, params.H, params.Kquintic);
                     // compute v*W
                     sum_vW += w * vf;
 
                     // compute Pf +rhof*(g-a) dot rwf
                     // at the moment a = 0
-                    const double dot = dotProduct(dr, params.gravity_vector);
+                    const real_number dot = dotProduct(dr, params.gravity_vector);
                     sum_pW += w * (Pf + rhof * dot);
                     sum_W += w;
                 }
@@ -570,11 +571,11 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
 
                 // solid particles store the centre of rotation in the force transport field since it is unused
                 // vector pointing from centre of rotation to marker particle
-                const Point<DIM, double> radial_vec = {xb.get(0) - vd.getProp<force_transport>(b)[0], xb.get(1) - vd.getProp<force_transport>(b)[1]};
-                const double radial = getVectorNorm(radial_vec);
+                const Point<DIM, real_number> radial_vec = {xb.get(0) - vd.getProp<force_transport>(b)[0], xb.get(1) - vd.getProp<force_transport>(b)[1]};
+                const real_number radial = getVectorNorm(radial_vec);
                 // vector tangential to the radial vector, rotation velocity is in this direction
-                const Point<DIM, double> rotation_tangential = getPerpendicularUnit2D(radial_vec);
-                Point<DIM, double> vw = vd.template getProp<velocity>(b);
+                const Point<DIM, real_number> rotation_tangential = getPerpendicularUnit2D(radial_vec);
+                Point<DIM, real_number> vw = vd.template getProp<velocity>(b);
                 vw.get(0) += radial * vd.getProp<vd_omega>(b) * rotation_tangential.get(0);
                 vw.get(1) += radial * vd.getProp<vd_omega>(b) * rotation_tangential.get(1);
 

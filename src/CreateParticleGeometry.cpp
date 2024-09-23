@@ -18,7 +18,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     size_t sz[DIM];
 
     obstacle_ptr = new EmptyObstacle(params);
-    double dp = params.dp;
+    real_number dp = params.dp;
     // Initialize obstacle in scenarios where needed
     if (params.SCENARIO == CYLINDER_ARRAY)
         obstacle_ptr = new CylinderObstacle(params.LengthScale, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
@@ -34,15 +34,15 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
     else if (params.SCENARIO == ELLIPSE)
         obstacle_ptr = new EllipticObstacle(params.ObstacleBase, params.ObstacleHeight, params.ObstacleTilt, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
-    double refine_factor = params.rf;
+    real_number refine_factor = params.rf;
 
     // Now define the iterator boxes
     // We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
-    double offset_domain_left[DIM] = {0.0};
-    double offset_domain_right[DIM] = {0.0};
-    double offset_recipient[DIM] = {0.0};
-    double offset_periodic_fluid[DIM] = {0.0};
-    double offset_periodic_recipient[DIM] = {0.0};
+    real_number offset_domain_left[DIM] = {0.0};
+    real_number offset_domain_right[DIM] = {0.0};
+    real_number offset_recipient[DIM] = {0.0};
+    real_number offset_periodic_fluid[DIM] = {0.0};
+    real_number offset_periodic_recipient[DIM] = {0.0};
 
     for (int xyz = 0; xyz < DIM; xyz++)
     {
@@ -69,26 +69,26 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     }
 
     // Define the boxes
-    Box<DIM, double> domain({-offset_domain_left[0],
-                             -offset_domain_left[1]},
-                            {params.length[0] + offset_domain_right[0],
-                             params.length[1] + offset_domain_right[1]});
+    Box<DIM, real_number> domain({-offset_domain_left[0],
+                                  -offset_domain_left[1]},
+                                 {params.length[0] + offset_domain_right[0],
+                                  params.length[1] + offset_domain_right[1]});
 
-    Box<DIM, double> fluid_box({0.0,
-                                0.0},
-                               {params.length[0] + offset_periodic_fluid[0],
-                                params.length[1] + offset_periodic_fluid[1]});
+    Box<DIM, real_number> fluid_box({0.0,
+                                     0.0},
+                                    {params.length[0] + offset_periodic_fluid[0],
+                                     params.length[1] + offset_periodic_fluid[1]});
 
-    Box<DIM, double> recipient({-offset_recipient[0],
-                                -offset_recipient[1]},
-                               {params.length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-                                params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
+    Box<DIM, real_number> recipient({-offset_recipient[0],
+                                     -offset_recipient[1]},
+                                    {params.length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+                                     params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
 
     // Will only be used in the new bc
-    Box<DIM, double> recipient_hole({offset_recipient[0],
-                                     offset_recipient[1]},
-                                    {params.length[0] - offset_recipient[0] + offset_periodic_fluid[0],
-                                     params.length[1] - offset_recipient[1] + offset_periodic_fluid[1]});
+    Box<DIM, real_number> recipient_hole({offset_recipient[0],
+                                          offset_recipient[1]},
+                                         {params.length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+                                          params.length[1] - offset_recipient[1] + offset_periodic_fluid[1]});
 
     for (int xyz = 0; xyz < DIM; xyz++) // correct length in periodic case
     {
@@ -97,7 +97,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     }
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, double> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_threshold);
 
     // create particle object
     particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
@@ -111,18 +111,18 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     if (params.PROBES_ENABLED)
     {
         // we want to place probes  in a vertical line at this locations
-        Point<DIM, double> EndChannel = {params.length[0], 0.0};
-        Point<DIM, double> HalfChannel = {params.length[0] / 2.0, 0.0};
-        Point<DIM, double> HalfHeight = {0.0, params.length[1] / 2.0};
-        Point<DIM, double> VerticalOffset = {0.0, dp};
-        Point<DIM, double> HorizontalOffset = {dp, 0.0};
+        Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
+        Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0f, 0.0};
+        Point<DIM, real_number> HalfHeight = {0.0, params.length[1] / 2.0f};
+        Point<DIM, real_number> VerticalOffset = {0.0, dp};
+        Point<DIM, real_number> HorizontalOffset = {dp, 0.0};
         int k0 = 0;
         int kendHeight = params.Nfluid[1] + 1;
         int kendWidth = params.Nfluid[0] + 1;
 
-        std::vector<Point<DIM, double>> ProbePoints; // start points for the PlaceProbes function
-        std::vector<int> ProbeComponents;            // component to measure 0 for x 1 for y
-        std::vector<Point<DIM, double>> Offsets;
+        std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
+        std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+        std::vector<Point<DIM, real_number>> Offsets;
         std::vector<int> maxIters;
 
         if (params.SCENARIO == CAVITY)
@@ -157,7 +157,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         for (unsigned int k = 0; k < ProbePoints.size(); k++)
         {
             // create probe object
-            Ghost<DIM, double> gp(0);
+            Ghost<DIM, real_number> gp(0);
             size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
             probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
             if (ProbeComponents[k] == 0)
@@ -190,33 +190,33 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         // Add walls
         if (params.bc[0] == PERIODIC && params.bc[1] == NON_PERIODIC) // Channel like scenario
         {
-            double dx_wall = dp / refine_factor;
+            real_number dx_wall = dp / refine_factor;
             int Nwall = ceil(params.length[0] / dx_wall);
             dx_wall = params.length[0] / Nwall;
-            Point<DIM, double> X_Offset = {dx_wall, 0.0};
+            Point<DIM, real_number> X_Offset = {dx_wall, 0.0};
 
-            Point<DIM, double> LL_corner = {0.0, 0.0};
-            Point<DIM, double> UL_corner = {0.0, params.length[1]};
+            Point<DIM, real_number> LL_corner = {0.0, 0.0};
+            Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
             // Top And Bottom Walls
             AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, 0.0);
             AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, 0.0);
         }
         else if (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC) // Box like scenario
         {
-            double dx_wall_x = dp / refine_factor;
+            real_number dx_wall_x = dp / refine_factor;
             int Nwall_x = ceil(params.length[0] / dx_wall_x);
             dx_wall_x = params.length[0] / Nwall_x;
-            Point<DIM, double> X_Offset = {dx_wall_x, 0.0};
+            Point<DIM, real_number> X_Offset = {dx_wall_x, 0.0};
 
-            double dx_wall_y = dp / refine_factor;
+            real_number dx_wall_y = dp / refine_factor;
             int Nwall_y = ceil(params.length[1] / dx_wall_y);
             dx_wall_y = params.length[1] / Nwall_y;
-            Point<DIM, double> Y_Offset = {0.0, dx_wall_y};
+            Point<DIM, real_number> Y_Offset = {0.0, dx_wall_y};
 
-            Point<DIM, double> LL_corner = {0.0, 0.0};
-            Point<DIM, double> LR_corner = {params.length[0], 0.0};
+            Point<DIM, real_number> LL_corner = {0.0, 0.0};
+            Point<DIM, real_number> LR_corner = {params.length[0], 0.0};
 
-            Point<DIM, double> UL_corner = {0.0, params.length[1]};
+            Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
 
             // Top And Bottom Walls
             AddFlatWallNewBC(vd, 0, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, 0.0);
@@ -235,7 +235,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     while (fluid_it.isNext())
     {
 
-        Point<DIM, double> iterator_position = fluid_it.get();
+        Point<DIM, real_number> iterator_position = fluid_it.get();
 
         if ((*obstacle_ptr).isInside(iterator_position)) // if inside the obstacle region
         {
@@ -271,7 +271,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
 
         // for validating the vorticity calculation, vorticity should be 2w
-        // double w = 5.0;
+        // real_number w = 5.0;
         // if (params.SCENARIO == HYDROSTATIC)
         // {
         //     vd.template getLastProp<velocity>()[0] = -w * iterator_position.get(1);
@@ -302,16 +302,16 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     if (params.BC_TYPE == NO_SLIP)
     {
 
-        openfpm::vector<Box<DIM, double>> holes;
+        openfpm::vector<Box<DIM, real_number>> holes;
         holes.add(fluid_box);
-        Box<DIM, double> hole_box = holes.get(0);
+        Box<DIM, real_number> hole_box = holes.get(0);
         auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
         if (params.bc[0] != PERIODIC || params.bc[1] != PERIODIC) // no walls in all periodic scenario
         {
             while (bound_box.isNext())
             {
-                Point<DIM, double> position = bound_box.get();
+                Point<DIM, real_number> position = bound_box.get();
 
                 // periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
                 // When running on multiple cores, with this we check if particle is outside the recipient box
@@ -336,9 +336,9 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 // if (params.BC_TYPE == NEW_NO_SLIP && (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC))
                 // {
                 // 	// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
-                // 	double remx = fmod(position.get(0), dp);
-                // 	double remz = fmod(position.get(1), dp);
-                // 	double tol = 0.5 * dp * 10e-2;
+                // 	real_number remx = fmod(position.get(0), dp);
+                // 	real_number remz = fmod(position.get(1), dp);
+                // 	real_number tol = 0.5 * dp * 10e-2;
 
                 // 	if (remx > tol && remx < dp - tol)
                 // 	{
@@ -388,10 +388,10 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
 
-    double dp = params.dp;
+    real_number dp = params.dp;
     // We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
-    double offset_domain_left[DIM] = {0.0};
-    double offset_domain_right[DIM] = {0.0};
+    real_number offset_domain_left[DIM] = {0.0};
+    real_number offset_domain_right[DIM] = {0.0};
 
     // non periodic situation grid of 5 fluid particles and 3 boundary particles
     // We need a virtual grid of 5 + 2*(3+1) particles,
@@ -404,13 +404,13 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     // .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
     // therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
 
-    double Rin = params.Rin;
-    double Rout = params.Rout;
-    double Win = params.Win;
-    double Wout = params.Wout;
+    real_number Rin = params.Rin;
+    real_number Rout = params.Rout;
+    real_number Win = params.Win;
+    real_number Wout = params.Wout;
 
-    double a_tc = -((Rout * Rout * Rin * Rin) / (Rout * Rout - Rin * Rin)) * (Wout - Win);
-    double b_tc = (Wout * Rout * Rout - Win * Rin * Rin) / (Rout * Rout - Rin * Rin);
+    real_number a_tc = -((Rout * Rout * Rin * Rin) / (Rout * Rout - Rin * Rin)) * (Wout - Win);
+    real_number b_tc = (Wout * Rout * Rout - Win * Rin * Rin) / (Rout * Rout - Rin * Rin);
 
     size_t Nbound = (params.BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 
@@ -423,31 +423,31 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     }
 
     // Define the boxes
-    Box<DIM, double> domain({-params.length[0] / 2.0 - offset_domain_left[0],
-                             -params.length[1] / 2.0 - offset_domain_left[1]},
-                            {params.length[0] / 2.0 + offset_domain_right[0],
-                             params.length[1] / 2.0 + offset_domain_right[1]});
-    Box<DIM, double> fluid_box({-params.length[0] / 2.0,
-                                -params.length[1] / 2.0},
-                               {params.length[0] / 2.0,
-                                params.length[1] / 2.0});
+    Box<DIM, real_number> domain({-params.length[0] / 2.0f - offset_domain_left[0],
+                                  -params.length[1] / 2.0f - offset_domain_left[1]},
+                                 {params.length[0] / 2.0f + offset_domain_right[0],
+                                  params.length[1] / 2.0f + offset_domain_right[1]});
+    Box<DIM, real_number> fluid_box({-params.length[0] / 2.0f,
+                                     -params.length[1] / 2.0f},
+                                    {params.length[0] / 2.0f,
+                                     params.length[1] / 2.0f});
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, double> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_threshold);
 
     // create particle object
     particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
     vd = vd_loc;
 
     // Write constants on file
-    double rf = params.rf;
+    real_number rf = params.rf;
 
     // Set cylindrical object parameters
-    Point<DIM, double> CylinderCentre = {0.0, 0.0};
+    Point<DIM, real_number> CylinderCentre = {0.0, 0.0};
 
     obstacle_ptr = new EmptyObstacle(params);
 
-    const Point<DIM, double> vel = {0.0, 0.0};
+    const Point<DIM, real_number> vel = {0.0, 0.0};
 
     CylinderObstacle *obstacle_ptr_out = new CylinderObstacle(Rout, CylinderCentre, params, vel, Wout, rf);
     CylinderObstacle *obstacle_ptr_in = new CylinderObstacle(Rin, CylinderCentre, params, vel, Win, rf);
@@ -462,10 +462,10 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
         obstacle_ptr_in->AddObstacle(vd);
     }
 
-    Box<DIM, double> fluid_box_aux({-Rout - 3.5 * dp,
-                                    -Rout - 3.5 * dp},
-                                   {Rout + 3.5 * dp,
-                                    Rout + 3.5 * dp});
+    Box<DIM, real_number> fluid_box_aux({-Rout - 3.5f * dp,
+                                         -Rout - 3.5f * dp},
+                                        {Rout + 3.5f * dp,
+                                         Rout + 3.5f * dp});
 
     // Outer Cylinder boundary particles
     auto out_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box_aux);
@@ -474,8 +474,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
         while (out_it.isNext())
         {
 
-            Point<DIM, double> iterator_position = out_it.get();
-            if (!(*obstacle_ptr_out).isOutside(iterator_position) && (*obstacle_ptr_out_aux).isInside(iterator_position)) // if outside the outer cylinder and inside outer cylinder aux
+            Point<DIM, real_number> iterator_position = out_it.get();
+            if (!(*obstacle_ptr_out).isInside_minEps(iterator_position) && (*obstacle_ptr_out_aux).isInside(iterator_position)) // if outside the outer cylinder and inside outer cylinder aux
             {
                 if (params.BC_TYPE == NO_SLIP)
                 {
@@ -525,12 +525,12 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     while (fluid_it.isNext())
     {
 
-        Point<DIM, double> iterator_position = fluid_it.get();
-        if ((*obstacle_ptr_out).isOutside(iterator_position)) // if inside the outer cylinder
+        Point<DIM, real_number> iterator_position = fluid_it.get();
+        if ((*obstacle_ptr_out).isInside_minEps(iterator_position)) // if inside the outer cylinder
         {
             if ((*obstacle_ptr_in).isInside(iterator_position)) // if inside the inner cylinder region
             {
-                if (!(*obstacle_ptr_in_aux).isOutside(iterator_position))
+                if (!(*obstacle_ptr_in_aux).isInside_minEps(iterator_position))
                 {
                     if (params.BC_TYPE == NO_SLIP) // add particle but set it as boundary
                     {
@@ -563,12 +563,12 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                 vd.template getLastProp<type>() = FLUID;
                 vd.template getLastProp<vd_omega>() = 0.0;
 
-                double r = iterator_position.get(0) * iterator_position.get(0) + iterator_position.get(1) * iterator_position.get(1);
+                real_number r = iterator_position.get(0) * iterator_position.get(0) + iterator_position.get(1) * iterator_position.get(1);
                 r = sqrt(r);
-                double uth = a_tc / r + b_tc * r;
+                real_number uth = a_tc / r + b_tc * r;
 
-                double ux = uth * (-iterator_position.get(1) / r);
-                double uy = uth * (iterator_position.get(0) / r);
+                real_number ux = uth * (-iterator_position.get(1) / r);
+                real_number uy = uth * (iterator_position.get(0) / r);
 
                 vd.template getLastProp<velocity>()[0] = ux;
                 vd.template getLastProp<velocity>()[1] = uy;
@@ -608,8 +608,8 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
 
-    double length_small[DIM];
-    double length_big[DIM];
+    real_number length_small[DIM];
+    real_number length_big[DIM];
     // In the case of the new bc we need particles at the wall, for this we need sz_aux
     // We want to put one virtual grid point between each pair of the old ones,
     // so that the new spacing is dp/2, and we can put a fluid particle exactly at the wall
@@ -626,10 +626,10 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     size_t Nfluid_small[DIM];
 
     // We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
-    double offset_domain[DIM] = {0.0};
-    double offset_recipient[DIM] = {0.0};
-    double offset_periodic_fluid[DIM] = {0.0};
-    double offset_periodic_recipient[DIM] = {0.0};
+    real_number offset_domain[DIM] = {0.0};
+    real_number offset_recipient[DIM] = {0.0};
+    real_number offset_periodic_fluid[DIM] = {0.0};
+    real_number offset_periodic_recipient[DIM] = {0.0};
 
     // non periodic situation grid of 5 fluid particles and 3 boundary particles
     // We need a virtual grid of 5 + 2*(3+1) particles,
@@ -642,7 +642,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     // .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
     // therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
 
-    double StepHeight = 4.9;
+    real_number StepHeight = 4.9;
     params.LengthScale = StepHeight;
 
     Nfluid_big[0] = 275;
@@ -654,13 +654,13 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     size_t Nbound = (params.BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
     Nboundary_big[0] = 0;
     Nboundary_big[1] = Nbound;
-    // double Nboundary_small_up = Nbound;
-    // double Nboundary_small_down = Nbound + Nfluid_big[1] - Nfluid_small[1];
+    // real_number Nboundary_small_up = Nbound;
+    // real_number Nboundary_small_down = Nbound + Nfluid_big[1] - Nfluid_small[1];
 
     bc[0] = PERIODIC;
     bc[1] = NON_PERIODIC;
-    params.dp = params.LengthScale / ((double)Nfluid_big[1] - Nfluid_small[1]);
-    double dp = params.dp;
+    params.dp = params.LengthScale / ((real_number)Nfluid_big[1] - Nfluid_small[1]);
+    real_number dp = params.dp;
     params.umax = 1.4 * 1e-1;
 
     params.H = params.Hconst * dp;
@@ -714,42 +714,42 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     }
 
     // Define the boxes
-    Box<DIM, double> domain({-offset_domain[0],
-                             -offset_domain[1]},
-                            {params.length[0] + offset_domain[0],
-                             params.length[1] + offset_domain[1]});
+    Box<DIM, real_number> domain({-offset_domain[0],
+                                  -offset_domain[1]},
+                                 {params.length[0] + offset_domain[0],
+                                  params.length[1] + offset_domain[1]});
 
-    Box<DIM, double> fluid_box_small({0.0,
-                                      (Nfluid_big[1] - Nfluid_small[1]) * dp},
-                                     {length_small[0],
-                                      (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1]});
+    Box<DIM, real_number> fluid_box_small({0.0,
+                                           (Nfluid_big[1] - Nfluid_small[1]) * dp},
+                                          {length_small[0],
+                                           (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1]});
 
-    Box<DIM, double> fluid_box_big({length_small[0],
-                                    0.0},
-                                   {length_small[0] + length_big[0] + offset_periodic_fluid[0],
-                                    length_big[1]});
+    Box<DIM, real_number> fluid_box_big({length_small[0],
+                                         0.0},
+                                        {length_small[0] + length_big[0] + offset_periodic_fluid[0],
+                                         length_big[1]});
 
-    Box<DIM, double> recipient({-offset_recipient[0],
-                                -offset_recipient[1]},
-                               {params.length[0] + offset_recipient[0] + offset_periodic_recipient[0],
-                                params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
+    Box<DIM, real_number> recipient({-offset_recipient[0],
+                                     -offset_recipient[1]},
+                                    {params.length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+                                     params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
 
     // Will only be used in the new bc
-    Box<DIM, double> recipient_hole_small({offset_recipient[0],
-                                           (Nfluid_big[1] - Nfluid_small[1]) * dp + offset_recipient[1]},
-                                          {length_small[0] - offset_recipient[0],
-                                           (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1] - offset_recipient[1]});
+    Box<DIM, real_number> recipient_hole_small({offset_recipient[0],
+                                                (Nfluid_big[1] - Nfluid_small[1]) * dp + offset_recipient[1]},
+                                               {length_small[0] - offset_recipient[0],
+                                                (Nfluid_big[1] - Nfluid_small[1]) * dp + length_small[1] - offset_recipient[1]});
 
-    Box<DIM, double> recipient_hole_big({length_small[0] + offset_recipient[0],
-                                         offset_recipient[1]},
-                                        {length_small[0] + length_big[0] - offset_recipient[0] + offset_periodic_fluid[0],
-                                         length_big[1] - offset_recipient[1]});
+    Box<DIM, real_number> recipient_hole_big({length_small[0] + offset_recipient[0],
+                                              offset_recipient[1]},
+                                             {length_small[0] + length_big[0] - offset_recipient[0] + offset_periodic_fluid[0],
+                                              length_big[1] - offset_recipient[1]});
 
-    Box<DIM, double> CornerHole{{3 * dp, -3 * dp}, {(3 + Nfluid_small[0] - 6) * dp, (Nfluid_big[1] - Nfluid_small[1] - 3) * dp}};
-    Box<DIM, double> CornerHole_New{{dp, -1 * dp}, {(1 + Nfluid_small[0] - 2) * dp, (Nfluid_big[1] - Nfluid_small[1]) * dp - 0.5 * dp}};
+    Box<DIM, real_number> CornerHole{{3 * dp, -3 * dp}, {(3 + Nfluid_small[0] - 6) * dp, (Nfluid_big[1] - Nfluid_small[1] - 3) * dp}};
+    Box<DIM, real_number> CornerHole_New{{dp, -1 * dp}, {(1 + Nfluid_small[0] - 2) * dp, (Nfluid_big[1] - Nfluid_small[1]) * dp - 0.5f * dp}};
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, double> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_threshold);
 
     // create particle object
     particles vd_loc(0, domain, bc, g, DEC_GRAN(512));
@@ -769,14 +769,14 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     // WriteParameters(v_cl, params);
 
     // we want to place probes  in a vertical line at this locations
-    Point<DIM, double> P1 = {0.75 * Nfluid_small[0] * dp, 0.0};
-    Point<DIM, double> P2 = {1.2 * Nfluid_small[0] * dp, 0.0};
-    Point<DIM, double> P3 = {1.4 * Nfluid_small[0] * dp, 0.0};
-    Point<DIM, double> P4 = {Nfluid_small[0] * dp + Nfluid_big[0] * dp * 0.7, 0.0};
+    Point<DIM, real_number> P1 = {0.75f * Nfluid_small[0] * dp, 0.0};
+    Point<DIM, real_number> P2 = {1.2f * Nfluid_small[0] * dp, 0.0};
+    Point<DIM, real_number> P3 = {1.4f * Nfluid_small[0] * dp, 0.0};
+    Point<DIM, real_number> P4 = {Nfluid_small[0] * dp + Nfluid_big[0] * dp * 0.7f, 0.0};
 
-    std::vector<Point<DIM, double>> ProbePoints = {P1, P2, P3, P4};
+    std::vector<Point<DIM, real_number>> ProbePoints = {P1, P2, P3, P4};
 
-    Point<DIM, double> VerticalOffset = {0.0, dp};
+    Point<DIM, real_number> VerticalOffset = {0.0, dp};
     int k0 = 0;
     int kendHeight = Nfluid_big[1];
 
@@ -786,7 +786,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
         for (int k = 0; k < 4; k++)
         {
             // create probe object
-            Ghost<DIM, double> gp(0);
+            Ghost<DIM, real_number> gp(0);
             size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
             probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
             openfpm::vector<std::string> names_p({"vx"});
@@ -807,7 +807,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     while (fluid_it1.isNext())
     {
 
-        Point<DIM, double> iterator_position = fluid_it1.get();
+        Point<DIM, real_number> iterator_position = fluid_it1.get();
 
         // ... add a particle ...
         vd.add();
@@ -837,7 +837,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     while (fluid_it2.isNext())
     {
 
-        Point<DIM, double> iterator_position = fluid_it2.get();
+        Point<DIM, real_number> iterator_position = fluid_it2.get();
 
         // ... add a particle ...
         vd.add();
@@ -865,7 +865,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     }
 
     // Now place solid walls
-    openfpm::vector<Box<DIM, double>> holes;
+    openfpm::vector<Box<DIM, real_number>> holes;
 
     if (params.BC_TYPE == NEW_NO_SLIP)
     {
@@ -881,15 +881,15 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
         holes.add(fluid_box_small);
         holes.add(CornerHole);
     }
-    Box<DIM, double> hole_get0 = holes.get(0);
-    Box<DIM, double> hole_get1 = holes.get(1);
+    Box<DIM, real_number> hole_get0 = holes.get(0);
+    Box<DIM, real_number> hole_get1 = holes.get(1);
     auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
 
     if (bc[0] != PERIODIC || bc[1] != PERIODIC) // no walls in all periodic scenario
     {
         while (bound_box.isNext())
         {
-            Point<DIM, double> position = bound_box.get();
+            Point<DIM, real_number> position = bound_box.get();
 
             // periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
             // When running on multiple cores, with this we check if particle is outside the recipient box
@@ -915,9 +915,9 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             if (params.BC_TYPE == NEW_NO_SLIP)
             {
                 // Check if x and y coordinates are multiples of dp, keep multiples, discard the rest
-                // double remx = fmod(position.get(0), dp);
-                double remy = fmod(position.get(1), dp);
-                double tol = 0.5 * dp * 10e-2;
+                // real_number remx = fmod(position.get(0), dp);
+                real_number remy = fmod(position.get(1), dp);
+                real_number tol = 0.5 * dp * 10e-2;
 
                 // if (remx > tol && remx < dp - tol)
                 // {

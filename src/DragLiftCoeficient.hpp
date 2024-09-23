@@ -6,10 +6,10 @@
 
 void CalcDragLift(particles &vd,
                   Vcluster<> &v_cl,
-                  double t,
+                  real_number t,
                   std::ofstream &avgvelstream,
-                  double obstacle_force_x,
-                  double obstacle_force_y,
+                  real_number obstacle_force_x,
+                  real_number obstacle_force_y,
                   const Parameters &params,
                   size_t write);
 

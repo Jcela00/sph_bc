@@ -1,5 +1,5 @@
-#include "Vector/vector_dist.hpp"
-#include "Draw/DrawParticles.hpp"
+// #ifdef __NVCC__
+
 #include <math.h>
 #include <sys/stat.h>
 #include <cmath>
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 
 	// // regularize configuration
 	// vd.write_frame("reg", 0, MainParameters.WRITER);
-	// double dt_tmp = 10 * calc_deltaT(vd, v_cl, MainParameters);
+	// real_number dt_tmp = 10 * calc_deltaT(vd, v_cl, MainParameters);
 	// size_t Niters = 1e4;
 	// size_t iter = 0;
 	// while (iter < Niters)
@@ -118,11 +118,11 @@ int main(int argc, char *argv[])
 	// Evolve
 	size_t write = 0;
 
-	double t = 0.0;
+	real_number t = 0.0;
 	std::ofstream avgvelstream(MainParameters.filename + "_DragLift.csv");
 	bool calc_drag = false;
-	double obstacle_force_x = 0.0;
-	double obstacle_force_y = 0.0;
+	real_number obstacle_force_x = 0.0;
+	real_number obstacle_force_y = 0.0;
 
 	while (t <= MainParameters.t_end)
 	{
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 		// }
 
 		// Calculate dt for time stepping
-		double dt = calc_deltaT(vd, v_cl, MainParameters);
+		real_number dt = calc_deltaT(vd, v_cl, MainParameters);
 
 		// in general we dont compute drag coeficient every time step
 		calc_drag = false;
@@ -194,3 +194,12 @@ int main(int argc, char *argv[])
 	delete obstacle_ptr;
 	openfpm_finalize();
 }
+
+// #else
+
+// int main(int argc, char *argv[])
+// {
+// 	return 0;
+// }
+
+// #endif

@@ -7,47 +7,47 @@
 void AddFlatWallNewBC(particles &vd,
 					  const int k0,
 					  const int kmax,
-					  const Point<DIM, double> Corner,
-					  const Point<DIM, double> UnitOffset,
-					  const double dx,
-					  const Point<DIM, double> obstacle_centre,
-					  const Point<DIM, double> obstacle_velocity,
+					  const Point<DIM, real_number> Corner,
+					  const Point<DIM, real_number> UnitOffset,
+					  const real_number dx,
+					  const Point<DIM, real_number> obstacle_centre,
+					  const Point<DIM, real_number> obstacle_velocity,
 					  const Parameters &arg_p,
-					  const double obstacle_omega = 0.0);
+					  const real_number obstacle_omega = 0.0);
 
 void AddFlatWallModNewBC(particles &vd,
 						 const int k0,
 						 const int kmax,
-						 const Point<DIM, double> Corner,
-						 const Point<DIM, double> UnitOffset,
-						 const double dx,
-						 const Point<DIM, double> obstacle_centre,
-						 const Point<DIM, double> obstacle_velocity,
-						 const Point<DIM, double> given_normal,
-						 const double obstacle_omega);
+						 const Point<DIM, real_number> Corner,
+						 const Point<DIM, real_number> UnitOffset,
+						 const real_number dx,
+						 const Point<DIM, real_number> obstacle_centre,
+						 const Point<DIM, real_number> obstacle_velocity,
+						 const Point<DIM, real_number> given_normal,
+						 const real_number obstacle_omega);
 
-bool isAvobeLine(Point<DIM, double> P, Point<DIM, double> Q, Point<DIM, double> EvalPoint, double dp);
-bool isBelowLine(Point<DIM, double> P, Point<DIM, double> Q, Point<DIM, double> EvalPoint, double dp);
+bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
+bool isBelowLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 
 class Obstacle
 {
 public:
-	Point<DIM, double> Centre_;
+	Point<DIM, real_number> Centre_;
 	const Parameters &params_;
-	Point<DIM, double> LinearVelocity_;
-	double AngularVelocity_;
-	double refine_factor;
+	Point<DIM, real_number> LinearVelocity_;
+	real_number AngularVelocity_;
+	real_number refine_factor;
 
 public:
-	Obstacle(Point<DIM, double> Centre,
+	Obstacle(Point<DIM, real_number> Centre,
 			 const Parameters &p,
-			 Point<DIM, double> vel = {0.0, 0.0},
-			 double omega = 0.0,
-			 double rf = 1.0);
+			 Point<DIM, real_number> vel = {0.0, 0.0},
+			 real_number omega = 0.0,
+			 real_number rf = 1.0);
 
 	virtual ~Obstacle() = default;
 	Obstacle(const Parameters &p);
-	virtual bool isInside(Point<DIM, double> P) = 0;
+	virtual bool isInside(Point<DIM, real_number> P) = 0;
 	virtual void AddObstacle(particles &vd) = 0;
 };
 
@@ -56,117 +56,116 @@ class EmptyObstacle : public Obstacle
 public:
 	EmptyObstacle(const Parameters &p);
 	~EmptyObstacle() override = default;
-	bool isInside(Point<DIM, double> P) override;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd) override;
 };
 
 class CylinderObstacle : public Obstacle
 {
 private:
-	double Radius_;
-	Sphere<DIM, double> Cylinder_;
+	real_number Radius_;
 
 public:
-	CylinderObstacle(double Radius,
-					 Point<DIM, double> centre,
+	CylinderObstacle(real_number Radius,
+					 Point<DIM, real_number> centre,
 					 const Parameters &p,
-					 Point<DIM, double> vel = {0.0, 0.0},
-					 double omega = 0.0,
-					 double rf = 1.0);
+					 Point<DIM, real_number> vel = {0.0, 0.0},
+					 real_number omega = 0.0,
+					 real_number rf = 1.0);
 	~CylinderObstacle() override = default;
-	bool isInside(Point<DIM, double> P) override;
-	bool isOutside(Point<DIM, double> P); // for outer cylinder in taylor couette
+	bool isInside(Point<DIM, real_number> P) override;
+	bool isInside_minEps(Point<DIM, real_number> P); // for outer cylinder in taylor couette
 	void AddObstacle(particles &vd);
 };
 
 class EllipticObstacle : public Obstacle
 {
 private:
-	double Major_;
-	double Minor_;
-	double tilt_;
+	real_number Major_;
+	real_number Minor_;
+	real_number tilt_;
 
 public:
-	EllipticObstacle(double Major_,
-					 double Minor_,
-					 double tilt_,
-					 Point<DIM, double> centre,
+	EllipticObstacle(real_number Major_,
+					 real_number Minor_,
+					 real_number tilt_,
+					 Point<DIM, real_number> centre,
 					 const Parameters &p,
-					 Point<DIM, double> vel = {0.0, 0.0},
-					 double omega = 0.0,
-					 double rf = 1.0);
+					 Point<DIM, real_number> vel = {0.0, 0.0},
+					 real_number omega = 0.0,
+					 real_number rf = 1.0);
 	~EllipticObstacle() override = default;
-	bool isInside(Point<DIM, double> P) override;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
-	Point<DIM, double> parametricEllipse(double theta);
+	Point<DIM, real_number> parametricEllipse(real_number theta);
 };
 
 class RectangleObstacle : public Obstacle
 {
 private:
-	const double BaseLength_;
-	const double HeigthLength_;
-	Box<DIM, double> Rectangle_;
-	Point<DIM, double> LowerLeft_;
-	// Point<DIM, double> LowerRight_;
-	// Point<DIM, double> UpperLeft_;
-	Point<DIM, double> UpperRight_;
+	const real_number BaseLength_;
+	const real_number HeigthLength_;
+	Box<DIM, real_number> Rectangle_;
+	Point<DIM, real_number> LowerLeft_;
+	// Point<DIM, real_number> LowerRight_;
+	// Point<DIM, real_number> UpperLeft_;
+	Point<DIM, real_number> UpperRight_;
 
 public:
-	RectangleObstacle(Point<DIM, double> centre,
+	RectangleObstacle(Point<DIM, real_number> centre,
 					  const Parameters &p,
-					  double BaseLength,
-					  double HeigthLength,
-					  Point<DIM, double> vel = {0.0, 0.0},
-					  double omega = 0.0,
-					  double rf = 1.0);
+					  real_number BaseLength,
+					  real_number HeigthLength,
+					  Point<DIM, real_number> vel = {0.0, 0.0},
+					  real_number omega = 0.0,
+					  real_number rf = 1.0);
 	~RectangleObstacle() override = default;
-	bool isInside(Point<DIM, double> P) override;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
 };
 
 class TriangleObstacle : public Obstacle
 {
 private:
-	const double BaseLength_;
-	const double HeigthLength_;
-	Box<DIM, double> ContainingRectangle_;
-	Point<DIM, double> LowerLeft_;
-	Point<DIM, double> LowerRight_;
-	Point<DIM, double> UpperRight_;
+	const real_number BaseLength_;
+	const real_number HeigthLength_;
+	Box<DIM, real_number> ContainingRectangle_;
+	Point<DIM, real_number> LowerLeft_;
+	Point<DIM, real_number> LowerRight_;
+	Point<DIM, real_number> UpperRight_;
 
 public:
-	TriangleObstacle(Point<DIM, double> centre,
+	TriangleObstacle(Point<DIM, real_number> centre,
 					 const Parameters &p,
-					 double BaseLength,
-					 double HeigthLength,
-					 Point<DIM, double> vel = {0.0, 0.0},
-					 double omega = 0.0,
-					 double rf = 1.0);
+					 real_number BaseLength,
+					 real_number HeigthLength,
+					 Point<DIM, real_number> vel = {0.0, 0.0},
+					 real_number omega = 0.0,
+					 real_number rf = 1.0);
 	~TriangleObstacle() override = default;
-	bool isInside(Point<DIM, double> P) override;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
 };
 
 class TriangleEqui : public Obstacle
 {
 private:
-	const double SideLength_;
-	Box<DIM, double> ContainingRectangle_;
-	Point<DIM, double> LowerLeft_;
-	Point<DIM, double> UpperRight_;
-	Point<DIM, double> LowerRight_;
-	Point<DIM, double> TriangleTip_;
+	const real_number SideLength_;
+	Box<DIM, real_number> ContainingRectangle_;
+	Point<DIM, real_number> LowerLeft_;
+	Point<DIM, real_number> UpperRight_;
+	Point<DIM, real_number> LowerRight_;
+	Point<DIM, real_number> TriangleTip_;
 
 public:
-	TriangleEqui(Point<DIM, double> centre,
+	TriangleEqui(Point<DIM, real_number> centre,
 				 const Parameters &p,
-				 double sidelength,
-				 Point<DIM, double> vel = {0.0, 0.0},
-				 double omega = 0.0,
-				 double rf = 1.0);
+				 real_number sidelength,
+				 Point<DIM, real_number> vel = {0.0, 0.0},
+				 real_number omega = 0.0,
+				 real_number rf = 1.0);
 	~TriangleEqui() override = default;
-	bool isInside(Point<DIM, double> P) override;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
 };
 

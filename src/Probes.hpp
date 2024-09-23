@@ -8,18 +8,18 @@
 
 void interact_probe_boundary_new(particles &vd,
 								 vect_dist_key_dx probekey,
-								 const Point<DIM, double> &r_wall_to_probe,
+								 const Point<DIM, real_number> &r_wall_to_probe,
 								 unsigned long &boundary_key,
 								 const int component,
-								 double &W_sum,
-								 double &magnitude_tmp,
+								 real_number &W_sum,
+								 real_number &magnitude_tmp,
 								 const Parameters &params);
 
 void PlaceProbes(probe_particles &probes,
 				 const int k0,
 				 const int kmax,
-				 const Point<DIM, double> Corner,
-				 const Point<DIM, double> UnitOffset);
+				 const Point<DIM, real_number> Corner,
+				 const Point<DIM, real_number> UnitOffset);
 
 template <typename CellList>
 inline void sensor_velocity_comp(particles &vd,
@@ -36,10 +36,10 @@ inline void sensor_velocity_comp(particles &vd,
 	{
 
 		auto probekey = it.get();
-		Point<DIM, double> xp = probes.getPos(probekey);
+		Point<DIM, real_number> xp = probes.getPos(probekey);
 
-		double magnitude_tmp = 0.0;
-		double W_sum = 0.0;
+		real_number magnitude_tmp = 0.0;
+		real_number W_sum = 0.0;
 
 		if (obstacle_ptr->isInside(xp)) // if probe is inside the obstacle it gets a 0 value
 		{
@@ -50,17 +50,17 @@ inline void sensor_velocity_comp(particles &vd,
 		else
 		{
 			// get the iterator over the neighbohood particles of the probes position
-			auto itg = NN.getNNIterator(NN.getCell(xp));
+			auto itg = NN.getNNIteratorBox(NN.getCell(xp));
 			while (itg.isNext())
 			{
 				// get key of the particle
 				auto q = itg.get();
 
 				// Get the position of the neighborhood particle q
-				Point<DIM, double> xq = vd.getPos(q);
-				Point<DIM, double> dr = xp - xq;
+				Point<DIM, real_number> xq = vd.getPos(q);
+				Point<DIM, real_number> dr = xp - xq;
 				// Calculate the distance
-				double r = getVectorNorm(dr);
+				real_number r = getVectorNorm(dr);
 
 				if (vd.template getProp<type>(q) == BOUNDARY)
 				{
@@ -77,15 +77,15 @@ inline void sensor_velocity_comp(particles &vd,
 					// }
 					else if (params.BC_TYPE == NO_SLIP)
 					{
-						double ker = Wab(r, params.H, params.Kquintic) * (params.MassBound / params.rho_zero);
+						real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassBound / params.rho_zero);
 						W_sum += ker;
 						magnitude_tmp += vd.template getProp<v_transport>(q)[component] * ker;
 					}
 				}
 				else if (vd.template getProp<type>(q) == FLUID)
 				{
-					double rhoq = vd.template getProp<rho>(q);
-					double ker = Wab(r, params.H, params.Kquintic) * (params.MassFluid / rhoq);
+					real_number rhoq = vd.template getProp<rho>(q);
+					real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassFluid / rhoq);
 
 					// Also keep track of the calculation of the summed kernel
 					W_sum += ker;

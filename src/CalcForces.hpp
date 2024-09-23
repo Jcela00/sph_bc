@@ -7,15 +7,15 @@
 template <typename CellList>
 void calc_forces(particles &vd,
                  CellList &NN,
-                 double &obstacle_force_x,
-                 double &obstacle_force_y,
+                 real_number &obstacle_force_x,
+                 real_number &obstacle_force_y,
                  bool calc_drag,
                  const Parameters &params)
 {
     // get domain iterator
     vector_dist_iterator part = vd.getDomainIterator();
 
-    const double dp = params.dp;
+    const real_number dp = params.dp;
 
     // Update the cell-list
     vd.updateCellList(NN);
@@ -30,11 +30,11 @@ void calc_forces(particles &vd,
         if (vd.getProp<type>(a) == FLUID)
         {
 
-            const Point<DIM, double> xa = vd.getPos(a);
-            const double massa = params.MassFluid;
-            const double rhoa = vd.getProp<rho>(a);
-            const double Pa = vd.getProp<pressure>(a);
-            const Point<DIM, double> va = vd.getProp<velocity>(a);
+            const Point<DIM, real_number> xa = vd.getPos(a);
+            const real_number massa = params.MassFluid;
+            const real_number rhoa = vd.getProp<rho>(a);
+            const real_number Pa = vd.getProp<pressure>(a);
+            const Point<DIM, real_number> va = vd.getProp<velocity>(a);
 
             // Reset the force counter (0 + gravity)
             for (int xyz = 0; xyz < DIM; xyz++)
@@ -47,7 +47,7 @@ void calc_forces(particles &vd,
             vd.template getProp<drho>(a) = 0.0;
 
             // Get an iterator over the neighborhood particles of p
-            auto Np = NN.getNNIterator(NN.getCell(xa));
+            auto Np = NN.getNNIteratorBox(NN.getCell(xa));
 
             // For each neighborhood particle
             while (Np.isNext() == true)
@@ -63,14 +63,14 @@ void calc_forces(particles &vd,
                 }
 
                 // Get the position xb of the particle
-                Point<DIM, double> xb = vd.getPos(b);
+                Point<DIM, real_number> xb = vd.getPos(b);
 
                 // Get the distance between a and b
                 // in fluid - boundary its xf-xb i.e. vector pointing at fluid from boundary
-                Point<DIM, double> dr = xa - xb;
+                Point<DIM, real_number> dr = xa - xb;
 
                 // take the norm (squared) of this vector
-                double r2 = norm2(dr);
+                real_number r2 = norm2(dr);
 
                 // in general we do not accumulate force, only in the case of interacting with an obstacle
                 bool accumulate_force = false;
@@ -123,9 +123,9 @@ void calc_forces_regularize(particles &vd,
         // if the particle is FLUID
         if (vd.getProp<type>(a) == FLUID)
         {
-            const Point<DIM, double> xa = vd.getPos(a);
-            const double massa = params.MassFluid;
-            const double rhoa = vd.getProp<rho>(a);
+            const Point<DIM, real_number> xa = vd.getPos(a);
+            const real_number massa = params.MassFluid;
+            const real_number rhoa = vd.getProp<rho>(a);
 
             // Reset the force counter (0 + gravity)
             for (int xyz = 0; xyz < DIM; xyz++)
@@ -137,7 +137,7 @@ void calc_forces_regularize(particles &vd,
             vd.template getProp<drho>(a) = 0.0;
 
             // Get an iterator over the neighborhood particles of p
-            auto Np = NN.getNNIterator(NN.getCell(xa));
+            auto Np = NN.getNNIteratorBox(NN.getCell(xa));
 
             // For each neighborhood particle
             while (Np.isNext() == true)
@@ -153,14 +153,14 @@ void calc_forces_regularize(particles &vd,
                 }
 
                 // Get the position xb of the particle
-                Point<DIM, double> xb = vd.getPos(b);
+                Point<DIM, real_number> xb = vd.getPos(b);
 
                 // Get the distance between a and b
                 // in fluid - boundary its xf-xb i.e. vector pointing at fluid from boundary
-                Point<DIM, double> dr = xa - xb;
+                Point<DIM, real_number> dr = xa - xb;
 
                 // take the norm (squared) of this vector
-                double r2 = norm2(dr);
+                real_number r2 = norm2(dr);
 
                 // if they interact
                 if (r2 < params.r_threshold * params.r_threshold)

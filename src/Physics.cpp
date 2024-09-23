@@ -1,6 +1,6 @@
 #include "Physics.hpp"
 
-void EqState(particles &vd, const double rho0, const double B, const double gamma, const double xi)
+void EqState(particles &vd, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
 {
     auto it = vd.getDomainIterator();
 
@@ -10,8 +10,8 @@ void EqState(particles &vd, const double rho0, const double B, const double gamm
 
         if (vd.getProp<type>(a) == FLUID)
         {
-            double rho_a = vd.template getProp<rho>(a);
-            double rho_frac = rho_a / rho0;
+            real_number rho_a = vd.template getProp<rho>(a);
+            real_number rho_frac = rho_a / rho0;
 
             vd.template getProp<pressure>(a) = B * (std::pow(rho_frac, gamma) - 1.0) + xi;
         }
