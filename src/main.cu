@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
 
 	ParseXMLFile(tmp, MainParameters);
 	InitializeConstants(v_cl, MainParameters);
+	WriteParameters(MainParameters);
 
 	// Create a particle vector
 	particles vd;
@@ -165,8 +166,7 @@ int main(int argc, char *argv[])
 
 		// increment time
 		t += dt;
-		// if (write < t * MainParameters.write_const)
-		if (true)
+		if (write < t * MainParameters.write_const)
 		{
 			// // // sensor calculation require ghost and update cell-list
 			// if (MainParameters.PROBES_ENABLED)
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-
+			vd.deleteGhost();
 			// CalcVorticity(vd, NN, MainParameters);
 			// vd.deleteGhost();
 			vd.write_frame(MainParameters.filename, write, MainParameters.WRITER);

@@ -344,6 +344,57 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
     argParameters.filename += "_" + std::to_string(Nprc) + "prc";
 }
 
+void WriteParameters(const Parameters &argParameters)
+{
+    // write all the parameters to a .txt file for debugging and making sure the parameters are read correctly
+    std::ofstream file;
+    file.open("parameters.txt");
+    file << "SCENARIO: " << argParameters.SCENARIO << std::endl;
+    file << "BC_TYPE: " << argParameters.BC_TYPE << std::endl;
+    file << "DENSITY_TYPE: " << argParameters.DENSITY_TYPE << std::endl;
+    file << "WRITER: " << argParameters.WRITER << std::endl;
+    file << "length={" << argParameters.length[0] << "," << argParameters.length[1] << "}" << std::endl;
+    file << "bc={" << argParameters.bc[0] << "," << argParameters.bc[1] << "}" << std::endl;
+    file << "Nfluid={" << argParameters.Nfluid[0] << "," << argParameters.Nfluid[1] << "}" << std::endl;
+    file << "Nboundary={" << argParameters.Nboundary[0] << "," << argParameters.Nboundary[1] << "}" << std::endl;
+    file << "LengthScale: " << argParameters.LengthScale << std::endl;
+    file << "rf: " << argParameters.rf << std::endl;
+    file << "H: " << argParameters.H << std::endl;
+    file << "r_threshold: " << argParameters.r_threshold << std::endl;
+    file << "Kquintic: " << argParameters.Kquintic << std::endl;
+    file << "Re: " << argParameters.Re << std::endl;
+    file << "umax: " << argParameters.umax << std::endl;
+    file << "rho_zero: " << argParameters.rho_zero << std::endl;
+    file << "gamma_: " << argParameters.gamma_ << std::endl;
+    file << "coeff_sound: " << argParameters.coeff_sound << std::endl;
+    file << "cbar: " << argParameters.cbar << std::endl;
+    file << "B: " << argParameters.B << std::endl;
+    file << "xi: " << argParameters.xi << std::endl;
+    file << "gravity_vector: {" << argParameters.gravity_vector.get(0) << "," << argParameters.gravity_vector.get(1) << "," << argParameters.gravity_vector.get(2) << "}" << std::endl;
+    file << "gravity: " << argParameters.gravity << std::endl;
+    file << "vw_top: {" << argParameters.vw_top.get(0) << "," << argParameters.vw_top.get(1) << "," << argParameters.vw_top.get(2) << "}" << std::endl;
+    file << "vw_bottom: {" << argParameters.vw_bottom.get(0) << "," << argParameters.vw_bottom.get(1) << "," << argParameters.vw_bottom.get(2) << "}" << std::endl;
+    file << "MassFluid: " << argParameters.MassFluid << std::endl;
+    file << "MassBound: " << argParameters.MassBound << std::endl;
+    file << "nu: " << argParameters.nu << std::endl;
+    file << "eta: " << argParameters.eta << std::endl;
+    file << "Bfactor: " << argParameters.Bfactor << std::endl;
+    file << "Pbackground: " << argParameters.Pbackground << std::endl;
+    file << "t_end: " << argParameters.t_end << std::endl;
+    file << "CFLnumber: " << argParameters.CFLnumber << std::endl;
+    file << "write_const: " << argParameters.write_const << std::endl;
+    file << "ObstacleCenter: {" << argParameters.ObstacleCenter.get(0) << "," << argParameters.ObstacleCenter.get(1) << "," << argParameters.ObstacleCenter.get(2) << "}" << std::endl;
+    file << "ObstacleVelocity: {" << argParameters.ObstacleVelocity.get(0) << "," << argParameters.ObstacleVelocity.get(1) << "," << argParameters.ObstacleVelocity.get(2) << "}" << std::endl;
+    file << "ObstacleOmega: " << argParameters.ObstacleOmega << std::endl;
+    file << "Rin: " << argParameters.Rin << std::endl;
+    file << "Rout: " << argParameters.Rout << std::endl;
+    file << "Win: " << argParameters.Win << std::endl;
+    file << "Wout: " << argParameters.Wout << std::endl;
+    file << "ObstacleBase: " << argParameters.ObstacleBase << std::endl;
+    file << "ObstacleHeight: " << argParameters.ObstacleHeight << std::endl;
+    file << "ObstacleTilt: " << argParameters.ObstacleTilt << std::endl;
+}
+
 // void SetFilename(std::string &filename, const long int Nprc, const Parameters &params)
 // {
 //     filename = params.filename;

@@ -18,6 +18,7 @@ OBJS = $(OBJS_CPP) $(OBJS_CU)
 
 # Add the TinyXML2 library to the LIBS variable
 LIBS += -ltinyxml2
+LIBS_SELECT += -ltinyxml2
 
 # Add C++17 standard flag
 # CXX_STD = -std=c++17 
@@ -26,13 +27,9 @@ LIBS += -ltinyxml2
 OPT += -DBOOST_ALLOW_DEPRECATED_HEADERS
 # Define the target for the executable
 sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))
-sph_dlb: $(OBJS)
-	$(CC) $(OPT) $(CXX_STD) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
 
-# Define a target for the test executable if needed
-sph_dlb_test: $(OBJS)
-	$(CC) $(OPT) $(CXX_STD) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
-
+# sph_dlb: $(OBJS)
+# 	$(CC) $(OPT) $(CXX_STD) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
 
 
 # Rule to compile .cu files to .o files in the build directory
@@ -43,11 +40,8 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cu | $(BUILD_DIR)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CC) $(OPT) $(CXX_STD) -c -o $@ $< $(INCLUDE_PATH)
 
-# # Rule to compile .cpp files to .o files in the build directory
-# $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
-# 	$(CUDA_CC) $(CUDA_OPTIONS) -c -o $@ $< $(INCLUDE_PATH_NVCC)
-
-
+sph_dlb: $(OBJS)
+	$(CUDA_CC_LINK) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS_SELECT) 
 # Ensure the build directory exists
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)

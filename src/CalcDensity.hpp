@@ -36,7 +36,7 @@ __global__ void CalcDensityGPU(vd_type vd, NN_type NN, const Parameters params)
 
             // take the norm squared of this vector
             const real_number r2 = norm2(dr);
-            const real_number r = sqrt(r2);
+            const real_number r = sqrtf(r2);
 
             // If the particles interact ...
             if (r < params.r_threshold)
@@ -53,7 +53,6 @@ __global__ void CalcDensityGPU(vd_type vd, NN_type NN, const Parameters params)
                 {
                     if (params.BC_TYPE == NO_SLIP)
                     {
-                        const real_number r = sqrt(r2);
                         // evaluate kernel
                         const real_number w = Wab(r, params.H, params.Kquintic);
                         rho_sum += w * params.MassBound;

@@ -38,7 +38,7 @@ inline __device__ __host__ real_number calc_deltaT(const Parameters params)
 {
     real_number Maxvel = 0.0;
     // max_velocity(vd, v_cl, Maxvel);
-    Maxvel = params.cbar / 10.0;
+    Maxvel = 0.0;
 
     real_number dt_u = 0.25 * params.H / (params.cbar + abs(Maxvel));
     real_number dt_visc = 0.25 * params.H * params.H / (params.nu);
@@ -172,22 +172,21 @@ void kick_drift_int(particles &vd,
                     real_number t,
                     Parameters &params)
 {
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
+    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
 
     // particle iterator
     auto it = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t, params);
-    cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    if (err != cudaSuccess)
-    {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
+    // cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
+    // if (err != cudaSuccess)
+    // {
+    //     printf("CUDA error: %s\n", cudaGetErrorString(err));
+    // }
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
-
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
+    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
 
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
@@ -198,7 +197,7 @@ void kick_drift_int(particles &vd,
 
     // Calculate pressure from the density
     EqState(vd, params.rho_zero, params.B, params.gamma_, params.xi);
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
+    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
 
     // if (params.BC_TYPE == NO_SLIP)
     // {
@@ -226,17 +225,17 @@ void kick_drift_int(particles &vd,
     // }
 
     // BEFORE GPU GHOST GET
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
+    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
 
     // particle iterator
     auto it2 = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_2_gpu, it2, vd.toKernel(), dt, t, params);
-    err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    if (err != cudaSuccess)
-    {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
+    // err = cudaDeviceSynchronize(); // Wait for the kernel to finish
+    // if (err != cudaSuccess)
+    // {
+    //     printf("CUDA error: %s\n", cudaGetErrorString(err));
+    // }
 
     // vd.deviceToHostPos();
     // vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();

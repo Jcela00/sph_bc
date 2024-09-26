@@ -14,7 +14,7 @@ inline __device__ __host__ real_number EqState_particle(const real_number rho, c
     return B * (std::pow(rho / rho0, gamma) - 1.0) + xi;
 }
 
-inline __device__ __host__ Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, const real_number &r, const Point<DIM, real_number> &dv, const Point<DIM, real_number> &dW, const real_number eta)
+inline __device__ __host__ Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, const real_number &r, const Point<DIM, real_number> &dv, const Point<DIM, real_number> &dW, const real_number &eta)
 {
     real_number denominator = r * r;
     Point<DIM, real_number> result = (eta * (dv * dotProduct(dr, dW)));

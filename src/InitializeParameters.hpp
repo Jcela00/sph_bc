@@ -9,4 +9,6 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters);
 
 void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters);
 
+void WriteParameters(const Parameters &argParameters);
+
 #endif // INITIALIZEPARAMETERS_HPP
