@@ -23,7 +23,7 @@
 
 // void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, const Point<DIM, real_number> centre);
 
-inline real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
+inline __device__ __host__ real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
 	real_number result = 0.0f;
 	if constexpr (DIM == 2)
@@ -34,7 +34,7 @@ inline real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM,
 	return result;
 }
 
-inline std::array<Point<DIM, real_number>, DIM> dyadicProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
+inline __device__ __host__ std::array<Point<DIM, real_number>, DIM> dyadicProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
 	std::array<Point<DIM, real_number>, DIM> dyad;
 	for (size_t i = 0; i < DIM; i++)
@@ -44,7 +44,7 @@ inline std::array<Point<DIM, real_number>, DIM> dyadicProduct(const Point<DIM, r
 	return dyad;
 }
 
-inline Point<DIM, real_number> matVec(const std::array<Point<DIM, real_number>, DIM> &m, const Point<DIM, real_number> &v)
+inline __device__ __host__ Point<DIM, real_number> matVec(const std::array<Point<DIM, real_number>, DIM> &m, const Point<DIM, real_number> &v)
 {
 	Point<DIM, real_number> res;
 	for (size_t i = 0; i < DIM; i++)
@@ -54,19 +54,19 @@ inline Point<DIM, real_number> matVec(const std::array<Point<DIM, real_number>, 
 	return res;
 }
 
-inline real_number getVectorNorm(const Point<DIM, real_number> &v)
+inline __device__ __host__ real_number getVectorNorm(const Point<DIM, real_number> &v)
 {
 	return sqrt(norm2(v));
 }
 
-inline void normalizeVector(Point<DIM, real_number> &v)
+inline __device__ __host__ void normalizeVector(Point<DIM, real_number> &v)
 {
 	const real_number norm = getVectorNorm(v);
 	if (norm > 0.0f)
 		v = v / norm;
 }
 
-inline Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_number> &v)
+inline __device__ __host__ Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_number> &v)
 {
 	Point<DIM, real_number> perp;
 	perp.get(0) = -v.get(1);
@@ -75,7 +75,7 @@ inline Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_numb
 	return perp;
 }
 
-inline std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<DIM, real_number> &r, const Point<DIM, real_number> &normal, real_number dp)
+inline __device__ __host__ std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<DIM, real_number> &r, const Point<DIM, real_number> &normal, real_number dp)
 {
 	// aplies offset to a vector and returns the vectors pointing at the virtual wall particles
 	// r needs to be pointing to the wall particle
@@ -90,12 +90,12 @@ inline std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<D
 	return r_virtual;
 }
 
-inline real_number crossProduct2D(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
+inline __device__ __host__ real_number crossProduct2D(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
 	return v.get(0) * w.get(1) - v.get(1) * w.get(0);
 }
 
-inline Point<DIM, real_number> crossProduct3D(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
+inline __device__ __host__ Point<DIM, real_number> crossProduct3D(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
 	Point<DIM, real_number> res;
 	res.get(0) = v.get(1) * w.get(2) - v.get(2) * w.get(1);
@@ -104,7 +104,7 @@ inline Point<DIM, real_number> crossProduct3D(const Point<DIM, real_number> &v, 
 	return res;
 }
 
-inline void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, const Point<DIM, real_number> centre)
+inline __device__ __host__ void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, const Point<DIM, real_number> centre)
 {
 
 	Point<DIM, real_number> x_rotated;
@@ -116,28 +116,28 @@ inline void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, c
 
 // function to know the type of a variable
 // used to know types of auto variables
-template <class T>
-std::string type_name()
-{
-	typedef typename std::remove_reference<T>::type TR;
-	std::unique_ptr<char, void (*)(void *)> own(
-#ifndef _MSC_VER
-		abi::__cxa_demangle(typeid(TR).name(), nullptr,
-							nullptr, nullptr),
-#else
-		nullptr,
-#endif
-		std::free);
-	std::string r = own != nullptr ? own.get() : typeid(TR).name();
-	if (std::is_const<TR>::value)
-		r += " const";
-	if (std::is_volatile<TR>::value)
-		r += " volatile";
-	if (std::is_lvalue_reference<T>::value)
-		r += "&";
-	else if (std::is_rvalue_reference<T>::value)
-		r += "&&";
-	return r;
-}
+// template <class T>
+// std::string type_name()
+// {
+// 	typedef typename std::remove_reference<T>::type TR;
+// 	std::unique_ptr<char, void (*)(void *)> own(
+// #ifndef _MSC_VER
+// 		abi::__cxa_demangle(typeid(TR).name(), nullptr,
+// 							nullptr, nullptr),
+// #else
+// 		nullptr,
+// #endif
+// 		std::free);
+// 	std::string r = own != nullptr ? own.get() : typeid(TR).name();
+// 	if (std::is_const<TR>::value)
+// 		r += " const";
+// 	if (std::is_volatile<TR>::value)
+// 		r += " volatile";
+// 	if (std::is_lvalue_reference<T>::value)
+// 		r += "&";
+// 	else if (std::is_rvalue_reference<T>::value)
+// 		r += "&&";
+// 	return r;
+// }
 
 #endif // VECTORUTILITIES_H

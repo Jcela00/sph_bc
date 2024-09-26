@@ -238,7 +238,7 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
 }
 
 template <typename CellList>
-void CalcCurvature(particles &vd, CellList &NN, Vcluster<> &v_cl, const Parameters &params)
+void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the curvature of the boundary particles from the divergence of the normal vector
 
@@ -371,107 +371,6 @@ void CalcVolume(particles &vd, real_number dp)
                 vd.template getProp<vd_volume>(a)[i] = std::max(0.0, 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall);
             }
         }
-        ++part;
-    }
-}
-
-template <typename CellList>
-void CalcDensity(particles &vd, CellList &NN, const Parameters &params)
-{
-    // This function computes the density of particles from the summation formulation
-
-    auto part = vd.getDomainIterator();
-
-    // Update the cell-list
-    vd.updateCellList(NN);
-
-    // For each particle ...
-    while (part.isNext())
-    {
-        // Key of the particle a
-        vect_dist_key_dx a = part.get();
-
-        // if particle FLUID
-        if (vd.getProp<type>(a) == FLUID)
-        {
-
-            // Get the position xb of the particle a
-            Point<DIM, real_number> xa = vd.getPos(a);
-
-            // initialize density sum
-            real_number rho_sum = 0.0;
-            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
-
-            // iterate the neighborhood particles
-            while (Np.isNext() == true)
-            {
-                // Key of b particle
-                unsigned long b = Np.get();
-
-                // Get the position xb of the particle b
-                const Point<DIM, real_number> xb = vd.getPos(b);
-
-                // Get the vector pointing at xa from xb
-                const Point<DIM, real_number> dr = xa - xb;
-
-                // take the norm squared of this vector
-                const real_number r2 = norm2(dr);
-                const real_number r = sqrt(r2);
-
-                // If the particles interact ...
-                if (r < params.r_threshold)
-                {
-
-                    if (vd.getProp<type>(b) == FLUID)
-                    {
-
-                        // evaluate kernel
-                        const real_number w = Wab(r, params.H, params.Kquintic);
-                        rho_sum += w * params.MassFluid;
-                    }
-                    else // if boundary particle
-                    {
-                        if (params.BC_TYPE == NO_SLIP)
-                        {
-                            const real_number r = sqrt(r2);
-                            // evaluate kernel
-                            const real_number w = Wab(r, params.H, params.Kquintic);
-                            rho_sum += w * params.MassBound;
-                        }
-                        else if (params.BC_TYPE == NEW_NO_SLIP) // need to evaluate kernel at virtual particles
-                        {
-                            // get normal vector of b
-                            const Point<DIM, real_number> normal = vd.getProp<normal_vector>(b);
-                            // get volumes, and curvature of virtual particles
-                            const Point<3, real_number> vol = vd.template getProp<vd_volume>(b);
-                            // const real_number kappa = vd.template getProp<curvature_boundary>(b);
-
-                            // Apply offsets to dr to get 3 vectrors pointing to virtual particles
-                            const std::array<Point<DIM, real_number>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, params.dp);
-
-                            // iterate the 3 virtual particles
-                            for (int i = 0; i < 3; i++)
-                            {
-                                const real_number W = Wab(getVectorNorm(R_virtual[i]), params.H, params.Kquintic);
-                                rho_sum += W * vol[i] * params.rho_zero; // this is equivalent to +=W*mass
-                            }
-                        }
-                    }
-                }
-
-                ++Np;
-            }
-            if (rho_sum != 0.0)
-            {
-                vd.template getProp<rho>(a) = rho_sum;
-            }
-            else
-            {
-                std::cout << "WARNING: NO particles around, density summation zero" << std::endl;
-                vd.template getProp<rho>(a) = params.rho_zero;
-            }
-        }
-
         ++part;
     }
 }

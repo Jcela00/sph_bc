@@ -23,8 +23,7 @@ LIBS += -ltinyxml2
 # CXX_STD = -std=c++17 
 
 # Add flags
-OPT += -Wno-deprecated -DBOOST_ALLOW_DEPRECATED_HEADERS
-
+OPT += -DBOOST_ALLOW_DEPRECATED_HEADERS
 # Define the target for the executable
 sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))
 sph_dlb: $(OBJS)
@@ -34,13 +33,20 @@ sph_dlb: $(OBJS)
 sph_dlb_test: $(OBJS)
 	$(CC) $(OPT) $(CXX_STD) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
 
-# Rule to compile .cpp files to .o files in the build directory
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
-	$(CC) $(OPT) $(CXX_STD) -c -o $@ $< $(INCLUDE_PATH)
+
 
 # Rule to compile .cu files to .o files in the build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cu | $(BUILD_DIR)
 	$(CUDA_CC) $(CUDA_OPTIONS) -c -o $@ $< $(INCLUDE_PATH_NVCC)
+	
+# # Rule to compile .cpp files to .o files in the build directory
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
+	$(CC) $(OPT) $(CXX_STD) -c -o $@ $< $(INCLUDE_PATH)
+
+# # Rule to compile .cpp files to .o files in the build directory
+# $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
+# 	$(CUDA_CC) $(CUDA_OPTIONS) -c -o $@ $< $(INCLUDE_PATH_NVCC)
+
 
 # Ensure the build directory exists
 $(BUILD_DIR):

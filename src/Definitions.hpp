@@ -67,13 +67,13 @@ const int vd_omega = 12;
 // vorticity
 const int vd_vorticity = 13;
 
-typedef vector_dist<DIM, real_number, aggregate<size_t, real_number, real_number, real_number, real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number, real_number, real_number[3], real_number, real_number>> particles;
+typedef vector_dist_gpu<DIM, real_number, aggregate<size_t, real_number, real_number, real_number, real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number, real_number, real_number[3], real_number, real_number>> particles;
 //                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |       |
 //                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |       |
 //                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega    vorticity
 //                                                                 density
 
-typedef vector_dist<DIM, real_number, aggregate<real_number>> probe_particles;
+typedef vector_dist_gpu<DIM, real_number, aggregate<real_number>> probe_particles;
 
 class Parameters
 {

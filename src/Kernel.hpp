@@ -5,7 +5,7 @@
 // real_number Wab(real_number r, const real_number H, const real_number Kquintic);
 // Point<DIM, real_number> DWab(const Point<DIM, real_number> &dx, const real_number r, const real_number H, const real_number Kquintic);
 
-inline real_number Wab(real_number r, const real_number H, const real_number Kquintic)
+inline __device__ __host__ real_number Wab(real_number r, const real_number H, const real_number Kquintic)
 {
     const real_number q = r / H;
     const real_number tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);
@@ -24,7 +24,7 @@ inline real_number Wab(real_number r, const real_number H, const real_number Kqu
         return 0.0;
 }
 
-inline Point<DIM, real_number> DWab(const Point<DIM, real_number> &dx, const real_number r, const real_number H, const real_number Kquintic)
+inline __device__ __host__ Point<DIM, real_number> DWab(const Point<DIM, real_number> &dx, const real_number r, const real_number H, const real_number Kquintic)
 {
     Point<DIM, real_number> DW;
     const real_number q = r / H;

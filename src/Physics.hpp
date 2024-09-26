@@ -4,21 +4,17 @@
 #include "Definitions.hpp"
 #include "VectorUtilities.hpp"
 
-// Declaration
-void EqState(particles &vd, const real_number rho0, const real_number B, const real_number gamma, const real_number xi);
-
-// Declaration And Definition because of inline
-inline real_number InvEqState_particle(const real_number p, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
+inline __device__ __host__ real_number InvEqState_particle(const real_number p, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
 {
     return rho0 * std::pow(((p - xi) / B + 1.0), 1.0 / gamma);
 }
 
-inline real_number EqState_particle(const real_number rho, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
+inline __device__ __host__ real_number EqState_particle(const real_number rho, const real_number rho0, const real_number B, const real_number gamma, const real_number xi)
 {
     return B * (std::pow(rho / rho0, gamma) - 1.0) + xi;
 }
 
-inline Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, const real_number &r, const Point<DIM, real_number> &dv, const Point<DIM, real_number> &dW, const real_number eta)
+inline __device__ __host__ Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, const real_number &r, const Point<DIM, real_number> &dv, const Point<DIM, real_number> &dW, const real_number eta)
 {
     real_number denominator = r * r;
     Point<DIM, real_number> result = (eta * (dv * dotProduct(dr, dW)));
@@ -28,7 +24,7 @@ inline Point<DIM, real_number> Pi_physical(const Point<DIM, real_number> &dr, co
     return result;
 }
 
-inline real_number PressureForce(const real_number &rhoa, const real_number &rhob, const real_number &prsa, const real_number &prsb)
+inline __device__ __host__ real_number PressureForce(const real_number &rhoa, const real_number &rhob, const real_number &prsa, const real_number &prsb)
 {
     return -1.0 * (rhob * prsa + rhoa * prsb) / (rhoa + rhob);
 }

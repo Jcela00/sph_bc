@@ -108,78 +108,78 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     // WriteParameters(v_cl, params);
 
     // place probes
-    if (params.PROBES_ENABLED)
-    {
-        // we want to place probes  in a vertical line at this locations
-        Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
-        Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0f, 0.0};
-        Point<DIM, real_number> HalfHeight = {0.0, params.length[1] / 2.0f};
-        Point<DIM, real_number> VerticalOffset = {0.0, dp};
-        Point<DIM, real_number> HorizontalOffset = {dp, 0.0};
-        int k0 = 0;
-        int kendHeight = params.Nfluid[1] + 1;
-        int kendWidth = params.Nfluid[0] + 1;
+    // if (params.PROBES_ENABLED)
+    // {
+    //     // we want to place probes  in a vertical line at this locations
+    //     Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
+    //     Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0f, 0.0};
+    //     Point<DIM, real_number> HalfHeight = {0.0, params.length[1] / 2.0f};
+    //     Point<DIM, real_number> VerticalOffset = {0.0, dp};
+    //     Point<DIM, real_number> HorizontalOffset = {dp, 0.0};
+    //     int k0 = 0;
+    //     int kendHeight = params.Nfluid[1] + 1;
+    //     int kendWidth = params.Nfluid[0] + 1;
 
-        std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
-        std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
-        std::vector<Point<DIM, real_number>> Offsets;
-        std::vector<int> maxIters;
+    //     std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
+    //     std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+    //     std::vector<Point<DIM, real_number>> Offsets;
+    //     std::vector<int> maxIters;
 
-        if (params.SCENARIO == CAVITY)
-        {
-            ProbePoints.push_back(HalfChannel);
-            ProbePoints.push_back(HalfHeight);
+    //     if (params.SCENARIO == CAVITY)
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(HalfHeight);
 
-            ProbeComponents.push_back(0); // measure x velocity
-            ProbeComponents.push_back(1); // measure y velocity
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(1); // measure y velocity
 
-            Offsets.push_back(VerticalOffset);
-            Offsets.push_back(HorizontalOffset);
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(HorizontalOffset);
 
-            maxIters.push_back(kendHeight);
-            maxIters.push_back(kendWidth);
-        }
-        else
-        {
-            ProbePoints.push_back(HalfChannel);
-            ProbePoints.push_back(EndChannel);
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendWidth);
+    //     }
+    //     else
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(EndChannel);
 
-            ProbeComponents.push_back(0); // measure x velocity
-            ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(0); // measure x velocity
 
-            Offsets.push_back(VerticalOffset);
-            Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(VerticalOffset);
 
-            maxIters.push_back(kendHeight);
-            maxIters.push_back(kendHeight);
-        }
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendHeight);
+    //     }
 
-        for (unsigned int k = 0; k < ProbePoints.size(); k++)
-        {
-            // create probe object
-            Ghost<DIM, real_number> gp(0);
-            size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
-            probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
-            if (ProbeComponents[k] == 0)
-            {
-                openfpm::vector<std::string> names_p = {"vx"};
-                vp_loc.setPropNames(names_p);
-            }
-            else if (ProbeComponents[k] == 1)
-            {
-                openfpm::vector<std::string> names_p = {"vy"};
-                vp_loc.setPropNames(names_p);
-            }
+    //     for (unsigned int k = 0; k < ProbePoints.size(); k++)
+    //     {
+    //         // create probe object
+    //         Ghost<DIM, real_number> gp(0);
+    //         size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
+    //         probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+    //         if (ProbeComponents[k] == 0)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vx"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
+    //         else if (ProbeComponents[k] == 1)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vy"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
 
-            if (v_cl.getProcessUnitID() == 0)
-            {
-                PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
-            }
-            std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
-            vp_vec.push_back(tmp);
-            params.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + params.filename);
-        }
-    }
+    //         if (v_cl.getProcessUnitID() == 0)
+    //         {
+    //             PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+    //         }
+    //         std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
+    //         vp_vec.push_back(tmp);
+    //         params.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + params.filename);
+    //     }
+    // }
 
     // Add the obstacle/walls as marker particles only on processor 0
     if (params.BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)

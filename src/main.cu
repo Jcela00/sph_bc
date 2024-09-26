@@ -9,14 +9,13 @@
 #include "Kernel.hpp"
 #include "Physics.hpp"
 #include "Calculations.hpp"
-#include "Interactions.hpp"
-#include "CalcForces.hpp"
 #include "Obstacle.hpp"
-#include "TimeIntegration.hpp"
 #include "Probes.hpp"
 #include "CreateParticleGeometry.hpp"
 #include "InitializeParameters.hpp"
 #include "DragLiftCoeficient.hpp"
+#include "TimeIntegration.hpp"
+#include "CalcForces.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -57,12 +56,11 @@ int main(int argc, char *argv[])
 		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr, MainParameters);
 	}
 	vd.map();
-	// vd.write_frame(MainParameters.filename, 0, MainParameters.WRITER);
 
-	for (size_t k = 0; k < vp.size(); k++)
-	{
-		(vp[k].first).map();
-	}
+	// for (size_t k = 0; k < vp.size(); k++)
+	// {
+	// 	(vp[k].first).map();
+	// }
 
 	// Now that we fill the vector with particles, decompose the domain
 	// ModelCustom md;
@@ -95,12 +93,14 @@ int main(int argc, char *argv[])
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
-		CalcCurvature(vd, NN, v_cl, MainParameters);
+		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
 		CalcVolume(vd, MainParameters.dp);
 		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 	}
+	vd.map();
+	vd.write_frame("Initialization", 0, MainParameters.WRITER);
 
 	// // regularize configuration
 	// vd.write_frame("reg", 0, MainParameters.WRITER);
@@ -115,14 +115,21 @@ int main(int argc, char *argv[])
 	// }
 	// vd.write_frame("reg", iter, MainParameters.WRITER);
 
+	// move to gpu
+
+	vd.hostToDevicePos();
+	vd.template hostToDeviceProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
+	vd.map(RUN_ON_DEVICE);
+	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
+	auto NN_gpu = vd.getCellListGPU(MainParameters.r_threshold);
+
 	// Evolve
 	size_t write = 0;
-
 	real_number t = 0.0;
-	std::ofstream avgvelstream(MainParameters.filename + "_DragLift.csv");
-	bool calc_drag = false;
-	real_number obstacle_force_x = 0.0;
-	real_number obstacle_force_y = 0.0;
+	// std::ofstream avgvelstream(MainParameters.filename + "_DragLift.csv");
+	// bool calc_drag = false;
+	// real_number obstacle_force_x = 0.0;
+	// real_number obstacle_force_y = 0.0;
 
 	while (t <= MainParameters.t_end)
 	{
@@ -144,44 +151,48 @@ int main(int argc, char *argv[])
 		// }
 
 		// Calculate dt for time stepping
-		real_number dt = calc_deltaT(vd, v_cl, MainParameters);
+		real_number dt = calc_deltaT(MainParameters);
 
 		// in general we dont compute drag coeficient every time step
-		calc_drag = false;
-		if (write < (t + dt) * MainParameters.write_const)
-		{
-			calc_drag = true;
-		}
+		// calc_drag = false;
+		// if (write < (t + dt) * MainParameters.write_const)
+		// {
+		// 	calc_drag = true;
+		// }
 
 		// Integrate one time step
-		kick_drift_int(vd, NN, dt, v_cl, obstacle_force_x, obstacle_force_y, calc_drag, t, MainParameters);
+		kick_drift_int(vd, NN_gpu, dt, t, MainParameters);
 
 		// increment time
 		t += dt;
-		if (write < t * MainParameters.write_const)
+		// if (write < t * MainParameters.write_const)
+		if (true)
 		{
-			// // sensor calculation require ghost and update cell-list
-			if (MainParameters.PROBES_ENABLED)
-			{
-				vd.map();
-				vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+			// // // sensor calculation require ghost and update cell-list
+			// if (MainParameters.PROBES_ENABLED)
+			// {
+			// 	vd.map();
+			// 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
-				vd.updateCellList(NN);
-				for (size_t k = 0; k < vp.size(); k++)
-				{
-					probe_particles &probe = vp[k].first;
-					// probe.map();
-					int &component = vp[k].second;
-					sensor_velocity_comp(vd, probe, v_cl, NN, component, obstacle_ptr, MainParameters);
-					probe.write_frame(MainParameters.probe_filenames[k], write, MainParameters.WRITER);
-				}
-			}
+			// 	vd.updateCellList(NN);
+			// 	for (size_t k = 0; k < vp.size(); k++)
+			// 	{
+			// 		probe_particles &probe = vp[k].first;
+			// 		// probe.map();
+			// 		int &component = vp[k].second;
+			// 		sensor_velocity_comp(vd, probe, v_cl, NN, component, obstacle_ptr, MainParameters);
+			// 		probe.write_frame(MainParameters.probe_filenames[k], write, MainParameters.WRITER);
+			// 	}
+			// }
 
-			CalcVorticity(vd, NN, MainParameters);
-			vd.deleteGhost();
+			vd.deviceToHostPos();
+			vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
+
+			// CalcVorticity(vd, NN, MainParameters);
+			// vd.deleteGhost();
 			vd.write_frame(MainParameters.filename, write, MainParameters.WRITER);
-			CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters, write);
-			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+			// CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters, write);
+			// vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
 
 			write++;
 
@@ -190,6 +201,14 @@ int main(int argc, char *argv[])
 				std::cout << "TIME: " << t << "  write " << MainParameters.cnt << std::endl;
 			}
 		}
+		// else
+		// {
+		// 	if (v_cl.getProcessUnitID() == 0)
+		// 	{
+		// 		std::cout << "TIME: " << t << "  write " << MainParameters.cnt << std::endl;
+		// 	}
+		// }
+		// break;
 	}
 	delete obstacle_ptr;
 	openfpm_finalize();
