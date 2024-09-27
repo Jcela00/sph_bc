@@ -1,0 +1,44 @@
+SCENARIO: 7
+BC_TYPE: 1
+DENSITY_TYPE: 0
+WRITER: 0
+length={1.475,1}
+bc={1,0}
+Nfluid={60,40}
+Nboundary={0,1}
+LengthScale: 1
+rf: 2
+H: 0.025
+r_threshold: 0.075
+Kquintic: 7.45831
+Re: 200
+umax: 2
+rho_zero: 1
+gamma_: 1
+coeff_sound: 10
+cbar: 20
+B: 400
+xi: 0
+gravity_vector: {0.1,0,0.1}
+gravity: 0.1
+vw_top: {0,0,0}
+vw_bottom: {0,0,0.000625}
+MassFluid: 0.000625
+MassBound: 0.000625
+nu: 0.01
+eta: 0.01
+Bfactor: 3
+Pbackground: 1200
+t_end: 100
+CFLnumber: 0.1
+write_const: 10
+ObstacleCenter: {0.75,0.5,0}
+ObstacleVelocity: {0,0,0}
+ObstacleOmega: 0
+Rin: 0
+Rout: 0
+Win: 0
+Wout: 0
+ObstacleBase: 0.25
+ObstacleHeight: 0
+ObstacleTilt: 0

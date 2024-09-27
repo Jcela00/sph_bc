@@ -178,11 +178,11 @@ void kick_drift_int(particles &vd,
     auto it = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t, params);
-    // cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    // if (err != cudaSuccess)
-    // {
-    //     printf("CUDA error: %s\n", cudaGetErrorString(err));
-    // }
+    cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
+    if (err != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+    }
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
@@ -231,11 +231,11 @@ void kick_drift_int(particles &vd,
     auto it2 = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_2_gpu, it2, vd.toKernel(), dt, t, params);
-    // err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    // if (err != cudaSuccess)
-    // {
-    //     printf("CUDA error: %s\n", cudaGetErrorString(err));
-    // }
+    err = cudaDeviceSynchronize(); // Wait for the kernel to finish
+    if (err != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+    }
 
     // vd.deviceToHostPos();
     // vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();

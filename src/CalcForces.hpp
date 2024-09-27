@@ -560,16 +560,16 @@ inline void calc_forces(particles &vd,
                         const Parameters &params)
 {
     // get domain iterator
-    auto it = vd.getDomainIteratorGPU();
+    auto it = vd.getDomainIteratorGPU(32);
     // // Update the cell-list
     vd.updateCellListGPU(NN);
 
     CUDA_LAUNCH(calc_forcesGPU, it, vd.toKernel(), NN.toKernel(), params);
-    // cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    // if (err != cudaSuccess)
-    // {
-    //     printf("CUDA error: %s\n", cudaGetErrorString(err));
-    // }
+    cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
+    if (err != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+    }
 }
 
 // template <typename CellList>
