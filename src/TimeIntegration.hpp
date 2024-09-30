@@ -125,8 +125,8 @@ __global__ void kdi_1_gpu(vd_type vd,
             vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
         }
 
-        if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-            vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+        // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+        //     vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
     }
 }
 template <typename vd_type>
@@ -144,16 +144,16 @@ __global__ void kdi_2_gpu(vd_type vd,
 
     if (vd.template getProp<type>(a) == BOUNDARY)
     {
-        for (int xyz = 0; xyz < DIM; xyz++)
-        {
-            // trick to avoid accelerating the solid walls in the moving obstacle scenario
-            if (vd.template getProp<vd_omega>(a) != 0.0)
-                vd.template getProp<force>(a)[xyz] = aSolid_plus.get(xyz);
-            else
-                vd.template getProp<force>(a)[xyz] = 0.0;
+        // for (int xyz = 0; xyz < DIM; xyz++)
+        // {
+        //     // // trick to avoid accelerating the solid walls in the moving obstacle scenario
+        //     // if (vd.template getProp<vd_omega>(a) != 0.0)
+        //     //     vd.template getProp<force>(a)[xyz] = aSolid_plus.get(xyz);
+        //     // else
+        //     //     vd.template getProp<force>(a)[xyz] = 0.0;
 
-            vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
-        }
+        //     vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
+        // }
     }
     else
     {
@@ -170,9 +170,9 @@ void kick_drift_int(particles &vd,
                     CellList &NN,
                     const real_number dt,
                     real_number t,
-                    Parameters &params)
+                    Parameters &params,
+                    AuxiliarParameters &auxParams)
 {
-    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
 
     // particle iterator
     auto it = vd.getDomainIteratorGPU();
@@ -186,18 +186,18 @@ void kick_drift_int(particles &vd,
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
+    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, vd_volume, vd_omega>(RUN_ON_DEVICE);
 
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
     {
-        CalcDensity(vd, NN, params);
-        vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
+        CalcDensity(vd, NN);
+        vd.ghost_get<rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
     }
 
     // Calculate pressure from the density
-    EqState(vd, params.rho_zero, params.B, params.gamma_, params.xi);
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
+    EqState(vd, params.rho0, params.B, params.gamma, params.xi);
+    vd.ghost_get<pressure>(KEEP_PROPERTIES | RUN_ON_DEVICE);
 
     // if (params.BC_TYPE == NO_SLIP)
     // {
@@ -205,14 +205,7 @@ void kick_drift_int(particles &vd,
     //     vd.ghost_get<rho, pressure, v_transport>(KEEP_PROPERTIES);
     // }
 
-    // vd.deviceToHostPos();
-    // vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-    // vd.write_frame("BEFORE force", 0, params.WRITER);
     calc_forces(vd, NN, params);
-
-    // vd.deviceToHostPos();
-    // vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-    // vd.write_frame("AFTER force", 0, params.WRITER);
 
     // if (calc_drag)
     // {
@@ -224,9 +217,6 @@ void kick_drift_int(particles &vd,
     //     obstacle_force_y = obstacle_force_y * params.MassFluid;
     // }
 
-    // BEFORE GPU GHOST GET
-    // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
-
     // particle iterator
     auto it2 = vd.getDomainIteratorGPU();
 
@@ -237,11 +227,8 @@ void kick_drift_int(particles &vd,
         printf("CUDA error: %s\n", cudaGetErrorString(err));
     }
 
-    // vd.deviceToHostPos();
-    // vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-    // vd.write_frame("AFTER second kdi", 0, params.WRITER);
     // increment the iteration counter
-    params.cnt++;
+    auxParams.cnt++;
 }
 
 // template <typename CellList>
@@ -287,7 +274,7 @@ void kick_drift_int(particles &vd,
 //     }
 
 //     // Calculate pressure from the density
-//     EqState(vd, params.rho_zero, params.B, params.gamma_, params.xi);
+//     EqState(vd, params.rho0, params.B, params.gamma, params.xi);
 //     vd.ghost_get<pressure>(KEEP_PROPERTIES);
 
 //     calc_forces_regularize(vd, NN, params);

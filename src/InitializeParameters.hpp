@@ -5,10 +5,8 @@
 #include "VectorUtilities.hpp"
 #include <tinyxml2.h>
 
-void ParseXMLFile(const std::string &filename, Parameters &argParameters);
+void ParseXMLFile(const std::string &filename, Parameters &argParameters, AuxiliarParameters &argFilenames);
 
-void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters);
-
-void WriteParameters(const Parameters &argParameters);
+void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters, AuxiliarParameters &argFilenames);
 
 #endif // INITIALIZEPARAMETERS_HPP

@@ -19,11 +19,11 @@ void interact_probe_boundary_new(particles &vd,
     std::array<Point<DIM, real_number>, 3> r_boundary = getBoundaryPositions(r_probe_to_wall, normal, params.dp);
     std::array<real_number, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
     std::array<real_number, 3> Volume_boundary;
-    std::array<real_number, 3> Mass_boundary;
+    // std::array<real_number, 3> Mass_boundary;
 
     for (int i = 0; i < 3; i++)
     {
-        if (r_boundary_norm[i] < params.r_threshold)
+        if (r_boundary_norm[i] < params.r_cut)
         {
             // compute volume of boundary particle, this gives density and pressure
             Volume_boundary[i] = 0.5 * (2.0 * params.dp + params.dp * params.dp * kappa - 2.0 * (i + 1.0) * params.dp * params.dp * kappa) * dxwall;

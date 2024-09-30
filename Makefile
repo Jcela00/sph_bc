@@ -20,17 +20,12 @@ OBJS = $(OBJS_CPP) $(OBJS_CU)
 LIBS += -ltinyxml2
 LIBS_SELECT += -ltinyxml2
 
-# Add C++17 standard flag
-# CXX_STD = -std=c++17 
+
+
 
 # Add flags
-OPT += -DBOOST_ALLOW_DEPRECATED_HEADERS
-# Define the target for the executable
-sph_dlb: OPT := $(filter-out -DTEST_RUN,$(OPT))
-
-# sph_dlb: $(OBJS)
-# 	$(CC) $(OPT) $(CXX_STD) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS)
-
+CUDA_OPTIONS += -Xcompiler -Wno-attributes -diag-suppress=549 -diag-suppress=68 -DBOOST_ALLOW_DEPRECATED_HEADERS
+CUDA_OPTIONS := $(filter-out -DTEST_RUN, $(CUDA_OPTIONS))
 
 # Rule to compile .cu files to .o files in the build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cu | $(BUILD_DIR)
@@ -51,7 +46,7 @@ all: sph_dlb sph_dlb_test
 
 # Target to run the sph_dlb executable
 run: sph_dlb
-	mpirun -np 4 ./sph_dlb
+	mpirun -np 4 ./sph_dlb XMLs/example/PERFORMANCE_TEST.xml
 
 # Phony targets
 .PHONY: clean all run

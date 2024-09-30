@@ -1,6 +1,6 @@
 #include "InitializeParameters.hpp"
 
-void ParseXMLFile(const std::string &filename, Parameters &argParameters)
+void ParseXMLFile(const std::string &filename, Parameters &argParameters, AuxiliarParameters &argAuxParameters)
 {
     tinyxml2::XMLDocument doc;
     tinyxml2::XMLError eResult = doc.LoadFile(filename.c_str());
@@ -50,7 +50,7 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         {
             throw std::runtime_error("Unknown scenario");
         }
-        argParameters.filename = scenario_str;
+        argAuxParameters.filename = scenario_str;
 
         // read BC type (old or new)
         const char *bc_type_str = simulationElement->Attribute("bcType");
@@ -59,8 +59,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         else if (strcmp(bc_type_str, "new") == 0)
             argParameters.BC_TYPE = NEW_NO_SLIP;
 
-        argParameters.filename += "_";
-        argParameters.filename += bc_type_str;
+        argAuxParameters.filename += "_";
+        argAuxParameters.filename += bc_type_str;
 
         // read BC periodic or non periodic
         const char *bcX = simulationElement->Attribute("bcX");
@@ -91,8 +91,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         else if (strcmp(density_type_Str, "Differential") == 0)
             argParameters.DENSITY_TYPE = DENSITY_DIFFERENTIAL;
 
-        argParameters.filename += "_";
-        argParameters.filename += density_type_Str;
+        argAuxParameters.filename += "_";
+        argAuxParameters.filename += density_type_Str;
 
         // read writer type
         const char *writer_str = simulationElement->Attribute("writerType");
@@ -111,8 +111,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         const char *custom_str = simulationElement->Attribute("custom_string");
         if (strcmp(custom_str, "") != 0)
         {
-            argParameters.filename += "_";
-            argParameters.filename += custom_str;
+            argAuxParameters.filename += "_";
+            argAuxParameters.filename += custom_str;
         }
     }
 
@@ -132,7 +132,7 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
             geometryElement->QueryAttribute("sizeZ", &argParameters.Nfluid[2]);
     }
 
-    argParameters.filename += "_" + std::to_string(argParameters.Nfluid[0]) + "_" + std::to_string(argParameters.Nfluid[1]) + "_" + std::to_string((int)argParameters.rf) + "rf";
+    argAuxParameters.filename += "_" + std::to_string(argParameters.Nfluid[0]) + "_" + std::to_string(argParameters.Nfluid[1]) + "_" + std::to_string((int)argParameters.rf) + "rf";
 
     // Parse <physics> element
     tinyxml2::XMLElement *physicsElement = doc.FirstChildElement("configuration")->FirstChildElement("physics");
@@ -140,43 +140,43 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
     {
 
         physicsElement->QueryDoubleAttribute("rho0", &tmpdouble);
-        argParameters.rho_zero = static_cast<real_number>(tmpdouble);
+        argParameters.rho0 = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("nu", &tmpdouble);
         argParameters.nu = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("Bfactor", &tmpdouble);
         argParameters.Bfactor = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("gamma", &tmpdouble);
-        argParameters.gamma_ = static_cast<real_number>(tmpdouble);
+        argParameters.gamma = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("umax", &tmpdouble);
         argParameters.umax = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("gravityX", &tmpdouble);
-        argParameters.gravity_vector.get(0) = static_cast<real_number>(tmpdouble);
+        argParameters.gravity_vector[0] = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("gravityY", &tmpdouble);
-        argParameters.gravity_vector.get(1) = static_cast<real_number>(tmpdouble);
+        argParameters.gravity_vector[1] = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
         {
             physicsElement->QueryDoubleAttribute("gravityZ", &tmpdouble);
-            argParameters.gravity_vector.get(2) = static_cast<real_number>(tmpdouble);
+            argParameters.gravity_vector[2] = static_cast<real_number>(tmpdouble);
         }
 
         physicsElement->QueryDoubleAttribute("vTopX", &tmpdouble);
-        argParameters.vw_top.get(0) = static_cast<real_number>(tmpdouble);
+        argParameters.vw_top[0] = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("vTopY", &tmpdouble);
-        argParameters.vw_top.get(1) = static_cast<real_number>(tmpdouble);
+        argParameters.vw_top[1] = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
         {
             physicsElement->QueryDoubleAttribute("vTopZ", &tmpdouble);
-            argParameters.vw_top.get(2) = static_cast<real_number>(tmpdouble);
+            argParameters.vw_top[2] = static_cast<real_number>(tmpdouble);
         }
 
         physicsElement->QueryDoubleAttribute("vBotX", &tmpdouble);
-        argParameters.vw_bottom.get(0) = static_cast<real_number>(tmpdouble);
+        argParameters.vw_bottom[0] = static_cast<real_number>(tmpdouble);
         physicsElement->QueryDoubleAttribute("vBotY", &tmpdouble);
-        argParameters.vw_bottom.get(1) = static_cast<real_number>(tmpdouble);
+        argParameters.vw_bottom[1] = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
         {
             physicsElement->QueryDoubleAttribute("vBotZ", &tmpdouble);
-            argParameters.vw_bottom.get(2) = static_cast<real_number>(tmpdouble);
+            argParameters.vw_bottom[2] = static_cast<real_number>(tmpdouble);
         }
     }
 
@@ -205,13 +205,13 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         }
 
         obstacleElement->QueryDoubleAttribute("velX", &tmpdouble);
-        argParameters.ObstacleVelocity.get(0) = static_cast<real_number>(tmpdouble);
+        argParameters.ObstacleVelocity[0] = static_cast<real_number>(tmpdouble);
         obstacleElement->QueryDoubleAttribute("velY", &tmpdouble);
-        argParameters.ObstacleVelocity.get(1) = static_cast<real_number>(tmpdouble);
+        argParameters.ObstacleVelocity[1] = static_cast<real_number>(tmpdouble);
         if constexpr (DIM == 3)
         {
             obstacleElement->QueryDoubleAttribute("velZ", &tmpdouble);
-            argParameters.ObstacleVelocity.get(2) = static_cast<real_number>(tmpdouble);
+            argParameters.ObstacleVelocity[2] = static_cast<real_number>(tmpdouble);
         }
 
         obstacleElement->QueryDoubleAttribute("omega", &tmpdouble);
@@ -232,9 +232,16 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters)
         argParameters.Wout = static_cast<real_number>(tmpdouble);
     }
 }
-void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
+void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters, AuxiliarParameters &argAuxParameters)
 {
     // Given the scenario and xml parameters, we set the constants of argParameters
+
+    // First set fixed values
+    argParameters.Hconst = 1.0;
+    argParameters.coeff_sound = 10.0;
+    argParameters.xi = 0.0;
+    argParameters.CFLnumber = 0.1;
+    argParameters.PROBES_ENABLED = 0;
 
     // Set boundary conditions periodic or non periodic
     size_t Nbound = (argParameters.BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
@@ -248,36 +255,6 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
         argParameters.Nboundary[1] = 0;
     else
         argParameters.Nboundary[1] = Nbound;
-
-    // if (argParameters.SCENARIO == POISEUILLE ||
-    //     argParameters.SCENARIO == COUETTE ||
-    //     argParameters.SCENARIO == CYLINDER_ARRAY ||
-    //     argParameters.SCENARIO == SQUARE ||
-    //     argParameters.SCENARIO == TRIANGLE ||
-    //     argParameters.SCENARIO == TRIANGLE_EQUILATERAL)
-    // {
-    //     argParameters.Nboundary[0] = 0;
-    //     argParameters.Nboundary[1] = Nbound;
-    //     argParameters.bc[0] = PERIODIC;
-    //     argParameters.bc[1] = NON_PERIODIC;
-    // }
-    // else if (argParameters.SCENARIO == HYDROSTATIC ||
-    //          argParameters.SCENARIO == CAVITY ||
-    //          argParameters.SCENARIO == MOVING_OBSTACLE ||
-    //          argParameters.SCENARIO == TAYLOR_COUETTE)
-    // {
-    //     argParameters.Nboundary[0] = Nbound;
-    //     argParameters.Nboundary[1] = Nbound;
-    //     argParameters.bc[0] = NON_PERIODIC;
-    //     argParameters.bc[1] = NON_PERIODIC;
-    // }
-    // else if (argParameters.SCENARIO == CYLINDER_LATTICE || argParameters.SCENARIO == ELLIPSE)
-    // {
-    //     argParameters.Nboundary[0] = 0;
-    //     argParameters.Nboundary[1] = 0;
-    //     argParameters.bc[0] = PERIODIC;
-    //     argParameters.bc[1] = PERIODIC;
-    // }
 
     // Set particle spacing, definition depends on scenario
     if (argParameters.SCENARIO != CYLINDER_ARRAY && argParameters.SCENARIO != CYLINDER_LATTICE)
@@ -327,119 +304,20 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters)
     }
     // Set general parameters
     argParameters.H = argParameters.Hconst * argParameters.dp;
-    argParameters.r_threshold = 3.0 * argParameters.H;
+    argParameters.r_cut = 3.0 * argParameters.H;
     argParameters.Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / argParameters.H / argParameters.H / argParameters.H : 7.0 / 478.0 / M_PI / argParameters.H / argParameters.H;
-    argParameters.MassFluid = argParameters.rho_zero * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
-    argParameters.MassBound = argParameters.rho_zero * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
+    argParameters.MassFluid = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
+    argParameters.MassBound = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
     argParameters.cbar = argParameters.coeff_sound * argParameters.umax;
-    argParameters.B = argParameters.rho_zero * argParameters.cbar * argParameters.cbar / argParameters.gamma_;
+    argParameters.B = argParameters.rho0 * argParameters.cbar * argParameters.cbar / argParameters.gamma;
     argParameters.Pbackground = argParameters.Bfactor * argParameters.B;
-    argParameters.eta = argParameters.nu * argParameters.rho_zero;
+    argParameters.eta = argParameters.nu * argParameters.rho0;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
     argParameters.gravity = getVectorNorm(argParameters.gravity_vector);
-    argParameters.ObstacleCenter = {(argParameters.length[0] + (real_number)argParameters.bc[0] * argParameters.dp) / 2.0f, (argParameters.length[1] + (real_number)argParameters.bc[1] * argParameters.dp) / 2.0f};
+    argParameters.ObstacleCenter[0] = (argParameters.length[0] + (real_number)argParameters.bc[0] * argParameters.dp) / 2.0f;
+    argParameters.ObstacleCenter[1] = (argParameters.length[1] + (real_number)argParameters.bc[1] * argParameters.dp) / 2.0f;
 
     // add the number of processors to the filename
     const long int Nprc = v_cl.getProcessingUnits();
-    argParameters.filename += "_" + std::to_string(Nprc) + "prc";
+    argAuxParameters.filename += "_" + std::to_string(Nprc) + "prc";
 }
-
-void WriteParameters(const Parameters &argParameters)
-{
-    // write all the parameters to a .txt file for debugging and making sure the parameters are read correctly
-    std::ofstream file;
-    file.open("parameters.txt");
-    file << "SCENARIO: " << argParameters.SCENARIO << std::endl;
-    file << "BC_TYPE: " << argParameters.BC_TYPE << std::endl;
-    file << "DENSITY_TYPE: " << argParameters.DENSITY_TYPE << std::endl;
-    file << "WRITER: " << argParameters.WRITER << std::endl;
-    file << "length={" << argParameters.length[0] << "," << argParameters.length[1] << "}" << std::endl;
-    file << "bc={" << argParameters.bc[0] << "," << argParameters.bc[1] << "}" << std::endl;
-    file << "Nfluid={" << argParameters.Nfluid[0] << "," << argParameters.Nfluid[1] << "}" << std::endl;
-    file << "Nboundary={" << argParameters.Nboundary[0] << "," << argParameters.Nboundary[1] << "}" << std::endl;
-    file << "LengthScale: " << argParameters.LengthScale << std::endl;
-    file << "rf: " << argParameters.rf << std::endl;
-    file << "H: " << argParameters.H << std::endl;
-    file << "r_threshold: " << argParameters.r_threshold << std::endl;
-    file << "Kquintic: " << argParameters.Kquintic << std::endl;
-    file << "Re: " << argParameters.Re << std::endl;
-    file << "umax: " << argParameters.umax << std::endl;
-    file << "rho_zero: " << argParameters.rho_zero << std::endl;
-    file << "gamma_: " << argParameters.gamma_ << std::endl;
-    file << "coeff_sound: " << argParameters.coeff_sound << std::endl;
-    file << "cbar: " << argParameters.cbar << std::endl;
-    file << "B: " << argParameters.B << std::endl;
-    file << "xi: " << argParameters.xi << std::endl;
-    file << "gravity_vector: {" << argParameters.gravity_vector.get(0) << "," << argParameters.gravity_vector.get(1) << "," << argParameters.gravity_vector.get(2) << "}" << std::endl;
-    file << "gravity: " << argParameters.gravity << std::endl;
-    file << "vw_top: {" << argParameters.vw_top.get(0) << "," << argParameters.vw_top.get(1) << "," << argParameters.vw_top.get(2) << "}" << std::endl;
-    file << "vw_bottom: {" << argParameters.vw_bottom.get(0) << "," << argParameters.vw_bottom.get(1) << "," << argParameters.vw_bottom.get(2) << "}" << std::endl;
-    file << "MassFluid: " << argParameters.MassFluid << std::endl;
-    file << "MassBound: " << argParameters.MassBound << std::endl;
-    file << "nu: " << argParameters.nu << std::endl;
-    file << "eta: " << argParameters.eta << std::endl;
-    file << "Bfactor: " << argParameters.Bfactor << std::endl;
-    file << "Pbackground: " << argParameters.Pbackground << std::endl;
-    file << "t_end: " << argParameters.t_end << std::endl;
-    file << "CFLnumber: " << argParameters.CFLnumber << std::endl;
-    file << "write_const: " << argParameters.write_const << std::endl;
-    file << "ObstacleCenter: {" << argParameters.ObstacleCenter.get(0) << "," << argParameters.ObstacleCenter.get(1) << "," << argParameters.ObstacleCenter.get(2) << "}" << std::endl;
-    file << "ObstacleVelocity: {" << argParameters.ObstacleVelocity.get(0) << "," << argParameters.ObstacleVelocity.get(1) << "," << argParameters.ObstacleVelocity.get(2) << "}" << std::endl;
-    file << "ObstacleOmega: " << argParameters.ObstacleOmega << std::endl;
-    file << "Rin: " << argParameters.Rin << std::endl;
-    file << "Rout: " << argParameters.Rout << std::endl;
-    file << "Win: " << argParameters.Win << std::endl;
-    file << "Wout: " << argParameters.Wout << std::endl;
-    file << "ObstacleBase: " << argParameters.ObstacleBase << std::endl;
-    file << "ObstacleHeight: " << argParameters.ObstacleHeight << std::endl;
-    file << "ObstacleTilt: " << argParameters.ObstacleTilt << std::endl;
-}
-
-// void SetFilename(std::string &filename, const long int Nprc, const Parameters &params)
-// {
-//     filename = params.filename;
-//     // Scenario name
-//     if (params.SCENARIO == POISEUILLE)
-//         filename = "Poiseuille";
-//     else if (params.SCENARIO == COUETTE)
-//         filename = "Couette";
-//     else if (params.SCENARIO == HYDROSTATIC)
-//         filename = "Hydrostatic";
-//     else if (params.SCENARIO == CYLINDER_ARRAY)
-//         filename = "CylinderArray";
-//     else if (params.SCENARIO == CYLINDER_LATTICE)
-//         filename = "CylinderLattice";
-//     else if (params.SCENARIO == SQUARE)
-//         filename = "Square";
-//     else if (params.SCENARIO == TRIANGLE)
-//         filename = "Triangle";
-//     else if (params.SCENARIO == CAVITY)
-//         filename = "Cavity";
-//     else if (params.SCENARIO == STEP)
-//         filename = "Step";
-//     else if (params.SCENARIO == TAYLOR_COUETTE)
-//         filename = "TaylorCouette";
-//     else if (params.SCENARIO == TRIANGLE_EQUILATERAL)
-//         filename = "TriangleEquilateral";
-//     else if (params.SCENARIO == MOVING_OBSTACLE)
-//         filename = "MovingObstacle";
-
-//     // BC name
-//     if (params.BC_TYPE == NO_SLIP)
-//         filename += "_OLD_BC";
-//     else if (params.BC_TYPE == NEW_NO_SLIP)
-//         filename += "_NEW_BC";
-
-//     // Density name
-//     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
-//         filename += "_Summation";
-//     else if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-//         filename += "_Differential";
-
-//     // Add the size of the simulation, the number of processors and the refinement factor
-//     std::string size_proc_name = std::to_string(params.Nfluid[0]) + "_" + std::to_string(params.Nfluid[1]) + "_" + std::to_string(Nprc) + "prc";
-//     if (params.BC_TYPE == NEW_NO_SLIP)
-//         size_proc_name += "_" + std::to_string((int)params.rf) + "rf";
-//     filename += "_" + size_proc_name;
-//     filename += params.custom_string;
-// }

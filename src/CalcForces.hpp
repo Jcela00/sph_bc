@@ -97,10 +97,10 @@
 
 //         // if (dist2marker < r_interp)
 //         // {
-//         const real_number Mass_boundary = vol[i] * params.rho_zero;
+//         const real_number Mass_boundary = vol[i] * params.rho0;
 //         const Point<DIM, real_number> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
 //         const real_number p_boundary = Pf - rhof * (g_normal - a_normal) * (lf + lwall[i]); //  dot(r_boundary,normal) = -(lf+lw)
-//         const real_number rho_boundary = InvEqState_particle(p_boundary, params.rho_zero, params.B, params.gamma_, params.xi);
+//         const real_number rho_boundary = InvEqState_particle(p_boundary, params.rho0rams.B, params.gamma, params.xi);
 
 //         // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
 //         r_boundary[i] = -1.0 * r_boundary[i];
@@ -266,20 +266,20 @@
 // }
 
 template <typename vd_type, typename NN_type>
-__global__ void calc_forcesGPU(vd_type vd,
-                               NN_type NN,
-                               const Parameters params)
+__global__ void calc_forcesGPU_new(vd_type vd,
+                                   NN_type NN)
 {
-    const real_number dp = params.dp;
+    const real_number dp = _params_gpu_.dp;
     auto a = GET_PARTICLE(vd);
+    // printf("FORCES\nBlockDimx: %d, BlockIdx: %d, ThreadIdx: %d, Particle: %d\n", blockDim.x, blockIdx.x, threadIdx.x, a);
 
     // if the particle is FLUID
     if (vd.template getProp<type>(a) == FLUID)
     {
 
         const Point<DIM, real_number> xa = vd.getPos(a);
-        const real_number massa = params.MassFluid;
-        const real_number massb = params.MassBound;
+        const real_number massa = _params_gpu_.MassFluid;
+        const real_number massb = _params_gpu_.MassBound;
 
         const real_number rhoa = vd.template getProp<rho>(a);
         const real_number Pa = vd.template getProp<pressure>(a);
@@ -288,7 +288,7 @@ __global__ void calc_forcesGPU(vd_type vd,
         // Reset the force counter (0 + gravity)
         for (int xyz = 0; xyz < DIM; xyz++)
         {
-            vd.template getProp<force>(a)[xyz] = params.gravity_vector.get(xyz);
+            vd.template getProp<force>(a)[xyz] = _params_gpu_.gravity_vector[xyz];
             vd.template getProp<force_transport>(a)[xyz] = 0.0f;
         }
 
@@ -327,174 +327,126 @@ __global__ void calc_forcesGPU(vd_type vd,
 
             // if they interact
 
-            if (r < params.r_threshold && r > 1e-16)
+            if (r < _params_gpu_.r_cut && r > 1e-16)
             {
                 if (vd.template getProp<type>(b) == BOUNDARY)
                 {
-                    if (params.BC_TYPE == NO_SLIP) // INTERACT FLUID BOUNDARY OLD
+
+                    // interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, params);
+                    // Points from fluid to wall
+                    Point<DIM, real_number> r_fluid_to_wall = -1.0 * dr;
+                    // real_number dist2marker = getVectorNorm(r_fluid_to_wall);
+                    Point<DIM, real_number> vw = vd.template getProp<velocity>(b);
+
+                    real_number ang_vel = vd.template getProp<vd_omega>(b);
+
+                    if (ang_vel != 0.0) // if the solid is rotating, we need to add the tangential velocity of the rotation to vw
                     {
-                        // interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, params);
-                        const real_number rhob = vd.template getProp<rho>(b);
-                        const real_number Pb = vd.template getProp<pressure>(b);
-                        const Point<DIM, real_number> vb = vd.template getProp<velocity>(b);
-                        const Point<DIM, real_number> vb_noslip = vd.template getProp<v_transport>(b); // here we store the extrapolated velocity for no slip BC
+                        // marker particles store centre of solid body in force_transport since it is unused
+                        // vector pointing from centre of rotation to marker particle
+                        const Point<DIM, real_number> radial_vec = {xb.get(0) - vd.template getProp<force_transport>(b)[0],
+                                                                    xb.get(1) - vd.template getProp<force_transport>(b)[1]};
+                        const real_number radius = getVectorNorm(radial_vec);
+                        // get vector tangential to the radial vector, rotation velocity is in this direction
+                        const Point<DIM, real_number> tangential_rotation = getPerpendicularUnit2D(radial_vec);
 
-                        const real_number r = sqrt(r2);
+                        // Wall velocity is linear velocity + w*R*tangential
+                        vw.get(0) += radius * ang_vel * tangential_rotation.get(0);
+                        vw.get(1) += radius * ang_vel * tangential_rotation.get(1);
+                    }
 
-                        const Point<DIM, real_number> v_rel = va - vb;
-                        const Point<DIM, real_number> v_rel_aux = va - vb_noslip;
+                    // Get normal and tangential vectors for velocity mirroring
+                    const Point<DIM, real_number> normal = vd.template getProp<normal_vector>(b);
+                    const Point<DIM, real_number> tangential = getPerpendicularUnit2D(normal);
 
-                        const Point<DIM, real_number> DW = DWab(dr, r, params.H, params.Kquintic);
+                    // wall acceleration
+                    const Point<DIM, real_number> aw = vd.template getProp<force>(b);
 
-                        const real_number Va2 = (massa / rhoa) * (massa / rhoa);
-                        const real_number Vb2 = (massb / rhob) * (massb / rhob);
+                    // Difference between fluid transport and momentum velocity
+                    const Point<DIM, real_number> vtf = vd.template getProp<v_transport>(a);
+                    const Point<DIM, real_number> vdiff_f = vtf - va;
 
-                        const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel_aux, DW, params.eta);
-                        const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
+                    // Project va and vw on tangential and normal directions
+                    real_number vt = dotProduct(va, tangential);
+                    real_number vn = dotProduct(va, normal);
+                    real_number vwt = dotProduct(vw, tangential);
 
-                        const Point<DIM, real_number> vtf = vd.template getProp<v_transport>(a);
-                        const Point<DIM, real_number> vdiff_f = vtf - va;
-                        // Boundary particles have no transport velocity difference
-                        std::array<Point<DIM, real_number>, DIM> Af = dyadicProduct(rhoa * va, vdiff_f);
-                        Point<DIM, real_number> DivATerm = 0.5 * matVec(Af, DW);
+                    // vertical distance from fluid particle to wall
+                    real_number lf = dotProduct(r_fluid_to_wall, normal);
+                    lf = (lf < 0.0 ? -1.0 * lf : lf); // absolute value
 
+                    // Get array of vectors from fluid to 3 boundary particles and its norms
+                    std::array<Point<DIM, real_number>, 3> r_boundary = getBoundaryPositions(r_fluid_to_wall, normal, dp);
+                    std::array<real_number, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
+
+                    // const real_number dist2third = r_boundary_norm[2];
+                    // distance from 3 boundary particles to marker
+                    std::array<real_number, 3> lwall = {0.5f * dp, 1.5f * dp, 2.5f * dp};
+
+                    // project forces on normal direction
+                    real_number g_normal = dotProduct(_params_gpu_.gravity_vector, normal);
+                    real_number a_normal = dotProduct(aw, normal);
+
+                    // For gradient of Af tensor
+                    const std::array<Point<DIM, real_number>, DIM> Af = dyadicProduct(rhoa * va, vdiff_f);
+                    // to avoid division by zero
+                    lf = std::max(lf, 0.25f * dp);
+
+                    const Point<3, real_number> vol = vd.template getProp<vd_volume>(b);
+
+                    for (int i = 0; i < 3; i++) // for the 3 boundary particles
+                    {
+                        // real_number rmax = sqrt(3.0 * 3.0 - (0.5 + (real_number)i) * (0.5 + (real_number)i)) * dp;
+                        // real_number rmin = (3.0 - (0.5 + (real_number)i)) * dp;
+                        // real_number kappa_max = 1.0 / (3.0 * dp);
+
+                        // kappa 0 gets rmax, kappa = kappa_max gets rmin
+                        // real_number r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
+                        // real_number r_interp = rmin;
+
+                        // if (dist2marker < r_interp)
+                        // {
+                        const real_number Mass_boundary = vol[i] * _params_gpu_.rho0;
+                        const Point<DIM, real_number> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
+                        const real_number p_boundary = Pa - rhoa * (g_normal - a_normal) * (lf + lwall[i]); //  dot(r_boundary,normal) = -(lf+lw)
+                        const real_number rho_boundary = InvEqState_particle(p_boundary, _params_gpu_.rho0, _params_gpu_.B, _params_gpu_.gamma, _params_gpu_.xi);
+
+                        // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
+                        r_boundary[i] = -1.0 * r_boundary[i];
+
+                        // Evaluate kernel gradient
+                        const Point<DIM, real_number> DW = DWab(r_boundary[i], r_boundary_norm[i], _params_gpu_.H, _params_gpu_.Kquintic);
+
+                        // Compute forces
+                        const Point<DIM, real_number> v_rel = va - v_boundary;
+                        const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
+
+                        const Point<DIM, real_number> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW, _params_gpu_.eta);
+                        const real_number PressureTerm = PressureForce(rhoa, rho_boundary, Pa, p_boundary); //-p_boundary - Pf;
+                        const Point<DIM, real_number> DivATerm = 0.5 * matVec(Af, DW);
+                        // printf("Hello from interact_fluid_boundary_new\n");
                         for (int xyz = 0; xyz < DIM; ++xyz)
                         {
-                            vd.template getProp<force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
-                            vd.template getProp<force_transport>(a)[xyz] += -1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(xyz) / massa;
+                            // write to particles
+                            vd.template getProp<force>(a)[xyz] += 2.0 * (Vb / rhoa) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz));
+                            vd.template getProp<force_transport>(a)[xyz] += -2.0 * (Vb / rhoa) * (_params_gpu_.Pbackground) * DW.get(xyz);
                         }
-                        // if (accumulate_force) // we accumulate x and y force on obstacle for drag and lift coefficient
+                        // if (accumulate_force) // we accumulate x & y force on cylinder ( this is just to compute drag coefficient)
                         // {
-                        //     obstacle_force_x += -(Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(0) / massf;
-                        //     obstacle_force_y += -(Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(1) / massf;
-                        //     // obstacle_force_y += sqrt(std::pow((Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0)) / massf, 2) + std::pow((Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1)) / massf, 2));
+                        //     obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0));
+                        //     obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1));
                         // }
 
-                        if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-                        {
-                            vd.template getProp<drho>(a) += massb * dotProduct(v_rel, DW);
-                        }
-                    }
-                    else if (params.BC_TYPE == NEW_NO_SLIP) // INTERACT FLUID BOUNDARY NEW
-                    {
-                        // interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, params);
-                        // Points from fluid to wall
-                        Point<DIM, real_number> r_fluid_to_wall = -1.0 * dr;
-                        // real_number dist2marker = getVectorNorm(r_fluid_to_wall);
-                        Point<DIM, real_number> vw = vd.template getProp<velocity>(b);
-
-                        real_number ang_vel = vd.template getProp<vd_omega>(b);
-
-                        if (ang_vel != 0.0) // if the solid is rotating, we need to add the tangential velocity of the rotation to vw
-                        {
-                            // marker particles store centre of solid body in force_transport since it is unused
-                            // vector pointing from centre of rotation to marker particle
-                            const Point<DIM, real_number> radial_vec = {xb.get(0) - vd.template getProp<force_transport>(b)[0],
-                                                                        xb.get(1) - vd.template getProp<force_transport>(b)[1]};
-                            const real_number radius = getVectorNorm(radial_vec);
-                            // get vector tangential to the radial vector, rotation velocity is in this direction
-                            const Point<DIM, real_number> tangential_rotation = getPerpendicularUnit2D(radial_vec);
-
-                            // Wall velocity is linear velocity + w*R*tangential
-                            vw.get(0) += radius * ang_vel * tangential_rotation.get(0);
-                            vw.get(1) += radius * ang_vel * tangential_rotation.get(1);
-                        }
-
-                        // Get normal and tangential vectors for velocity mirroring
-                        const Point<DIM, real_number> normal = vd.template getProp<normal_vector>(b);
-                        const Point<DIM, real_number> tangential = getPerpendicularUnit2D(normal);
-
-                        // wall acceleration
-                        const Point<DIM, real_number> aw = vd.template getProp<force>(b);
-
-                        // Difference between fluid transport and momentum velocity
-                        const Point<DIM, real_number> vtf = vd.template getProp<v_transport>(a);
-                        const Point<DIM, real_number> vdiff_f = vtf - va;
-
-                        // Project va and vw on tangential and normal directions
-                        real_number vt = dotProduct(va, tangential);
-                        real_number vn = dotProduct(va, normal);
-                        real_number vwt = dotProduct(vw, tangential);
-
-                        // vertical distance from fluid particle to wall
-                        real_number lf = dotProduct(r_fluid_to_wall, normal);
-                        lf = (lf < 0.0 ? -1.0 * lf : lf); // absolute value
-
-                        // Get array of vectors from fluid to 3 boundary particles and its norms
-                        std::array<Point<DIM, real_number>, 3> r_boundary = getBoundaryPositions(r_fluid_to_wall, normal, dp);
-                        std::array<real_number, 3> r_boundary_norm = {getVectorNorm(r_boundary[0]), getVectorNorm(r_boundary[1]), getVectorNorm(r_boundary[2])};
-
-                        // const real_number dist2third = r_boundary_norm[2];
-                        // distance from 3 boundary particles to marker
-                        std::array<real_number, 3> lwall = {0.5f * dp, 1.5f * dp, 2.5f * dp};
-
-                        // project forces on normal direction
-                        real_number g_normal = dotProduct(params.gravity_vector, normal);
-                        real_number a_normal = dotProduct(aw, normal);
-
-                        // For gradient of Af tensor
-                        const std::array<Point<DIM, real_number>, DIM> Af = dyadicProduct(rhoa * va, vdiff_f);
-                        // to avoid division by zero
-                        lf = std::max(lf, 0.25f * dp);
-
-                        const Point<3, real_number> vol = vd.template getProp<vd_volume>(b);
-
-                        for (int i = 0; i < 3; i++) // for the 3 boundary particles
-                        {
-                            // real_number rmax = sqrt(3.0 * 3.0 - (0.5 + (real_number)i) * (0.5 + (real_number)i)) * dp;
-                            // real_number rmin = (3.0 - (0.5 + (real_number)i)) * dp;
-                            // real_number kappa_max = 1.0 / (3.0 * dp);
-
-                            // kappa 0 gets rmax, kappa = kappa_max gets rmin
-                            // real_number r_interp = (rmin - rmax) / kappa_max * kappa + rmax;
-                            // real_number r_interp = rmin;
-
-                            // if (dist2marker < r_interp)
-                            // {
-                            const real_number Mass_boundary = vol[i] * params.rho_zero;
-                            const Point<DIM, real_number> v_boundary = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
-                            const real_number p_boundary = Pa - rhoa * (g_normal - a_normal) * (lf + lwall[i]); //  dot(r_boundary,normal) = -(lf+lw)
-                            const real_number rho_boundary = InvEqState_particle(p_boundary, params.rho_zero, params.B, params.gamma_, params.xi);
-
-                            // flip sign of r_boundary to get vector pointing from boundary to fluid (Force routines use the vector pointing from b to a)
-                            r_boundary[i] = -1.0 * r_boundary[i];
-
-                            // Evaluate kernel gradient
-                            const Point<DIM, real_number> DW = DWab(r_boundary[i], r_boundary_norm[i], params.H, params.Kquintic);
-
-                            // Compute forces
-                            const Point<DIM, real_number> v_rel = va - v_boundary;
-                            const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
-
-                            const Point<DIM, real_number> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel, DW, params.eta);
-                            const real_number PressureTerm = PressureForce(rhoa, rho_boundary, Pa, p_boundary); //-p_boundary - Pf;
-                            const Point<DIM, real_number> DivATerm = 0.5 * matVec(Af, DW);
-                            // printf("Hello from interact_fluid_boundary_new\n");
-                            for (int xyz = 0; xyz < DIM; ++xyz)
-                            {
-                                // write to particles
-                                vd.template getProp<force>(a)[xyz] += 2.0 * (Vb / rhoa) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz));
-                                vd.template getProp<force_transport>(a)[xyz] += -2.0 * (Vb / rhoa) * (params.Pbackground) * DW.get(xyz);
-                            }
-                            // if (accumulate_force) // we accumulate x & y force on cylinder ( this is just to compute drag coefficient)
-                            // {
-                            //     obstacle_force_x += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0));
-                            //     obstacle_force_y += -2.0 * (Vb / rhof) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1));
-                            // }
-
-                            if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
-                            {
-                                vd.template getProp<drho>(a) += Mass_boundary * dotProduct(v_rel, DW);
-                            }
-                            // }
-                        }
+                        // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // this doesnt work well I havent touched in a long time and I have made may changes
+                        // {
+                        //     vd.template getProp<drho>(a) += Mass_boundary * dotProduct(v_rel, DW);
+                        // }
+                        // }
                     }
                 }
                 else // INTERACT FLUID FLUID
                 {
-                    // interact_fluid_fluid(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, params);
-                    // printf("params.MassFluid = %e\n", params.MassFluid);
-                    // printf("Kquintic = %e\n", params.Kquintic);
+
                     const real_number rhob = vd.template getProp<rho>(b);
                     const real_number Pb = vd.template getProp<pressure>(b);
                     const Point<DIM, real_number> vb = vd.template getProp<velocity>(b);
@@ -503,16 +455,12 @@ __global__ void calc_forcesGPU(vd_type vd,
 
                     const Point<DIM, real_number> v_rel = va - vb;
 
-                    const Point<DIM, real_number> DW = DWab(dr, r, params.H, params.Kquintic);
+                    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
 
                     const real_number Va2 = (massa / rhoa) * (massa / rhoa);
                     const real_number Vb2 = (massb / rhob) * (massb / rhob);
-                    // printf("dr = { %e , %e }\n", dr.get(0), dr.get(1));
-                    // printf("r= %e\n", r);
-                    // printf("v_rel = { %e , %e }\n", v_rel.get(0), v_rel.get(1));
-                    // printf("DW = { %e , %e }\n", DW.get(0), DW.get(1));
-                    // printf("eta = %e\n", params.eta);
-                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, params.eta);
+
+                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, _params_gpu_.eta);
                     const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
 
                     const Point<DIM, real_number> vta = vd.template getProp<v_transport>(a);
@@ -530,23 +478,171 @@ __global__ void calc_forcesGPU(vd_type vd,
                         SumA[2] = Aa[2] + Ab[2];
 
                     Point<DIM, real_number> DivATerm = 0.5 * matVec(SumA, DW);
-                    // printf("r = %f\n", r);
-                    // printf("Va2 = %f\n", Va2);
-                    // printf("Vb2 = %f\n", Vb2);
-                    // printf("PressureTerm = %f\n", PressureTerm);
-                    // printf("ViscosityTerm = { %f , %f }\n", ViscosityTerm.get(0), ViscosityTerm.get(1));
-                    // printf("DivATerm = { %f , %f }\n", DivATerm.get(0), DivATerm.get(1));
-                    // printf("DW = { %f , %f }\n", DW.get(0), DW.get(1));
 
                     for (int xyz = 0; xyz < DIM; ++xyz)
                     {
                         vd.template getProp<force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
-                        vd.template getProp<force_transport>(a)[xyz] += -1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(xyz) / massa;
+                        vd.template getProp<force_transport>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
                     }
-                    if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+                    // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+                    // {
+                    //     vd.template getProp<drho>(a) += massb * dotProduct(v_rel, DW);
+                    // }
+                }
+            }
+            ++Np;
+        }
+    }
+}
+
+template <typename vd_type, typename NN_type>
+__global__ void calc_forcesGPU_old(vd_type vd,
+                                   NN_type NN)
+{
+    // const real_number dp = _params_gpu_.dp;
+    auto a = GET_PARTICLE(vd);
+
+    // if the particle is FLUID
+    if (vd.template getProp<type>(a) == FLUID)
+    {
+
+        const Point<DIM, real_number> xa = vd.getPos(a);
+        const real_number massa = _params_gpu_.MassFluid;
+        const real_number massb = _params_gpu_.MassBound;
+
+        const real_number rhoa = vd.template getProp<rho>(a);
+        const real_number Pa = vd.template getProp<pressure>(a);
+        Point<DIM, real_number> va = vd.template getProp<velocity>(a);
+
+        // Reset the force counter (0 + gravity)
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getProp<force>(a)[xyz] = _params_gpu_.gravity_vector[xyz];
+            vd.template getProp<force_transport>(a)[xyz] = 0.0f;
+        }
+
+        // Reset the density difference
+        vd.template getProp<drho>(a) = 0.0;
+
+        // Get an iterator over the neighborhood particles of p
+        auto Np = NN.getNNIteratorBox(NN.getCell(xa));
+
+        // For each neighborhood particle
+        while (Np.isNext() == true)
+        {
+
+            // get key of particle b
+            auto b = Np.get();
+
+            // if (a == b) skip this particle
+            if (a == b)
+            {
+                ++Np;
+                continue;
+            }
+
+            // Get the position xb of the particle
+            Point<DIM, real_number> xb = vd.getPos(b);
+
+            // Get the distance between a and b
+            // in fluid - boundary its xf-xb i.e. vector pointing at fluid from boundary
+            Point<DIM, real_number> dr = xa - xb;
+
+            // take the norm (squared) of this vector
+            real_number r2 = norm2(dr);
+            real_number r = sqrtf(r2);
+
+            // if they interact
+
+            if (r < _params_gpu_.r_cut && r > 1e-16)
+            {
+                if (vd.template getProp<type>(b) == BOUNDARY)
+                {
+                    // interact_fluid_boundary_old(vd, a, massa, rhoa, Pa, xa, va, xb, dr, r2, b, params);
+                    const real_number rhob = vd.template getProp<rho>(b);
+                    const real_number Pb = vd.template getProp<pressure>(b);
+                    const Point<DIM, real_number> vb = vd.template getProp<velocity>(b);
+                    const Point<DIM, real_number> vb_noslip = vd.template getProp<v_transport>(b); // here we store the extrapolated velocity for no slip BC
+
+                    const real_number r = sqrt(r2);
+
+                    const Point<DIM, real_number> v_rel = va - vb;
+                    const Point<DIM, real_number> v_rel_aux = va - vb_noslip;
+
+                    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
+
+                    const real_number Va2 = (massa / rhoa) * (massa / rhoa);
+                    const real_number Vb2 = (massb / rhob) * (massb / rhob);
+
+                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel_aux, DW, _params_gpu_.eta);
+                    const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
+
+                    const Point<DIM, real_number> vtf = vd.template getProp<v_transport>(a);
+                    const Point<DIM, real_number> vdiff_f = vtf - va;
+                    // Boundary particles have no transport velocity difference
+                    std::array<Point<DIM, real_number>, DIM> Af = dyadicProduct(rhoa * va, vdiff_f);
+                    Point<DIM, real_number> DivATerm = 0.5 * matVec(Af, DW);
+
+                    for (int xyz = 0; xyz < DIM; ++xyz)
                     {
-                        vd.template getProp<drho>(a) += massb * dotProduct(v_rel, DW);
+                        vd.template getProp<force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
+                        vd.template getProp<force_transport>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
                     }
+                    // if (accumulate_force) // we accumulate x and y force on obstacle for drag and lift coefficient
+                    // {
+                    //     obstacle_force_x += -(Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(0) / massf;
+                    //     obstacle_force_y += -(Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1)) / massf; //+ 1.0 * (Va2 + Vb2) * params.Pbackground * DW.get(1) / massf;
+                    //     // obstacle_force_y += sqrt(std::pow((Va2 + Vb2) * (PressureTerm * DW.get(0) + ViscosityTerm.get(0) + DivATerm.get(0)) / massf, 2) + std::pow((Va2 + Vb2) * (PressureTerm * DW.get(1) + ViscosityTerm.get(1) + DivATerm.get(1)) / massf, 2));
+                    // }
+
+                    // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+                    // {
+                    //     vd.template getProp<drho>(a) += massb * dotProduct(v_rel, DW);
+                    // }
+                }
+                else // INTERACT FLUID FLUID
+                {
+                    const real_number rhob = vd.template getProp<rho>(b);
+                    const real_number Pb = vd.template getProp<pressure>(b);
+                    const Point<DIM, real_number> vb = vd.template getProp<velocity>(b);
+
+                    const real_number r = sqrtf(r2);
+
+                    const Point<DIM, real_number> v_rel = va - vb;
+
+                    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
+
+                    const real_number Va2 = (massa / rhoa) * (massa / rhoa);
+                    const real_number Vb2 = (massb / rhob) * (massb / rhob);
+
+                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, _params_gpu_.eta);
+                    const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
+
+                    const Point<DIM, real_number> vta = vd.template getProp<v_transport>(a);
+                    const Point<DIM, real_number> vtb = vd.template getProp<v_transport>(b);
+                    const Point<DIM, real_number> vdiff_a = vta - va;
+                    const Point<DIM, real_number> vdiff_b = vtb - vb;
+
+                    // real_number DivATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
+                    std::array<Point<DIM, real_number>, DIM> Aa = dyadicProduct(rhoa * va, vdiff_a);
+                    std::array<Point<DIM, real_number>, DIM> Ab = dyadicProduct(rhob * vb, vdiff_b);
+                    std::array<Point<DIM, real_number>, DIM> SumA;
+                    SumA[0] = Aa[0] + Ab[0];
+                    SumA[1] = Aa[1] + Ab[1];
+                    if constexpr (DIM == 3)
+                        SumA[2] = Aa[2] + Ab[2];
+
+                    Point<DIM, real_number> DivATerm = 0.5 * matVec(SumA, DW);
+
+                    for (int xyz = 0; xyz < DIM; ++xyz)
+                    {
+                        vd.template getProp<force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
+                        vd.template getProp<force_transport>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
+                    }
+                    // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+                    // {
+                    //     vd.template getProp<drho>(a) += massb * dotProduct(v_rel, DW);
+                    // }
                 }
             }
             ++Np;
@@ -564,7 +660,14 @@ inline void calc_forces(particles &vd,
     // // Update the cell-list
     vd.updateCellListGPU(NN);
 
-    CUDA_LAUNCH(calc_forcesGPU, it, vd.toKernel(), NN.toKernel(), params);
+    if (params.BC_TYPE == NO_SLIP)
+    {
+        CUDA_LAUNCH(calc_forcesGPU_old, it, vd.toKernel(), NN.toKernel());
+    }
+    else if (params.BC_TYPE == NEW_NO_SLIP)
+    {
+        CUDA_LAUNCH(calc_forcesGPU_new, it, vd.toKernel(), NN.toKernel());
+    }
     cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
     if (err != cudaSuccess)
     {
@@ -632,7 +735,7 @@ inline void calc_forces(particles &vd,
 //                 real_number r2 = norm2(dr);
 
 //                 // if they interact
-//                 if (r2 < params.r_threshold * params.r_threshold)
+//                 if (r2 < params.r_cut * params.r_cut)
 //                 {
 //                     if (vd.getProp<type>(b) == BOUNDARY)
 //                     {

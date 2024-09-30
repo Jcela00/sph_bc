@@ -77,7 +77,7 @@ inline void sensor_velocity_comp(particles &vd,
 					// }
 					else if (params.BC_TYPE == NO_SLIP)
 					{
-						real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassBound / params.rho_zero);
+						real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassBound / params.rho0);
 						W_sum += ker;
 						magnitude_tmp += vd.template getProp<v_transport>(q)[component] * ker;
 					}

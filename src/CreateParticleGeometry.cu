@@ -1,6 +1,6 @@
 #include "CreateParticleGeometry.hpp"
 
-void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters &params)
+void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters &params, AuxiliarParameters &auxParams)
 {
 
     // Non periodic situation grid of 5 fluid particles and 3 boundary particles
@@ -97,7 +97,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     }
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, real_number> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
     particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
@@ -279,7 +279,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         // }
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho_zero;
+        vd.template getLastProp<rho>() = params.rho0;
         vd.template getLastProp<pressure>() = 0.0;
         vd.template getLastProp<drho>() = 0.0;
 
@@ -292,6 +292,9 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
         vd.template getLastProp<curvature_boundary>() = 0.0;
         vd.template getLastProp<arc_length>() = dp;
+        vd.template getLastProp<vd_volume>()[0] = 0.0;
+        vd.template getLastProp<vd_volume>()[1] = 0.0;
+        vd.template getLastProp<vd_volume>()[2] = 0.0;
 
         // next fluid particle
         ++fluid_it;
@@ -354,7 +357,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 vd.add();
 
                 vd.template getLastProp<type>() = BOUNDARY;
-                vd.template getLastProp<rho>() = params.rho_zero;
+                vd.template getLastProp<rho>() = params.rho0;
                 vd.template getLastProp<pressure>() = 0.0;
                 vd.template getLastProp<drho>() = 0.0;
 
@@ -367,11 +370,11 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                     vd.template getLastProp<normal_vector>()[xyz] = 0.0;
                     if (position.get(1) < dp / 4.0) // bottom wall
                     {
-                        vd.template getLastProp<velocity>()[xyz] = params.vw_bottom.get(xyz);
+                        vd.template getLastProp<velocity>()[xyz] = params.vw_bottom[xyz];
                     }
                     else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
                     {
-                        vd.template getLastProp<velocity>()[xyz] = params.vw_top.get(xyz);
+                        vd.template getLastProp<velocity>()[xyz] = params.vw_top[xyz];
                     }
                 }
 
@@ -383,7 +386,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
     }
 }
-void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters params)
+void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters params, AuxiliarParameters &auxParams)
 {
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
@@ -433,7 +436,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                                      params.length[1] / 2.0f});
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, real_number> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
     particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
@@ -488,7 +491,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                         vd.template getLastProp<velocity>()[xyz] = ((*obstacle_ptr_out).LinearVelocity_).get(xyz);
                         vd.template getLastProp<force_transport>()[xyz] = ((*obstacle_ptr_out).Centre_).get(xyz);
                     }
-                    vd.template getLastProp<rho>() = params.rho_zero;
+                    vd.template getLastProp<rho>() = params.rho0;
                     vd.template getLastProp<pressure>() = 0.0;
                     vd.template getLastProp<drho>() = 0.0;
 
@@ -585,7 +588,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
             continue;
         }
         // Set properties
-        vd.template getLastProp<rho>() = params.rho_zero;
+        vd.template getLastProp<rho>() = params.rho0;
         vd.template getLastProp<pressure>() = 0.0;
         vd.template getLastProp<drho>() = 0.0;
 
@@ -603,7 +606,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
         ++fluid_it;
     }
 }
-void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Parameters params)
+void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Parameters params, AuxiliarParameters &auxParams)
 {
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
@@ -664,15 +667,15 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     params.umax = 1.4 * 1e-1;
 
     params.H = params.Hconst * dp;
-    // r_threshold = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
-    params.r_threshold = 3.0 * params.H;
+    // r_cut = (KERNEL == CUBIC ? 2.0 * H : 3.0 * H);
+    params.r_cut = 3.0 * params.H;
     params.Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / params.H / params.H / params.H : 7.0 / 478.0 / M_PI / params.H / params.H;
-    params.MassFluid = params.rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
-    params.MassBound = params.rho_zero * (DIM == 3 ? dp * dp * dp : dp * dp);
+    params.MassFluid = params.rho0 * (DIM == 3 ? dp * dp * dp : dp * dp);
+    params.MassBound = params.rho0 * (DIM == 3 ? dp * dp * dp : dp * dp);
     params.cbar = params.coeff_sound * params.umax;
-    params.B = params.rho_zero * params.cbar * params.cbar / params.gamma_;
+    params.B = params.rho0 * params.cbar * params.cbar / params.gamma;
     params.Pbackground = params.Bfactor * params.B;
-    params.eta = params.nu * params.rho_zero;
+    params.eta = params.nu * params.rho0;
     params.Re = params.umax * 2.0 * 5.2 / params.nu;
 
     params.gravity = getVectorNorm(params.gravity_vector);
@@ -749,7 +752,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     Box<DIM, real_number> CornerHole_New{{dp, -1 * dp}, {(1 + Nfluid_small[0] - 2) * dp, (Nfluid_big[1] - Nfluid_small[1]) * dp - 0.5f * dp}};
 
     // extended boundary around the domain, and the processor domain
-    Ghost<DIM, real_number> g(params.r_threshold);
+    Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
     particles vd_loc(0, domain, bc, g, DEC_GRAN(512));
@@ -795,7 +798,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             PlaceProbes(vp_loc, k0, kendHeight, ProbePoints[k], VerticalOffset);
             std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, 0);
             vp_vec.push_back(tmp);
-            params.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + params.filename);
+            auxParams.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + auxParams.filename);
         }
     }
 
@@ -814,7 +817,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
         vd.template getLastProp<type>() = FLUID;
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho_zero;
+        vd.template getLastProp<rho>() = params.rho0;
         vd.template getLastProp<pressure>() = 0.0;
         vd.template getLastProp<drho>() = 0.0;
 
@@ -844,7 +847,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
         vd.template getLastProp<type>() = FLUID;
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho_zero;
+        vd.template getLastProp<rho>() = params.rho0;
         vd.template getLastProp<pressure>() = 0.0;
         vd.template getLastProp<drho>() = 0.0;
 
@@ -933,7 +936,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             vd.add();
 
             vd.template getLastProp<type>() = BOUNDARY;
-            vd.template getLastProp<rho>() = params.rho_zero;
+            vd.template getLastProp<rho>() = params.rho0;
             vd.template getLastProp<pressure>() = 0.0;
             vd.template getLastProp<drho>() = 0.0;
 
@@ -946,11 +949,11 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
                 vd.template getLastProp<normal_vector>()[xyz] = 0.0;
                 if (position.get(1) < dp / 4.0) // bottom wall
                 {
-                    vd.template getLastProp<velocity>()[xyz] = params.vw_bottom.get(xyz);
+                    vd.template getLastProp<velocity>()[xyz] = params.vw_bottom[xyz];
                 }
                 else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
                 {
-                    vd.template getLastProp<velocity>()[xyz] = params.vw_top.get(xyz);
+                    vd.template getLastProp<velocity>()[xyz] = params.vw_top[xyz];
                 }
             }
 

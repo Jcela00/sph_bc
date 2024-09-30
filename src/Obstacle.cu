@@ -29,7 +29,7 @@ void AddFlatWallNewBC(particles &vd,
         }
 
         vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = arg_p.rho_zero;
+        vd.template getLastProp<rho>() = arg_p.rho0;
         vd.template getLastProp<drho>() = 0.0;
         vd.template getLastProp<curvature_boundary>() = 0.0;
         vd.template getLastProp<arc_length>() = dx;
@@ -137,7 +137,6 @@ CylinderObstacle::CylinderObstacle(real_number Radius,
 bool CylinderObstacle::isInside(Point<DIM, real_number> P)
 {
     bool is_inside = false;
-    real_number Radius_aux = Radius_; // + 0.1f * params_.dp;
     real_number tmp = (P.get(0) - Centre_.get(0)) * (P.get(0) - Centre_.get(0)) + (P.get(1) - Centre_.get(1)) * (P.get(1) - Centre_.get(1));
     if (tmp <= Radius_ * Radius_)
     {
@@ -148,7 +147,6 @@ bool CylinderObstacle::isInside(Point<DIM, real_number> P)
 bool CylinderObstacle::isInside_minEps(Point<DIM, real_number> P) // for outer cylinder in taylor couette
 {
     bool is_outside = false;
-    real_number Radius_aux = Radius_; // - 0.1f * params_.dp;
     real_number tmp = (P.get(0) - Centre_.get(0)) * (P.get(0) - Centre_.get(0)) + (P.get(1) - Centre_.get(1)) * (P.get(1) - Centre_.get(1));
     if (tmp <= Radius_ * Radius_)
     {
@@ -192,7 +190,7 @@ void CylinderObstacle::AddObstacle(particles &vd)
         }
 
         vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = params_.rho_zero;
+        vd.template getLastProp<rho>() = params_.rho0;
         vd.template getLastProp<drho>() = 0.0;
         vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
         vd.template getLastProp<arc_length>() = dxwall;
@@ -254,7 +252,7 @@ void EllipticObstacle::AddObstacle(particles &vd)
     }
 
     vd.template getLastProp<pressure>() = 0.0;
-    vd.template getLastProp<rho>() = params_.rho_zero;
+    vd.template getLastProp<rho>() = params_.rho0;
     vd.template getLastProp<drho>() = 0.0;
     vd.template getLastProp<curvature_boundary>() = 0.0;
     vd.template getLastProp<arc_length>() = dxwall;
@@ -288,7 +286,7 @@ void EllipticObstacle::AddObstacle(particles &vd)
             }
 
             vd.template getLastProp<pressure>() = 0.0;
-            vd.template getLastProp<rho>() = params_.rho_zero;
+            vd.template getLastProp<rho>() = params_.rho0;
             vd.template getLastProp<drho>() = 0.0;
             vd.template getLastProp<curvature_boundary>() = 0.0;
             vd.template getLastProp<arc_length>() = dxwall;

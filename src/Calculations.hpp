@@ -50,7 +50,7 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
                     const real_number r2 = norm2(dr);
 
                     // If the particles interact ...
-                    if (r2 < params.r_threshold * params.r_threshold)
+                    if (r2 < params.r_cut * params.r_cut)
                     {
                         normalizeVector(dr);
                         r_fluid_sum += dr;
@@ -119,7 +119,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                     // get the norm squared of this vector
                     const real_number r2 = norm2(dr);
 
-                    if (r2 < params.r_threshold * params.r_threshold)
+                    if (r2 < params.r_cut * params.r_cut)
                     {
                         // Get the velocity of particle b
                         const Point<DIM, real_number> vb = vd.getProp<velocity>(b);
@@ -146,11 +146,11 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
     // This function computes the normal vector for a boundary particle based on the other boundary particles inside its kernel.
     // it computes the average (kernel weighted) of the vectors perpendicular to the vectors pointing to the other boundary particles ( oriented to the fluid )
 
-    const real_number refinement = params.rf;
-    const real_number global_dp = params.dp;
+    // const real_number refinement = params.rf;
+    // const real_number global_dp = params.dp;
     // const real_number local_dp = params.dp / refinement;
     // const real_number local_H = params.H / refinement;
-    const real_number local_dp = global_dp;
+    // const real_number local_dp = global_dp;
     const real_number local_H = params.H;
     const real_number local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
@@ -242,11 +242,11 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
 {
     // This function computes the curvature of the boundary particles from the divergence of the normal vector
 
-    const real_number refinement = params.rf;
+    // const real_number refinement = params.rf;
     const real_number global_dp = params.dp;
     // const real_number local_dp = params.dp / refinement;
     // const real_number local_H = params.H / refinement;
-    const real_number local_dp = global_dp;
+    // const real_number local_dp = global_dp;
     const real_number local_H = params.H;
     const real_number local_Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / local_H / local_H / local_H : 7.0 / 478.0 / M_PI / local_H / local_H;
 
@@ -444,7 +444,7 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
                 real_number r2 = norm2(dr);
 
                 // If the particles interact ...
-                if (r2 < params.r_threshold * params.r_threshold)
+                if (r2 < params.r_cut * params.r_cut)
                 {
                     // calculate distance
                     real_number r = sqrt(r2);
@@ -486,7 +486,7 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
                 // Set the pressure of the boundary particle b
                 vd.template getProp<pressure>(b) = sum_pW / sum_W;
                 // Compute density from inverted Eq of state
-                vd.template getProp<rho>(b) = InvEqState_particle(vd.template getProp<pressure>(b), params.rho_zero, params.B, params.gamma_, params.xi);
+                vd.template getProp<rho>(b) = InvEqState_particle(vd.template getProp<pressure>(b), params.rho0, params.B, params.gamma, params.xi);
             }
             else
             {
@@ -497,7 +497,7 @@ void ExtrapolateVelocity(particles &vd, CellList &NN, const Parameters &params)
                 }
 
                 vd.template getProp<pressure>(b) = 0.0;
-                vd.template getProp<rho>(b) = params.rho_zero;
+                vd.template getProp<rho>(b) = params.rho0;
             }
         }
 

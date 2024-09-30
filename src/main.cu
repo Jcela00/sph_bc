@@ -5,15 +5,15 @@
 #include <cmath>
 
 #include "Definitions.hpp"
+#include "CreateParticleGeometry.hpp"
+#include "DragLiftCoeficient.hpp"
+#include "InitializeParameters.hpp"
 #include "VectorUtilities.hpp"
 #include "Kernel.hpp"
 #include "Physics.hpp"
 #include "Calculations.hpp"
 #include "Obstacle.hpp"
 #include "Probes.hpp"
-#include "CreateParticleGeometry.hpp"
-#include "InitializeParameters.hpp"
-#include "DragLiftCoeficient.hpp"
 #include "TimeIntegration.hpp"
 #include "CalcForces.hpp"
 
@@ -26,13 +26,27 @@ int main(int argc, char *argv[])
 	std::string tmp = argv[1];
 
 	Parameters MainParameters;
+	AuxiliarParameters AuxParameters;
 
 	// create a Vcluster object ( like MPI communicator )
 	Vcluster<> &v_cl = create_vcluster();
 
-	ParseXMLFile(tmp, MainParameters);
-	InitializeConstants(v_cl, MainParameters);
-	WriteParameters(MainParameters);
+	ParseXMLFile(tmp, MainParameters, AuxParameters);
+	InitializeConstants(v_cl, MainParameters, AuxParameters);
+
+	MainParameters.WriteParameters("Parameters.txt");
+
+	cudaError_t err = cudaMemcpyToSymbol(_params_gpu_, &MainParameters, sizeof(Parameters));
+	if (err != cudaSuccess)
+	{
+		std::cerr << "Error copying to constant memory: " << cudaGetErrorString(err) << std::endl;
+	}
+	cudaDeviceSynchronize();
+
+	// Parameters host_params_check;
+	// cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
+	// cudaDeviceSynchronize();
+	// host_params_check.WriteParameters(("check_params.txt"));
 
 	// Create a particle vector
 	particles vd;
@@ -46,15 +60,15 @@ int main(int argc, char *argv[])
 	Obstacle *obstacle_ptr = nullptr;
 	if (MainParameters.SCENARIO == STEP)
 	{
-		CreateParticleGeometryStep(vd, vp, v_cl, MainParameters);
+		CreateParticleGeometryStep(vd, vp, v_cl, MainParameters, AuxParameters);
 	}
 	else if (MainParameters.SCENARIO == TAYLOR_COUETTE)
 	{
-		CreateParticleGeometryTaylorCouette(vd, vp, v_cl, obstacle_ptr, MainParameters);
+		CreateParticleGeometryTaylorCouette(vd, vp, v_cl, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	else
 	{
-		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr, MainParameters);
+		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
 
@@ -77,7 +91,7 @@ int main(int argc, char *argv[])
 
 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 
-	auto NN = vd.getCellList(MainParameters.r_threshold);
+	auto NN = vd.getCellList(MainParameters.r_cut);
 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 	vd.updateCellList(NN);
 
@@ -122,7 +136,7 @@ int main(int argc, char *argv[])
 	vd.template hostToDeviceProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
 	vd.map(RUN_ON_DEVICE);
 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
-	auto NN_gpu = vd.getCellListGPU(MainParameters.r_threshold);
+	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC, 2);
 
 	// Evolve
 	size_t write = 0;
@@ -132,6 +146,8 @@ int main(int argc, char *argv[])
 	// real_number obstacle_force_x = 0.0;
 	// real_number obstacle_force_y = 0.0;
 
+	timer tot_sim;
+	tot_sim.start();
 	while (t <= MainParameters.t_end)
 	{
 
@@ -162,7 +178,7 @@ int main(int argc, char *argv[])
 		// }
 
 		// Integrate one time step
-		kick_drift_int(vd, NN_gpu, dt, t, MainParameters);
+		kick_drift_int(vd, NN_gpu, dt, t, MainParameters, AuxParameters);
 
 		// increment time
 		t += dt;
@@ -187,29 +203,33 @@ int main(int argc, char *argv[])
 
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-			vd.deleteGhost();
-			// CalcVorticity(vd, NN, MainParameters);
 			// vd.deleteGhost();
-			vd.write_frame(MainParameters.filename, write, MainParameters.WRITER);
+			// CalcVorticity(vd, NN, MainParameters);
+			vd.deleteGhost();
+			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
+			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
 			// CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters, write);
-			// vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
 
 			write++;
 
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  write " << MainParameters.cnt << std::endl;
+				std::cout << "TIME: " << t << "  write " << AuxParameters.cnt << std::endl;
 			}
 		}
 		// else
 		// {
 		// 	if (v_cl.getProcessUnitID() == 0)
 		// 	{
-		// 		std::cout << "TIME: " << t << "  write " << MainParameters.cnt << std::endl;
+		// 		std::cout << "TIME: " << t << "  write " << AuxParameters.cnt << std::endl;
 		// 	}
 		// }
 		// break;
 	}
+
+	tot_sim.stop();
+	std::cout << "Time to complete: " << tot_sim.getwct() << " seconds" << std::endl;
+
 	delete obstacle_ptr;
 	openfpm_finalize();
 }
