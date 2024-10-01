@@ -1,4 +1,6 @@
-// #ifdef __NVCC__
+#ifdef __NVCC__
+#define PRINT_STACKTRACE
+#define OPENMPI
 
 #include <math.h>
 #include <sys/stat.h>
@@ -16,12 +18,17 @@
 #include "Probes.hpp"
 #include "TimeIntegration.hpp"
 #include "CalcForces.hpp"
+#include "ExtrapolateVelocity.hpp"
 
 int main(int argc, char *argv[])
 {
 
 	// initialize the library
 	openfpm_init(&argc, &argv);
+
+#if !defined(CUDA_ON_CPU) && !defined(__HIP__)
+	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+#endif
 
 	std::string tmp = argv[1];
 
@@ -95,12 +102,7 @@ int main(int argc, char *argv[])
 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
 	vd.updateCellList(NN);
 
-	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
-	{
-		ExtrapolateVelocity(vd, NN, MainParameters);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
-	}
-	else if (MainParameters.BC_TYPE == NEW_NO_SLIP) // Set up fluid vector and normal vector of the boundary particles
+	if (MainParameters.BC_TYPE == NEW_NO_SLIP) // Set up fluid vector and normal vector of the boundary particles
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
@@ -136,7 +138,13 @@ int main(int argc, char *argv[])
 	vd.template hostToDeviceProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
 	vd.map(RUN_ON_DEVICE);
 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
-	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC, 2);
+	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0f, CL_NON_SYMMETRIC | CL_GPU_REORDER_POSITION | CL_GPU_REORDER_PROPERTY | CL_GPU_RESTORE_PROPERTY, 2);
+
+	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
+	{
+		ExtrapolateVelocity(vd, NN_gpu);
+		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
+	}
 
 	// Evolve
 	size_t write = 0;
@@ -201,10 +209,12 @@ int main(int argc, char *argv[])
 			// 	}
 			// }
 
+			// send data from GPU to CPU
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
-			// vd.deleteGhost();
-			// CalcVorticity(vd, NN, MainParameters);
+			// Update CPU cell list for computing vorticity
+			vd.updateCellList(NN);
+			CalcVorticity(vd, NN, MainParameters);
 			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
 			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
@@ -217,14 +227,6 @@ int main(int argc, char *argv[])
 				std::cout << "TIME: " << t << "  write " << AuxParameters.cnt << std::endl;
 			}
 		}
-		// else
-		// {
-		// 	if (v_cl.getProcessUnitID() == 0)
-		// 	{
-		// 		std::cout << "TIME: " << t << "  write " << AuxParameters.cnt << std::endl;
-		// 	}
-		// }
-		// break;
 	}
 
 	tot_sim.stop();
@@ -234,11 +236,11 @@ int main(int argc, char *argv[])
 	openfpm_finalize();
 }
 
-// #else
+#else
 
-// int main(int argc, char *argv[])
-// {
-// 	return 0;
-// }
+int main(int argc, char *argv[])
+{
+	return 0;
+}
 
-// #endif
+#endif

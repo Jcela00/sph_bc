@@ -100,7 +100,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
-    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
+    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(128));
     // vd is argument passed as reference we want to fill with particles
     vd = vd_loc;
 
@@ -439,7 +439,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
     Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
-    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(512));
+    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(128));
     vd = vd_loc;
 
     // Write constants on file
@@ -755,7 +755,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
     Ghost<DIM, real_number> g(params.r_cut);
 
     // create particle object
-    particles vd_loc(0, domain, bc, g, DEC_GRAN(512));
+    particles vd_loc(0, domain, bc, g, DEC_GRAN(128));
     vd = vd_loc;
 
     // correct the number of particles in case of periodicity, we substracted 1 before to accomodate the periodic boundary
@@ -791,7 +791,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             // create probe object
             Ghost<DIM, real_number> gp(0);
             size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
-            probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+            probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(128));
             openfpm::vector<std::string> names_p({"vx"});
             vp_loc.setPropNames(names_p);
 

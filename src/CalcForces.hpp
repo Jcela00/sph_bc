@@ -269,8 +269,11 @@ template <typename vd_type, typename NN_type>
 __global__ void calc_forcesGPU_new(vd_type vd,
                                    NN_type NN)
 {
+    // auto a = GET_PARTICLE(vd); // old unsorted code
+    unsigned int a;
+    GET_PARTICLE_SORT(a, NN);
+
     const real_number dp = _params_gpu_.dp;
-    auto a = GET_PARTICLE(vd);
     // printf("FORCES\nBlockDimx: %d, BlockIdx: %d, ThreadIdx: %d, Particle: %d\n", blockDim.x, blockIdx.x, threadIdx.x, a);
 
     // if the particle is FLUID
@@ -303,14 +306,9 @@ __global__ void calc_forcesGPU_new(vd_type vd,
         {
 
             // get key of particle b
-            auto b = Np.get();
+            // auto b = Np.get(); // OLD unsorted code
 
-            // if (a == b) skip this particle
-            if (a == b)
-            {
-                ++Np;
-                continue;
-            }
+            auto b = Np.get_sort();
 
             // Get the position xb of the particle
             Point<DIM, real_number> xb = vd.getPos(b);
@@ -321,13 +319,8 @@ __global__ void calc_forcesGPU_new(vd_type vd,
 
             // take the norm (squared) of this vector
             real_number r2 = norm2(dr);
-            real_number r = sqrtf(r2);
 
-            // in general we do not accumulate force, only in the case of interacting with an obstacle
-
-            // if they interact
-
-            if (r < _params_gpu_.r_cut && r > 1e-16)
+            if (r2 < _params_gpu_.r_cut2 && r2 > 1e-16)
             {
                 if (vd.template getProp<type>(b) == BOUNDARY)
                 {
@@ -500,7 +493,10 @@ __global__ void calc_forcesGPU_old(vd_type vd,
                                    NN_type NN)
 {
     // const real_number dp = _params_gpu_.dp;
-    auto a = GET_PARTICLE(vd);
+    // auto a = GET_PARTICLE(vd); // old unsorted code
+
+    unsigned int a;
+    GET_PARTICLE_SORT(a, NN);
 
     // if the particle is FLUID
     if (vd.template getProp<type>(a) == FLUID)
@@ -530,16 +526,7 @@ __global__ void calc_forcesGPU_old(vd_type vd,
         // For each neighborhood particle
         while (Np.isNext() == true)
         {
-
-            // get key of particle b
-            auto b = Np.get();
-
-            // if (a == b) skip this particle
-            if (a == b)
-            {
-                ++Np;
-                continue;
-            }
+            auto b = Np.get_sort();
 
             // Get the position xb of the particle
             Point<DIM, real_number> xb = vd.getPos(b);
@@ -550,11 +537,8 @@ __global__ void calc_forcesGPU_old(vd_type vd,
 
             // take the norm (squared) of this vector
             real_number r2 = norm2(dr);
-            real_number r = sqrtf(r2);
 
-            // if they interact
-
-            if (r < _params_gpu_.r_cut && r > 1e-16)
+            if (r2 < _params_gpu_.r_cut2 && r2 > 1e-16)
             {
                 if (vd.template getProp<type>(b) == BOUNDARY)
                 {
@@ -564,7 +548,7 @@ __global__ void calc_forcesGPU_old(vd_type vd,
                     const Point<DIM, real_number> vb = vd.template getProp<velocity>(b);
                     const Point<DIM, real_number> vb_noslip = vd.template getProp<v_transport>(b); // here we store the extrapolated velocity for no slip BC
 
-                    const real_number r = sqrt(r2);
+                    const real_number r = sqrtf(r2);
 
                     const Point<DIM, real_number> v_rel = va - vb;
                     const Point<DIM, real_number> v_rel_aux = va - vb_noslip;
@@ -657,8 +641,9 @@ inline void calc_forces(particles &vd,
 {
     // get domain iterator
     auto it = vd.getDomainIteratorGPU(32);
-    // // Update the cell-list
-    vd.updateCellListGPU(NN);
+
+    // Update the cell-list
+    vd.template updateCellListGPU<type, rho, pressure, drho, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(NN);
 
     if (params.BC_TYPE == NO_SLIP)
     {
@@ -668,6 +653,7 @@ inline void calc_forces(particles &vd,
     {
         CUDA_LAUNCH(calc_forcesGPU_new, it, vd.toKernel(), NN.toKernel());
     }
+    vd.template restoreOrder<drho, force, force_transport>(NN);
     cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
     if (err != cudaSuccess)
     {

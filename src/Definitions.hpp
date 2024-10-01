@@ -127,6 +127,7 @@ public:
 
     // Radius of the kernel support
     real_number r_cut;
+    real_number r_cut2;
 
     // Normalization constant for the kernels
     real_number Kquintic;
@@ -312,57 +313,57 @@ public:
     //     file << "ObstacleTilt: " << params.ObstacleTilt << std::endl;
     // }
 
-    void copy_params_host_to_device(const Parameters HostParams)
-    {
-        // only to be called for the device parameters
-        cudaMemcpyToSymbol(dp, &(HostParams.dp), sizeof(real_number));
-        cudaMemcpyToSymbol(SCENARIO, &(HostParams.SCENARIO), sizeof(int));
-        cudaMemcpyToSymbol(BC_TYPE, &(HostParams.BC_TYPE), sizeof(int));
-        cudaMemcpyToSymbol(DENSITY_TYPE, &(HostParams.DENSITY_TYPE), sizeof(int));
-        cudaMemcpyToSymbol(WRITER, &(HostParams.WRITER), sizeof(int));
-        cudaMemcpyToSymbol(PROBES_ENABLED, &(HostParams.PROBES_ENABLED), sizeof(int));
-        cudaMemcpyToSymbol(length, &(HostParams.length), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(bc, &(HostParams.bc), sizeof(size_t) * DIM);
-        cudaMemcpyToSymbol(Nboundary, &(HostParams.Nboundary), sizeof(size_t) * DIM);
-        cudaMemcpyToSymbol(Nfluid, &(HostParams.Nfluid), sizeof(size_t) * DIM);
-        cudaMemcpyToSymbol(LengthScale, &(HostParams.LengthScale), sizeof(real_number));
-        cudaMemcpyToSymbol(rf, &(HostParams.rf), sizeof(real_number));
-        cudaMemcpyToSymbol(Hconst, &(HostParams.Hconst), sizeof(real_number));
-        cudaMemcpyToSymbol(H, &(HostParams.H), sizeof(real_number));
-        cudaMemcpyToSymbol(r_cut, &(HostParams.r_cut), sizeof(real_number));
-        cudaMemcpyToSymbol(Kquintic, &(HostParams.Kquintic), sizeof(real_number));
-        cudaMemcpyToSymbol(Re, &(HostParams.Re), sizeof(real_number));
-        cudaMemcpyToSymbol(umax, &(HostParams.umax), sizeof(real_number));
-        cudaMemcpyToSymbol(rho0, &(HostParams.rho0), sizeof(real_number));
-        cudaMemcpyToSymbol(gamma, &(HostParams.gamma), sizeof(real_number));
-        cudaMemcpyToSymbol(coeff_sound, &(HostParams.coeff_sound), sizeof(real_number));
-        cudaMemcpyToSymbol(cbar, &(HostParams.cbar), sizeof(real_number));
-        cudaMemcpyToSymbol(B, &(HostParams.B), sizeof(real_number));
-        cudaMemcpyToSymbol(xi, &(HostParams.xi), sizeof(real_number));
-        cudaMemcpyToSymbol(gravity_vector, &(HostParams.gravity_vector), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(gravity, &(HostParams.gravity), sizeof(real_number));
-        cudaMemcpyToSymbol(vw_top, &(HostParams.vw_top), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(vw_bottom, &(HostParams.vw_bottom), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(MassFluid, &(HostParams.MassFluid), sizeof(real_number));
-        cudaMemcpyToSymbol(MassBound, &(HostParams.MassBound), sizeof(real_number));
-        cudaMemcpyToSymbol(nu, &(HostParams.nu), sizeof(real_number));
-        cudaMemcpyToSymbol(eta, &(HostParams.eta), sizeof(real_number));
-        cudaMemcpyToSymbol(Bfactor, &(HostParams.Bfactor), sizeof(real_number));
-        cudaMemcpyToSymbol(Pbackground, &(HostParams.Pbackground), sizeof(real_number));
-        cudaMemcpyToSymbol(t_end, &(HostParams.t_end), sizeof(real_number));
-        cudaMemcpyToSymbol(CFLnumber, &(HostParams.CFLnumber), sizeof(real_number));
-        cudaMemcpyToSymbol(write_const, &(HostParams.write_const), sizeof(real_number));
-        cudaMemcpyToSymbol(ObstacleCenter, &(HostParams.ObstacleCenter), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(ObstacleVelocity, &(HostParams.ObstacleVelocity), sizeof(real_number) * DIM);
-        cudaMemcpyToSymbol(ObstacleOmega, &(HostParams.ObstacleOmega), sizeof(real_number));
-        cudaMemcpyToSymbol(Rin, &(HostParams.Rin), sizeof(real_number));
-        cudaMemcpyToSymbol(Rout, &(HostParams.Rout), sizeof(real_number));
-        cudaMemcpyToSymbol(Win, &(HostParams.Win), sizeof(real_number));
-        cudaMemcpyToSymbol(Wout, &(HostParams.Wout), sizeof(real_number));
-        cudaMemcpyToSymbol(ObstacleBase, &(HostParams.ObstacleBase), sizeof(real_number));
-        cudaMemcpyToSymbol(ObstacleHeight, &(HostParams.ObstacleHeight), sizeof(real_number));
-        cudaMemcpyToSymbol(ObstacleTilt, &(HostParams.ObstacleTilt), sizeof(real_number));
-    }
+    // void copy_params_host_to_device(const Parameters HostParams)
+    // {
+    //     // only to be called for the device parameters
+    //     cudaMemcpyToSymbol(dp, &(HostParams.dp), sizeof(real_number));
+    //     cudaMemcpyToSymbol(SCENARIO, &(HostParams.SCENARIO), sizeof(int));
+    //     cudaMemcpyToSymbol(BC_TYPE, &(HostParams.BC_TYPE), sizeof(int));
+    //     cudaMemcpyToSymbol(DENSITY_TYPE, &(HostParams.DENSITY_TYPE), sizeof(int));
+    //     cudaMemcpyToSymbol(WRITER, &(HostParams.WRITER), sizeof(int));
+    //     cudaMemcpyToSymbol(PROBES_ENABLED, &(HostParams.PROBES_ENABLED), sizeof(int));
+    //     cudaMemcpyToSymbol(length, &(HostParams.length), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(bc, &(HostParams.bc), sizeof(size_t) * DIM);
+    //     cudaMemcpyToSymbol(Nboundary, &(HostParams.Nboundary), sizeof(size_t) * DIM);
+    //     cudaMemcpyToSymbol(Nfluid, &(HostParams.Nfluid), sizeof(size_t) * DIM);
+    //     cudaMemcpyToSymbol(LengthScale, &(HostParams.LengthScale), sizeof(real_number));
+    //     cudaMemcpyToSymbol(rf, &(HostParams.rf), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Hconst, &(HostParams.Hconst), sizeof(real_number));
+    //     cudaMemcpyToSymbol(H, &(HostParams.H), sizeof(real_number));
+    //     cudaMemcpyToSymbol(r_cut, &(HostParams.r_cut), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Kquintic, &(HostParams.Kquintic), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Re, &(HostParams.Re), sizeof(real_number));
+    //     cudaMemcpyToSymbol(umax, &(HostParams.umax), sizeof(real_number));
+    //     cudaMemcpyToSymbol(rho0, &(HostParams.rho0), sizeof(real_number));
+    //     cudaMemcpyToSymbol(gamma, &(HostParams.gamma), sizeof(real_number));
+    //     cudaMemcpyToSymbol(coeff_sound, &(HostParams.coeff_sound), sizeof(real_number));
+    //     cudaMemcpyToSymbol(cbar, &(HostParams.cbar), sizeof(real_number));
+    //     cudaMemcpyToSymbol(B, &(HostParams.B), sizeof(real_number));
+    //     cudaMemcpyToSymbol(xi, &(HostParams.xi), sizeof(real_number));
+    //     cudaMemcpyToSymbol(gravity_vector, &(HostParams.gravity_vector), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(gravity, &(HostParams.gravity), sizeof(real_number));
+    //     cudaMemcpyToSymbol(vw_top, &(HostParams.vw_top), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(vw_bottom, &(HostParams.vw_bottom), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(MassFluid, &(HostParams.MassFluid), sizeof(real_number));
+    //     cudaMemcpyToSymbol(MassBound, &(HostParams.MassBound), sizeof(real_number));
+    //     cudaMemcpyToSymbol(nu, &(HostParams.nu), sizeof(real_number));
+    //     cudaMemcpyToSymbol(eta, &(HostParams.eta), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Bfactor, &(HostParams.Bfactor), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Pbackground, &(HostParams.Pbackground), sizeof(real_number));
+    //     cudaMemcpyToSymbol(t_end, &(HostParams.t_end), sizeof(real_number));
+    //     cudaMemcpyToSymbol(CFLnumber, &(HostParams.CFLnumber), sizeof(real_number));
+    //     cudaMemcpyToSymbol(write_const, &(HostParams.write_const), sizeof(real_number));
+    //     cudaMemcpyToSymbol(ObstacleCenter, &(HostParams.ObstacleCenter), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(ObstacleVelocity, &(HostParams.ObstacleVelocity), sizeof(real_number) * DIM);
+    //     cudaMemcpyToSymbol(ObstacleOmega, &(HostParams.ObstacleOmega), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Rin, &(HostParams.Rin), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Rout, &(HostParams.Rout), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Win, &(HostParams.Win), sizeof(real_number));
+    //     cudaMemcpyToSymbol(Wout, &(HostParams.Wout), sizeof(real_number));
+    //     cudaMemcpyToSymbol(ObstacleBase, &(HostParams.ObstacleBase), sizeof(real_number));
+    //     cudaMemcpyToSymbol(ObstacleHeight, &(HostParams.ObstacleHeight), sizeof(real_number));
+    //     cudaMemcpyToSymbol(ObstacleTilt, &(HostParams.ObstacleTilt), sizeof(real_number));
+    // }
 
     void WriteParameters(const std::string filename)
     {
@@ -381,6 +382,7 @@ public:
         file << "rf: " << rf << std::endl;
         file << "H: " << H << std::endl;
         file << "r_cut: " << r_cut << std::endl;
+        file << "r_cut2: " << r_cut2 << std::endl;
         file << "Kquintic: " << Kquintic << std::endl;
         file << "Re: " << Re << std::endl;
         file << "umax: " << umax << std::endl;

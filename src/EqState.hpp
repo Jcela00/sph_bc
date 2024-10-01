@@ -6,7 +6,6 @@
 template <typename vd_type>
 __global__ void EqStateGPU(vd_type vd, real_number rho0, real_number B, real_number gamma, real_number xi)
 {
-
     auto a = GET_PARTICLE(vd);
 
     if (vd.template getProp<type>(a) == FLUID)

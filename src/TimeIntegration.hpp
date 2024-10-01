@@ -6,6 +6,7 @@
 #include "Physics.hpp"
 #include "EqState.hpp"
 #include "CalcDensity.hpp"
+#include "ExtrapolateVelocity.hpp"
 #include "CalcForces.hpp"
 
 // void max_velocity(particles &vd, Vcluster<> &v_cl, real_number &max_vel)
@@ -178,11 +179,6 @@ void kick_drift_int(particles &vd,
     auto it = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t, params);
-    cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    if (err != cudaSuccess)
-    {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
@@ -191,7 +187,7 @@ void kick_drift_int(particles &vd,
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
     {
-        CalcDensity(vd, NN);
+        CalcDensity(vd, NN, params);
         vd.ghost_get<rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
     }
 
@@ -199,11 +195,11 @@ void kick_drift_int(particles &vd,
     EqState(vd, params.rho0, params.B, params.gamma, params.xi);
     vd.ghost_get<pressure>(KEEP_PROPERTIES | RUN_ON_DEVICE);
 
-    // if (params.BC_TYPE == NO_SLIP)
-    // {
-    //     ExtrapolateVelocity(vd, NN, params);
-    //     vd.ghost_get<rho, pressure, v_transport>(KEEP_PROPERTIES);
-    // }
+    if (params.BC_TYPE == NO_SLIP)
+    {
+        ExtrapolateVelocity(vd, NN);
+        vd.ghost_get<rho, pressure, v_transport>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+    }
 
     calc_forces(vd, NN, params);
 
@@ -221,11 +217,6 @@ void kick_drift_int(particles &vd,
     auto it2 = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_2_gpu, it2, vd.toKernel(), dt, t, params);
-    err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    if (err != cudaSuccess)
-    {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
 
     // increment the iteration counter
     auxParams.cnt++;

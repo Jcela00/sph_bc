@@ -305,6 +305,7 @@ void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters, AuxiliarPa
     // Set general parameters
     argParameters.H = argParameters.Hconst * argParameters.dp;
     argParameters.r_cut = 3.0 * argParameters.H;
+    argParameters.r_cut2 = argParameters.r_cut * argParameters.r_cut;
     argParameters.Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / argParameters.H / argParameters.H / argParameters.H : 7.0 / 478.0 / M_PI / argParameters.H / argParameters.H;
     argParameters.MassFluid = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
     argParameters.MassBound = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
