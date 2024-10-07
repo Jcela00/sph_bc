@@ -9,159 +9,165 @@
 #include "ExtrapolateVelocity.hpp"
 #include "CalcForces.hpp"
 
-// void max_velocity(particles &vd, Vcluster<> &v_cl, real_number &max_vel)
-// {
-//     // Calculate the maximum acceleration
-//     auto part = vd.getDomainIterator();
+template <typename vd_type>
+__global__ void max_velocity_gpu(vd_type vd)
+{
+    auto a = GET_PARTICLE(vd);
 
-//     while (part.isNext())
-//     {
-//         auto a = part.get();
+    Point<DIM, real_number> vel(vd.template getProp<vd4_velocity>(a));
+    vd.template getProp<vd12_vel_red>(a) = norm(vel);
+}
 
-//         Point<DIM, real_number> vel(vd.getProp<velocity>(a));
-//         real_number vel2 = norm2(vel);
+inline __device__ __host__ void max_velocity(particles &vd, real_number &max_vel)
+{
+    Vcluster<> &v_cl = create_vcluster();
 
-//         if (vel2 >= max_vel)
-//             max_vel = vel2;
+    auto part = vd.getDomainIteratorGPU();
 
-//         ++part;
-//     }
-//     max_vel = std::sqrt(max_vel);
+    CUDA_LAUNCH(max_velocity_gpu, part, vd.toKernel());
 
-//     // Vcluster<> &v_cl = create_vcluster();
-//     v_cl.max(max_vel);
-//     v_cl.execute();
-// }
+    max_vel = reduce_local<vd12_vel_red, _max_>(vd);
 
-// inline __device__ __host__ real_number calc_deltaT(particles &vd, Vcluster<> &v_cl, const Parameters params)
+    v_cl.max(max_vel);
+    v_cl.execute();
+}
 
-inline __device__ __host__ real_number calc_deltaT(const Parameters params)
+inline __device__ __host__ real_number calc_deltaT(particles &vd, const Parameters &params)
 {
     real_number Maxvel = 0.0;
-    // max_velocity(vd, v_cl, Maxvel);
-    Maxvel = 0.0;
+    max_velocity(vd, Maxvel);
 
     real_number dt_u = 0.25 * params.H / (params.cbar + abs(Maxvel));
     real_number dt_visc = 0.25 * params.H * params.H / (params.nu);
     real_number dt_g = 0.25 * sqrt(params.H / getVectorNorm(params.gravity_vector));
     real_number dt = params.CFLnumber * std::min({dt_u, dt_visc, dt_g});
-    // if (dt < DtMin)
-    // 	dt = DtMin;
 
     return dt;
 }
 
-inline __device__ __host__ Point<DIM, real_number> SolidBodyAcceleration(real_number t, const Parameters &params)
+template <typename vd_type>
+__global__ void avg_vel_x_GPU(vd_type vd)
 {
-    Point<DIM, real_number> a;
-    if (params.SCENARIO == MOVING_OBSTACLE)
-    {
-        real_number period = 10.0;
-        real_number amplitude = 0.25;
-        a.get(0) = amplitude * (4.0 * M_PI * M_PI / (period * period)) * sin(2.0 * M_PI * t / period);
-        a.get(1) = 0.0;
-    }
-    else
-    {
-        a = {0.0, 0.0};
-    }
+    auto a = GET_PARTICLE(vd);
 
-    return a;
+    vd.template getProp<vd12_vel_red>(a) = vd.template getProp<vd4_velocity>(a)[0];
 }
 
+inline __device__ __host__ void avg_vel_x(particles &vd, real_number &avg_vel)
+{
+    Vcluster<> &v_cl = create_vcluster();
+
+    auto part = vd.getDomainIteratorGPU();
+
+    CUDA_LAUNCH(avg_vel_x_GPU, part, vd.toKernel());
+
+    avg_vel = reduce_local<vd12_vel_red, _add_>(vd);
+
+    v_cl.sum(avg_vel);
+    v_cl.execute();
+}
+
+inline __device__ __host__ Point<3, real_number> ComputeDragLift(particles &vd, const Parameters &params)
+{
+    Vcluster<> &v_cl = create_vcluster();
+
+    Point<3, real_number> VxDragLift{0.0};
+    real_number vx = 0.0;
+    avg_vel_x(vd, vx);
+
+    real_number fx = reduce_local<vd13_force_red_x, _add_>(vd);
+    real_number fy = reduce_local<vd14_force_red_y, _add_>(vd);
+
+    v_cl.sum(fx);
+    v_cl.sum(fy);
+    v_cl.execute();
+
+    VxDragLift[0] = vx;
+    VxDragLift[1] = fx * params.MassFluid;
+    VxDragLift[2] = fy * params.MassFluid;
+
+    return VxDragLift;
+}
+// inline __device__ __host__ Point<DIM, real_number> SolidBodyAcceleration(real_number t, const Parameters &params)
+// {
+//     Point<DIM, real_number> a;
+//     if (params.SCENARIO == MOVING_OBSTACLE)
+//     {
+//         real_number period = 10.0;
+//         real_number amplitude = 0.25;
+//         a.get(0) = amplitude * (4.0 * M_PI * M_PI / (period * period)) * sin(2.0 * M_PI * t / period);
+//         a.get(1) = 0.0;
+//     }
+//     else
+//     {
+//         a = {0.0, 0.0};
+//     }
+
+//     return a;
+// }
+
 template <typename vd_type>
-__global__ void kdi_1_gpu(vd_type vd,
-                          const real_number dt,
-                          real_number t,
-                          Parameters params)
+__global__ void kdi_1_gpu(vd_type vd, const real_number dt)
 {
     const real_number dt_2 = dt * 0.5;
-    Point<DIM, real_number> aSolid_minus = 0.0; // SolidBodyAcceleration(t - dt_2, params);
 
     // get particle a key
     auto a = GET_PARTICLE(vd);
 
-    if (vd.template getProp<type>(a) == BOUNDARY) // BOUNDARY
+    if (vd.template getProp<vd0_type>(a) == BOUNDARY || vd.template getProp<vd0_type>(a) == OBSTACLE) // BOUNDARY
     {
-        // move boundary particles with linear velocity and acceleration
+        // move boundary particles with their linear velocity
         for (int xyz = 0; xyz < DIM; xyz++)
         {
-            // trick to avoid accelerating the solid walls in the moving obstacle scenario
-            if (vd.template getProp<vd_omega>(a) != 0.0)
-                vd.template getProp<force>(a)[xyz] = aSolid_minus.get(xyz);
-            else
-                vd.template getProp<force>(a)[xyz] = 0.0;
-
-            vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
-            vd.getPos(a)[xyz] += dt * vd.template getProp<velocity>(a)[xyz];
-
+            vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
             // centre also moves
-            vd.template getProp<force_transport>(a)[xyz] += dt * vd.template getProp<velocity>(a)[xyz];
+            vd.template getProp<vd7_force_t>(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
         }
 
-        // also rotate
-        if (vd.template getProp<vd_omega>(a) != 0.0) // if rotating
-        {
-            real_number theta = vd.template getProp<vd_omega>(a) * dt;
-            Point<DIM, real_number> normal = vd.template getProp<normal_vector>(a);
+        // also rotate ( if omega == 0 this does nothing )
+        real_number theta = vd.template getProp<vd10_omega>(a) * dt;
+        Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
 
-            // apply rotation
-            Point<DIM, real_number> centre = vd.template getProp<force_transport>(a); // stored in force_transport
-            Point<DIM, real_number> x = vd.getPos(a);
-            // ApplyRotation(x, theta, centre);
-            vd.getPos(a)[0] = x.get(0);
-            vd.getPos(a)[1] = x.get(1);
-            // update normals ( rotated wrt origin )
-            // ApplyRotation(normal, theta, {0.0, 0.0});
-            vd.template getProp<normal_vector>(a)[0] = normal.get(0);
-            vd.template getProp<normal_vector>(a)[1] = normal.get(1);
-        }
+        // apply rotation
+        Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
+        Point<DIM, real_number> x = vd.getPos(a);
+        x = ApplyRotation(x, theta, centre);
+        vd.getPos(a)[0] = x.get(0);
+        vd.getPos(a)[1] = x.get(1);
+        // update normals ( rotated wrt origin )
+        normal = ApplyRotation(normal, theta, {0.0, 0.0});
+        vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
+        vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
+        return;
     }
-    else // FLUID
+
+    // Otherwise it is a fluid particle
+    for (int xyz = 0; xyz < DIM; xyz++)
     {
-        for (int xyz = 0; xyz < DIM; xyz++)
-        {
-            vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
-            vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
-            vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
-        }
-
-        // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-        //     vd.template getProp<rho>(a) = vd.template getProp<rho>(a) + dt * vd.template getProp<drho>(a);
+        vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
+        vd.template getProp<vd5_velocity_t>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd7_force_t>(a)[xyz];
+        vd.getPos(a)[xyz] += dt * vd.template getProp<vd5_velocity_t>(a)[xyz];
     }
-}
-template <typename vd_type>
-__global__ void kdi_2_gpu(vd_type vd,
-                          const real_number dt,
-                          real_number t,
-                          Parameters params)
-{
 
+    // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+    //     vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt * vd.template getProp<vd3_drho>(a);
+    return;
+}
+
+template <typename vd_type>
+__global__ void kdi_2_gpu(vd_type vd, const real_number dt)
+{
     const real_number dt_2 = dt * 0.5;
-    Point<DIM, real_number> aSolid_plus = 0.0; // SolidBodyAcceleration(t + dt_2, params);
 
     // get particle a key
     auto a = GET_PARTICLE(vd);
 
-    if (vd.template getProp<type>(a) == BOUNDARY)
-    {
-        // for (int xyz = 0; xyz < DIM; xyz++)
-        // {
-        //     // // trick to avoid accelerating the solid walls in the moving obstacle scenario
-        //     // if (vd.template getProp<vd_omega>(a) != 0.0)
-        //     //     vd.template getProp<force>(a)[xyz] = aSolid_plus.get(xyz);
-        //     // else
-        //     //     vd.template getProp<force>(a)[xyz] = 0.0;
-
-        //     vd.template getProp<velocity>(a)[xyz] += dt_2 * vd.template getProp<force>(a)[xyz];
-        // }
-    }
-    else
+    if (vd.template getProp<vd0_type>(a) == FLUID)
     {
         for (int xyz = 0; xyz < DIM; xyz++)
         {
-            vd.template getProp<velocity>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force>(a)[xyz];
-            vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
+            vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
+            vd.template getProp<vd5_velocity_t>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd7_force_t>(a)[xyz];
         }
     }
 }
@@ -178,120 +184,38 @@ void kick_drift_int(particles &vd,
     // particle iterator
     auto it = vd.getDomainIteratorGPU();
 
-    CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t, params);
+    CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt);
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
-    vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, vd_volume, vd_omega>(RUN_ON_DEVICE);
+    vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
 
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
     {
         CalcDensity(vd, NN, params);
-        vd.ghost_get<rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+        vd.ghost_get<vd1_rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
     }
 
     // Calculate pressure from the density
     EqState(vd, params.rho0, params.B, params.gamma, params.xi);
-    vd.ghost_get<pressure>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+    vd.ghost_get<vd2_pressure>(KEEP_PROPERTIES | RUN_ON_DEVICE);
 
     if (params.BC_TYPE == NO_SLIP)
     {
         ExtrapolateVelocity(vd, NN);
-        vd.ghost_get<rho, pressure, v_transport>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+        vd.ghost_get<vd1_rho, vd2_pressure, vd5_velocity_t>(KEEP_PROPERTIES | RUN_ON_DEVICE);
     }
 
     calc_forces(vd, NN, params);
 
-    // if (calc_drag)
-    // {
-    //     v_cl.sum(obstalce_force_x);
-    //     v_cl.sum(obstacle_force_y);
-    //     v_cl.execute();
-
-    //     obstalce_force_x = obstalce_force_x * params.MassFluid;
-    //     obstacle_force_y = obstacle_force_y * params.MassFluid;
-    // }
-
     // particle iterator
-    auto it2 = vd.getDomainIteratorGPU();
+    it = vd.getDomainIteratorGPU();
 
-    CUDA_LAUNCH(kdi_2_gpu, it2, vd.toKernel(), dt, t, params);
+    CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt);
 
     // increment the iteration counter
     auxParams.cnt++;
 }
-
-// template <typename CellList>
-// void kick_drift_int_regularize(particles &vd,
-//                                CellList &NN,
-//                                const real_number dt,
-//                                Vcluster<> &v_cl,
-//                                size_t &niter,
-//                                Parameters &params)
-// {
-//     // particle iterator
-//     auto part = vd.getDomainIterator();
-
-//     const real_number dt_2 = dt * 0.5;
-//     // vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
-
-//     // For each particle ...
-//     while (part.isNext())
-//     {
-//         // get particle a key
-//         vect_dist_key_dx a = part.get();
-
-//         if (vd.template getProp<type>(a) == FLUID)
-//         {
-//             for (int xyz = 0; xyz < DIM; xyz++)
-//             {
-//                 vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
-//                 vd.getPos(a)[xyz] += dt * vd.template getProp<v_transport>(a)[xyz];
-//             }
-//         }
-//         ++part;
-//     }
-
-//     // map particles if they have gone outside the domain
-//     vd.map();
-//     vd.ghost_get<type, rho, pressure, velocity, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
-
-//     // in density summation we need to update the density after moving the particles
-//     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
-//     {
-//         CalcDensity(vd, NN, params);
-//         vd.ghost_get<rho>(KEEP_PROPERTIES);
-//     }
-
-//     // Calculate pressure from the density
-//     EqState(vd, params.rho0, params.B, params.gamma, params.xi);
-//     vd.ghost_get<pressure>(KEEP_PROPERTIES);
-
-//     calc_forces_regularize(vd, NN, params);
-
-//     // particle iterator
-//     auto part2 = vd.getDomainIterator();
-
-//     // For each particle ...
-//     while (part2.isNext())
-//     {
-//         // get particle a key
-//         vect_dist_key_dx a = part2.get();
-
-//         if (vd.template getProp<type>(a) == FLUID)
-//         {
-//             for (int xyz = 0; xyz < DIM; xyz++)
-//             {
-//                 vd.template getProp<v_transport>(a)[xyz] = vd.template getProp<velocity>(a)[xyz] + dt_2 * vd.template getProp<force_transport>(a)[xyz];
-//             }
-//         }
-
-//         ++part2;
-//     }
-
-//     // increment the iteration counter
-//     niter++;
-// }
 
 #endif // TIMEINTEGRATION_HPP

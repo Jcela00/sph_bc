@@ -62,12 +62,12 @@ inline void sensor_velocity_comp(particles &vd,
 				// Calculate the distance
 				real_number r = getVectorNorm(dr);
 
-				if (vd.template getProp<type>(q) == BOUNDARY)
+				if (vd.template getProp<vd0_type>(q) == BOUNDARY || vd.template getProp<vd0_type>(q) == OBSTACLE)
 				{
 					if (r < 0.01 * params.dp) // if probe is placed on top of a wall particle
 					{
 						W_sum = 1.0;
-						magnitude_tmp = vd.template getProp<velocity>(q)[component];
+						magnitude_tmp = vd.template getProp<vd4_velocity>(q)[component];
 						break;
 					}
 
@@ -79,19 +79,19 @@ inline void sensor_velocity_comp(particles &vd,
 					{
 						real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassBound / params.rho0);
 						W_sum += ker;
-						magnitude_tmp += vd.template getProp<v_transport>(q)[component] * ker;
+						magnitude_tmp += vd.template getProp<vd5_velocity_t>(q)[component] * ker;
 					}
 				}
-				else if (vd.template getProp<type>(q) == FLUID)
+				else if (vd.template getProp<vd0_type>(q) == FLUID)
 				{
-					real_number rhoq = vd.template getProp<rho>(q);
+					real_number rhoq = vd.template getProp<vd1_rho>(q);
 					real_number ker = Wab(r, params.H, params.Kquintic) * (params.MassFluid / rhoq);
 
 					// Also keep track of the calculation of the summed kernel
 					W_sum += ker;
 
 					// Add the total magnitude contribution
-					magnitude_tmp += vd.template getProp<velocity>(q)[component] * ker;
+					magnitude_tmp += vd.template getProp<vd4_velocity>(q)[component] * ker;
 				}
 				// next neighborhood particle
 				++itg;

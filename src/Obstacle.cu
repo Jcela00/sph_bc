@@ -9,6 +9,7 @@ void AddFlatWallNewBC(particles &vd,
                       const Point<DIM, real_number> obstacle_centre,
                       const Point<DIM, real_number> obstacle_velocity,
                       const Parameters &arg_p,
+                      const size_t particle_type,
                       const real_number obstacle_omega)
 {
 
@@ -17,23 +18,22 @@ void AddFlatWallNewBC(particles &vd,
         Point<DIM, real_number> WallPos = Corner + k * UnitOffset;
 
         vd.add();
-        vd.template getLastProp<type>() = BOUNDARY;
+        vd.template getLastProp<vd0_type>() = particle_type;
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = WallPos.get(xyz); //+ ((real_number)rand() / RAND_MAX - 0.5) * dp;
-            vd.template getLastProp<velocity>()[xyz] = obstacle_velocity.get(xyz);
-            vd.template getLastProp<force>()[xyz] = 0.0;
-            vd.template getLastProp<force_transport>()[xyz] = obstacle_centre.get(xyz);
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = obstacle_velocity.get(xyz);
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = obstacle_centre.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
         }
 
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = arg_p.rho0;
-        vd.template getLastProp<drho>() = 0.0;
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dx;
-        vd.template getLastProp<vd_omega>() = obstacle_omega;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = arg_p.rho0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = dx;
+        vd.template getLastProp<vd10_omega>() = obstacle_omega;
     }
 }
 
@@ -54,23 +54,22 @@ void AddFlatWallModNewBC(particles &vd,
         Point<DIM, real_number> WallPos = Corner + (k + 0.5) * UnitOffset;
 
         vd.add();
-        vd.template getLastProp<type>() = BOUNDARY;
+        vd.template getLastProp<vd0_type>() = BOUNDARY;
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = WallPos.get(xyz); //+ ((real_number)rand() / RAND_MAX - 0.5) * dp;
-            vd.template getLastProp<velocity>()[xyz] = obstacle_velocity.get(xyz);
-            vd.template getLastProp<force>()[xyz] = 0.0;
-            vd.template getLastProp<force_transport>()[xyz] = obstacle_centre.get(xyz);
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = given_normal.get(xyz);
+            vd.template getLastProp<vd4_velocity>()[xyz] = obstacle_velocity.get(xyz);
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = obstacle_centre.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = given_normal.get(xyz);
         }
 
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = 0.0;
-        vd.template getLastProp<drho>() = 0.0;
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dx;
-        vd.template getLastProp<vd_omega>() = obstacle_omega;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = dx;
+        vd.template getLastProp<vd10_omega>() = obstacle_omega;
     }
 }
 
@@ -178,23 +177,22 @@ void CylinderObstacle::AddObstacle(particles &vd)
         }
 
         vd.add();
-        vd.template getLastProp<type>() = BOUNDARY;
+        vd.template getLastProp<vd0_type>() = OBSTACLE;
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = Cylinder_particle.get(xyz); // + ((real_number)rand() / RAND_MAX - 0.5) * dp;
-            vd.template getLastProp<force>()[xyz] = 0.0;
-            vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-            vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
         }
 
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<rho>() = params_.rho0;
-        vd.template getLastProp<drho>() = 0.0;
-        vd.template getLastProp<curvature_boundary>() = 0.0; // 1.0 / Radius_;
-        vd.template getLastProp<arc_length>() = dxwall;
-        vd.template getLastProp<vd_omega>() = AngularVelocity_;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params_.rho0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = dxwall;
+        vd.template getLastProp<vd10_omega>() = AngularVelocity_;
         theta += dtheta;
     }
 }
@@ -214,7 +212,7 @@ bool EllipticObstacle::isInside(Point<DIM, real_number> P)
     // get point minus the centre
     Point<DIM, real_number> Paux = P - Centre_;
     // rotate by -tilt
-    ApplyRotation(Paux, -tilt_, {0.0, 0.0});
+    Paux = ApplyRotation(Paux, -tilt_, {0.0, 0.0});
     // check if the point is inside the ellipse
     return (Paux.get(0) * Paux.get(0) / (Major_ * Major_) + Paux.get(1) * Paux.get(1) / (Minor_ * Minor_) <= 1.0);
 }
@@ -240,23 +238,22 @@ void EllipticObstacle::AddObstacle(particles &vd)
 
     // add the first particle
     vd.add();
-    vd.template getLastProp<type>() = BOUNDARY;
+    vd.template getLastProp<vd0_type>() = OBSTACLE;
     for (int xyz = 0; xyz < DIM; xyz++)
     {
         vd.getLastPos()[xyz] = P.get(xyz);
-        vd.template getLastProp<force>()[xyz] = 0.0;
-        vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
-        vd.template getLastProp<v_transport>()[xyz] = 0.0;
-        vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-        vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
+        vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+        vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+        vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+        vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+        vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
     }
 
-    vd.template getLastProp<pressure>() = 0.0;
-    vd.template getLastProp<rho>() = params_.rho0;
-    vd.template getLastProp<drho>() = 0.0;
-    vd.template getLastProp<curvature_boundary>() = 0.0;
-    vd.template getLastProp<arc_length>() = dxwall;
-    vd.template getLastProp<vd_omega>() = AngularVelocity_;
+    vd.template getLastProp<vd2_pressure>() = 0.0;
+    vd.template getLastProp<vd1_rho>() = params_.rho0;
+    vd.template getLastProp<vd3_drho>() = 0.0;
+    vd.template getLastProp<vd9_volume>()[0] = dxwall;
+    vd.template getLastProp<vd10_omega>() = AngularVelocity_;
 
     Point<DIM, real_number> P_prev = P;
 
@@ -274,23 +271,22 @@ void EllipticObstacle::AddObstacle(particles &vd)
         if (accumulated_arc > dxwall)
         {
             vd.add();
-            vd.template getLastProp<type>() = BOUNDARY;
+            vd.template getLastProp<vd0_type>() = OBSTACLE;
             for (int xyz = 0; xyz < DIM; xyz++)
             {
                 vd.getLastPos()[xyz] = P.get(xyz);
-                vd.template getLastProp<force>()[xyz] = 0.0;
-                vd.template getLastProp<force_transport>()[xyz] = Centre_.get(xyz);
-                vd.template getLastProp<v_transport>()[xyz] = 0.0;
-                vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-                vd.template getLastProp<velocity>()[xyz] = LinearVelocity_.get(xyz);
+                vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+                vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+                vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
             }
 
-            vd.template getLastProp<pressure>() = 0.0;
-            vd.template getLastProp<rho>() = params_.rho0;
-            vd.template getLastProp<drho>() = 0.0;
-            vd.template getLastProp<curvature_boundary>() = 0.0;
-            vd.template getLastProp<arc_length>() = dxwall;
-            vd.template getLastProp<vd_omega>() = AngularVelocity_;
+            vd.template getLastProp<vd2_pressure>() = 0.0;
+            vd.template getLastProp<vd1_rho>() = params_.rho0;
+            vd.template getLastProp<vd3_drho>() = 0.0;
+            vd.template getLastProp<vd9_volume>()[0] = dxwall;
+            vd.template getLastProp<vd10_omega>() = AngularVelocity_;
 
             // reset accumulated arc
             accumulated_arc = 0.0;
@@ -350,9 +346,9 @@ void RectangleObstacle::AddObstacle(particles &vd)
     Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
 
     // Lower wall
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
     // Upper wall
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, UpperRight_, -1.0 * Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, UpperRight_, -1.0 * Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     // Vertical walls
     const int N_right = ceil(HeigthLength_ / dx_self);
@@ -360,9 +356,9 @@ void RectangleObstacle::AddObstacle(particles &vd)
     Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
 
     // Left wall
-    AddFlatWallNewBC(vd, 1, N_right, LowerLeft_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right, LowerLeft_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
     // Right wall
-    AddFlatWallNewBC(vd, 1, N_right, UpperRight_, -1.0 * Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right, UpperRight_, -1.0 * Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     // WHEN using non mod flat wall this are the k and kmax values
     // // Lower wall
@@ -414,13 +410,13 @@ void TriangleObstacle::AddObstacle(particles &vd)
     const int N_bottom = ceil(BaseLength_ / dx_self);
     const real_number dxwall_bottom = BaseLength_ / N_bottom;
     const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     // Right wall
     const int N_right = ceil(HeigthLength_ / dx_self);
     const real_number dxwall_right = HeigthLength_ / N_right;
     const Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
-    AddFlatWallNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     //  Hypothenuse wall
     // We want particles spaced roughly by dp
@@ -431,7 +427,7 @@ void TriangleObstacle::AddObstacle(particles &vd)
     const real_number cos_theta = BaseLength_ / HypothenuseLength;
     const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
 
-    AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 }
 
 TriangleEqui::TriangleEqui(Point<DIM, real_number> centre,
@@ -468,7 +464,7 @@ void TriangleEqui::AddObstacle(particles &vd)
     Point<DIM, real_number> Yoffset = {0.0, dxwall};
 
     // Right wall
-    AddFlatWallNewBC(vd, 0, N_wall + 1, LowerRight_, Yoffset, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 0, N_wall + 1, LowerRight_, Yoffset, dxwall, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     // Inclined walls
 
@@ -478,7 +474,7 @@ void TriangleEqui::AddObstacle(particles &vd)
     Point<DIM, real_number> DiagoffsetNW = Diagoffset;
     DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
     //  Hypothenuse upper wall
-    AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
     // Hypothenuse lower wall
-    AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, Centre_, LinearVelocity_, params_, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 }

@@ -12,7 +12,8 @@ typedef float real_number;
 
 // Type of particles
 #define BOUNDARY 0
-#define FLUID 1
+#define OBSTACLE 1
+#define FLUID 2
 
 // Type of boundary condition
 #define NO_SLIP 0
@@ -38,45 +39,44 @@ typedef float real_number;
 #define DENSITY_DIFFERENTIAL 1
 
 // Alias of the vector_dist fields
-// FLUID or BOUNDARY
-const size_t type = 0;
+const int vd0_type = 0; // can be BOUNDARY, OBSTACLE, FLUID
 // Density
-const int rho = 1;
+const int vd1_rho = 1;
 // pressure
-const int pressure = 2;
+const int vd2_pressure = 2;
 // Delta rho ( for differential density )
-const int drho = 3;
-// calculated force
-const int force = 4;
+const int vd3_drho = 3;
 // velocity
-const int velocity = 5;
-// background pressure force
-const int force_transport = 6;
+const int vd4_velocity = 4;
 // transport velocity
-const int v_transport = 7;
+const int vd5_velocity_t = 5;
+// calculated force
+const int vd6_force = 6;
+// background pressure force
+const int vd7_force_t = 7;
 // normal vector
-const int normal_vector = 8;
-// curvature
-const int curvature_boundary = 9;
-// arc length wall
-const int arc_length = 10;
+const int vd8_normal = 8;
 // volume
-const int vd_volume = 11;
+const int vd9_volume = 9;
 // angular velocity
-const int vd_omega = 12;
+const int vd10_omega = 10;
 // vorticity
-const int vd_vorticity = 13;
+const int vd11_vorticity = 11;
+// reduction
+const int vd12_vel_red = 12;
+// force_red
+const int vd13_force_red_x = 13;
+const int vd14_force_red_y = 14;
 
-typedef vector_dist_gpu<DIM, real_number, aggregate<size_t, real_number, real_number, real_number, real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number, real_number, real_number[3], real_number, real_number>> particles;
-//                                          |         |     |        |        |            |           |		     |           |	        |       |          | 		   |       |
-//                                          |         |     |        |        |            |           |		     |	     	 |	        |       |	       |	       |       |
-//                                       type        rho  pressure delta   force          vel         F_t           vel_t    normal curvature   arc_length     vol       omega    vorticity
-//                                                                 density
+typedef vector_dist_gpu<DIM, real_number, aggregate<unsigned int, real_number, real_number, real_number, real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[DIM], real_number[3], real_number, real_number, real_number, real_number, real_number>> particles;
+//                                                      |       |            |            |            |                 |                 |                 |                 |                 |                 |            |           |           |            |
+//                                                      |       |            |            |            |                 |                 |                 |                 |                 |                 |            |           |           |            |
+//                                                     type    rho        pressure       drho       velocity       v_transport           force        force_transport        normal_vector      volume            omega        vorticity   red       force_redx    force_redy
 
 typedef vector_dist_gpu<DIM, real_number, aggregate<real_number>> probe_particles;
 
 // Class to store parameters that we can not (or dont want) to
-// copy into the GPU
+// copy into the GPU __constant__ memory
 class AuxiliarParameters
 {
 public:

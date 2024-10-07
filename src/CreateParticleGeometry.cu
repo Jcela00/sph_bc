@@ -1,7 +1,9 @@
 #include "CreateParticleGeometry.hpp"
 
-void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters &params, AuxiliarParameters &auxParams)
+void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Obstacle *&obstacle_ptr, Parameters &params, AuxiliarParameters &auxParams)
 {
+
+    Vcluster<> &v_cl = create_vcluster();
 
     // Non periodic situation grid of 5 fluid particles and 3 boundary particles
     // We need a virtual grid of 5 + 2*(3+1) particles,
@@ -198,8 +200,8 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             Point<DIM, real_number> LL_corner = {0.0, 0.0};
             Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
             // Top And Bottom Walls
-            AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, 0.0);
-            AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, BOUNDARY, 0.0);
         }
         else if (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC) // Box like scenario
         {
@@ -219,12 +221,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
 
             // Top And Bottom Walls
-            AddFlatWallNewBC(vd, 0, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, 0.0);
-            AddFlatWallNewBC(vd, 0, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, 0.0);
+            AddFlatWallNewBC(vd, 0, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, 0.0);
 
             // Left And Right Walls
-            AddFlatWallNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, 0.0);
-            AddFlatWallNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, 0.0);
+            AddFlatWallNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, 0.0);
+            AddFlatWallNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, 0.0);
         }
     }
 
@@ -243,12 +245,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             {
                 // ... add a particle ...
                 vd.add();
-                vd.template getLastProp<type>() = BOUNDARY;
-                vd.template getLastProp<vd_omega>() = (*obstacle_ptr).AngularVelocity_;
+                vd.template getLastProp<vd0_type>() = OBSTACLE;
+                vd.template getLastProp<vd10_omega>() = (*obstacle_ptr).AngularVelocity_;
                 for (int xyz = 0; xyz < DIM; xyz++)
                 {
-                    vd.template getLastProp<velocity>()[xyz] = ((*obstacle_ptr).LinearVelocity_).get(xyz);
-                    vd.template getLastProp<force_transport>()[xyz] = ((*obstacle_ptr).Centre_).get(xyz);
+                    vd.template getLastProp<vd4_velocity>()[xyz] = ((*obstacle_ptr).LinearVelocity_).get(xyz);
+                    vd.template getLastProp<vd7_force_t>()[xyz] = ((*obstacle_ptr).Centre_).get(xyz);
                 }
             }
             else if (params.BC_TYPE == NEW_NO_SLIP) // not add particle because already added
@@ -261,12 +263,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         {
             // ... add a particle ...
             vd.add();
-            vd.template getLastProp<type>() = FLUID;
-            vd.template getLastProp<vd_omega>() = 0.0;
+            vd.template getLastProp<vd0_type>() = FLUID;
+            vd.template getLastProp<vd10_omega>() = 0.0;
             for (int xyz = 0; xyz < DIM; xyz++)
             {
-                vd.template getLastProp<velocity>()[xyz] = 0.0;
-                vd.template getLastProp<force_transport>()[xyz] = 0.0;
+                vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
             }
         }
 
@@ -274,27 +276,25 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         // real_number w = 5.0;
         // if (params.SCENARIO == HYDROSTATIC)
         // {
-        //     vd.template getLastProp<velocity>()[0] = -w * iterator_position.get(1);
-        //     vd.template getLastProp<velocity>()[1] = w * iterator_position.get(0);
+        //     vd.template getLastProp<vd4_velocity>()[0] = -w * iterator_position.get(1);
+        //     vd.template getLastProp<vd4_velocity>()[1] = w * iterator_position.get(0);
         // }
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho0;
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<drho>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = iterator_position.get(xyz);
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
         }
 
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dp;
-        vd.template getLastProp<vd_volume>()[0] = 0.0;
-        vd.template getLastProp<vd_volume>()[1] = 0.0;
-        vd.template getLastProp<vd_volume>()[2] = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = dp;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
 
         // next fluid particle
         ++fluid_it;
@@ -356,38 +356,39 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 // }
                 vd.add();
 
-                vd.template getLastProp<type>() = BOUNDARY;
-                vd.template getLastProp<rho>() = params.rho0;
-                vd.template getLastProp<pressure>() = 0.0;
-                vd.template getLastProp<drho>() = 0.0;
+                vd.template getLastProp<vd0_type>() = BOUNDARY;
+                vd.template getLastProp<vd1_rho>() = params.rho0;
+                vd.template getLastProp<vd2_pressure>() = 0.0;
+                vd.template getLastProp<vd3_drho>() = 0.0;
 
                 for (int xyz = 0; xyz < DIM; xyz++)
                 {
                     vd.getLastPos()[xyz] = bound_box.get().get(xyz);
-                    vd.template getLastProp<force>()[xyz] = 0.0;
-                    vd.template getLastProp<force_transport>()[xyz] = 0.0;
-                    vd.template getLastProp<v_transport>()[xyz] = 0.0;
-                    vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+                    vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                    vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
                     if (position.get(1) < dp / 4.0) // bottom wall
                     {
-                        vd.template getLastProp<velocity>()[xyz] = params.vw_bottom[xyz];
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_bottom[xyz];
                     }
                     else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
                     {
-                        vd.template getLastProp<velocity>()[xyz] = params.vw_top[xyz];
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
                     }
                 }
 
-                vd.template getLastProp<curvature_boundary>() = 0.0;
-                vd.template getLastProp<arc_length>() = dp;
+                vd.template getLastProp<vd9_volume>()[0] = dp;
 
                 ++bound_box;
             }
         }
     }
 }
-void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Obstacle *&obstacle_ptr, Parameters params, AuxiliarParameters &auxParams)
+void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Obstacle *&obstacle_ptr, Parameters params, AuxiliarParameters &auxParams)
 {
+    Vcluster<> &v_cl = create_vcluster();
+
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
 
@@ -484,26 +485,25 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                 {
                     vd.add();
                     // Set properties
-                    vd.template getLastProp<type>() = BOUNDARY;
-                    vd.template getLastProp<vd_omega>() = (*obstacle_ptr_out).AngularVelocity_;
+                    vd.template getLastProp<vd0_type>() = BOUNDARY;
+                    vd.template getLastProp<vd10_omega>() = (*obstacle_ptr_out).AngularVelocity_;
                     for (int xyz = 0; xyz < DIM; xyz++)
                     {
-                        vd.template getLastProp<velocity>()[xyz] = ((*obstacle_ptr_out).LinearVelocity_).get(xyz);
-                        vd.template getLastProp<force_transport>()[xyz] = ((*obstacle_ptr_out).Centre_).get(xyz);
+                        vd.template getLastProp<vd4_velocity>()[xyz] = ((*obstacle_ptr_out).LinearVelocity_).get(xyz);
+                        vd.template getLastProp<vd7_force_t>()[xyz] = ((*obstacle_ptr_out).Centre_).get(xyz);
                     }
-                    vd.template getLastProp<rho>() = params.rho0;
-                    vd.template getLastProp<pressure>() = 0.0;
-                    vd.template getLastProp<drho>() = 0.0;
+                    vd.template getLastProp<vd1_rho>() = params.rho0;
+                    vd.template getLastProp<vd2_pressure>() = 0.0;
+                    vd.template getLastProp<vd3_drho>() = 0.0;
 
                     for (int xyz = 0; xyz < DIM; xyz++)
                     {
                         vd.getLastPos()[xyz] = iterator_position.get(xyz);
-                        vd.template getLastProp<v_transport>()[xyz] = 0.0;
-                        vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+                        vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                        vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
                     }
 
-                    vd.template getLastProp<curvature_boundary>() = 0.0;
-                    vd.template getLastProp<arc_length>() = dp;
+                    vd.template getLastProp<vd9_volume>()[0] = dp;
 
                     // next fluid particle
                     ++out_it;
@@ -539,12 +539,12 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                     {
                         // ... add a particle ...
                         vd.add();
-                        vd.template getLastProp<type>() = BOUNDARY;
-                        vd.template getLastProp<vd_omega>() = (*obstacle_ptr_in).AngularVelocity_;
+                        vd.template getLastProp<vd0_type>() = BOUNDARY;
+                        vd.template getLastProp<vd10_omega>() = (*obstacle_ptr_in).AngularVelocity_;
                         for (int xyz = 0; xyz < DIM; xyz++)
                         {
-                            vd.template getLastProp<velocity>()[xyz] = ((*obstacle_ptr_in).LinearVelocity_).get(xyz);
-                            vd.template getLastProp<force_transport>()[xyz] = ((*obstacle_ptr_in).Centre_).get(xyz);
+                            vd.template getLastProp<vd4_velocity>()[xyz] = ((*obstacle_ptr_in).LinearVelocity_).get(xyz);
+                            vd.template getLastProp<vd7_force_t>()[xyz] = ((*obstacle_ptr_in).Centre_).get(xyz);
                         }
                     }
                     else if (params.BC_TYPE == NEW_NO_SLIP) // not add particle because already added
@@ -563,8 +563,8 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
             {
                 // ... add a particle ...
                 vd.add();
-                vd.template getLastProp<type>() = FLUID;
-                vd.template getLastProp<vd_omega>() = 0.0;
+                vd.template getLastProp<vd0_type>() = FLUID;
+                vd.template getLastProp<vd10_omega>() = 0.0;
 
                 real_number r = iterator_position.get(0) * iterator_position.get(0) + iterator_position.get(1) * iterator_position.get(1);
                 r = sqrt(r);
@@ -573,12 +573,12 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                 real_number ux = uth * (-iterator_position.get(1) / r);
                 real_number uy = uth * (iterator_position.get(0) / r);
 
-                vd.template getLastProp<velocity>()[0] = ux;
-                vd.template getLastProp<velocity>()[1] = uy;
+                vd.template getLastProp<vd4_velocity>()[0] = ux;
+                vd.template getLastProp<vd4_velocity>()[1] = uy;
 
                 for (int xyz = 0; xyz < DIM; xyz++)
                 {
-                    vd.template getLastProp<force_transport>()[xyz] = 0.0;
+                    vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
                 }
             }
         }
@@ -588,26 +588,28 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
             continue;
         }
         // Set properties
-        vd.template getLastProp<rho>() = params.rho0;
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<drho>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = iterator_position.get(xyz);
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
         }
 
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dp;
+        vd.template getLastProp<vd9_volume>()[0] = dp;
 
         // next fluid particle
         ++fluid_it;
     }
 }
-void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Vcluster<> &v_cl, Parameters params, AuxiliarParameters &auxParams)
+void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Parameters params, AuxiliarParameters &auxParams)
 {
+
+    Vcluster<> &v_cl = create_vcluster();
+
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
 
@@ -814,24 +816,23 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
 
         // ... add a particle ...
         vd.add();
-        vd.template getLastProp<type>() = FLUID;
+        vd.template getLastProp<vd0_type>() = FLUID;
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho0;
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<drho>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = iterator_position.get(xyz);
-            vd.template getLastProp<force_transport>()[xyz] = 0.0;
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-            vd.template getLastProp<velocity>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
         }
 
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dp;
+        vd.template getLastProp<vd9_volume>()[0] = dp;
 
         // next fluid particle
         ++fluid_it1;
@@ -844,24 +845,23 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
 
         // ... add a particle ...
         vd.add();
-        vd.template getLastProp<type>() = FLUID;
+        vd.template getLastProp<vd0_type>() = FLUID;
 
         // Set properties
-        vd.template getLastProp<rho>() = params.rho0;
-        vd.template getLastProp<pressure>() = 0.0;
-        vd.template getLastProp<drho>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = iterator_position.get(xyz);
-            vd.template getLastProp<force_transport>()[xyz] = 0.0;
-            vd.template getLastProp<v_transport>()[xyz] = 0.0;
-            vd.template getLastProp<normal_vector>()[xyz] = 0.0;
-            vd.template getLastProp<velocity>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
         }
 
-        vd.template getLastProp<curvature_boundary>() = 0.0;
-        vd.template getLastProp<arc_length>() = dp;
+        vd.template getLastProp<vd9_volume>()[0] = dp;
 
         // next fluid particle
         ++fluid_it2;
@@ -935,30 +935,29 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             }
             vd.add();
 
-            vd.template getLastProp<type>() = BOUNDARY;
-            vd.template getLastProp<rho>() = params.rho0;
-            vd.template getLastProp<pressure>() = 0.0;
-            vd.template getLastProp<drho>() = 0.0;
+            vd.template getLastProp<vd0_type>() = BOUNDARY;
+            vd.template getLastProp<vd1_rho>() = params.rho0;
+            vd.template getLastProp<vd2_pressure>() = 0.0;
+            vd.template getLastProp<vd3_drho>() = 0.0;
 
             for (int xyz = 0; xyz < DIM; xyz++)
             {
                 vd.getLastPos()[xyz] = bound_box.get().get(xyz);
-                vd.template getLastProp<force>()[xyz] = 0.0;
-                vd.template getLastProp<force_transport>()[xyz] = 0.0;
-                vd.template getLastProp<v_transport>()[xyz] = 0.0;
-                vd.template getLastProp<normal_vector>()[xyz] = 0.0;
+                vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
                 if (position.get(1) < dp / 4.0) // bottom wall
                 {
-                    vd.template getLastProp<velocity>()[xyz] = params.vw_bottom[xyz];
+                    vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_bottom[xyz];
                 }
                 else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
                 {
-                    vd.template getLastProp<velocity>()[xyz] = params.vw_top[xyz];
+                    vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
                 }
             }
 
-            vd.template getLastProp<curvature_boundary>() = 0.0;
-            vd.template getLastProp<arc_length>() = dp;
+            vd.template getLastProp<vd9_volume>()[0] = dp;
 
             ++bound_box;
         }

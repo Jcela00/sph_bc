@@ -13,6 +13,7 @@ void AddFlatWallNewBC(particles &vd,
 					  const Point<DIM, real_number> obstacle_centre,
 					  const Point<DIM, real_number> obstacle_velocity,
 					  const Parameters &arg_p,
+					  const size_t particle_type,
 					  const real_number obstacle_omega = 0.0);
 
 void AddFlatWallModNewBC(particles &vd,

@@ -1,42 +1,22 @@
 #include "DragLiftCoeficient.hpp"
 
-void CalcDragLift(particles &vd,
-                  Vcluster<> &v_cl,
-                  real_number t,
+void CalcDragLift(real_number t,
                   std::ofstream &avgvelstream,
-                  real_number obstacle_force_x,
-                  real_number obstacle_force_y,
+                  Point<3, real_number> &VxDragLift,
                   const Parameters &params,
                   size_t write)
 {
 
-    real_number vx = 0.0;
+    Vcluster<> &v_cl = create_vcluster();
 
-    auto it = vd.getDomainIterator();
-    while (it.isNext())
-    {
-        auto key = it.get();
-
-        if (vd.template getProp<type>(key) == FLUID)
-        {
-            vx += vd.template getProp<velocity>(key)[0];
-        }
-
-        ++it;
-    }
-
-    // normalization factor, 1/normalization is equal to dx^2/Channel area
+    // normalization factor, 1/normalization is equal to dx^2/Channel_area
     size_t normalization = params.Nfluid[0] * params.Nfluid[1];
 
-    // add across processors
-    v_cl.sum(vx);
-    v_cl.execute();
-
-    vx = vx / (real_number)normalization;
+    VxDragLift[0] = VxDragLift[0] / (real_number)normalization;
 
     // compute drag and lift
-    real_number drag = obstacle_force_x / (params.eta * vx);
-    real_number lift = obstacle_force_y / (params.eta * vx);
+    VxDragLift[1] = VxDragLift[1] / (params.eta * VxDragLift[0]);
+    VxDragLift[2] = VxDragLift[2] / (params.eta * VxDragLift[0]);
 
     if (v_cl.getProcessUnitID() == 0)
     {
@@ -45,6 +25,6 @@ void CalcDragLift(particles &vd,
             avgvelstream << "t, <vx>, drag, lift" << std::endl;
         }
 
-        avgvelstream << t << ", " << vx << ", " << drag << ", " << lift << std::endl;
+        avgvelstream << t << ", " << VxDragLift[0] << ", " << VxDragLift[1] << ", " << VxDragLift[2] << std::endl;
     }
 }

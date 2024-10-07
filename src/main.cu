@@ -26,7 +26,14 @@ int main(int argc, char *argv[])
 	// initialize the library
 	openfpm_init(&argc, &argv);
 
-#if !defined(CUDA_ON_CPU) && !defined(__HIP__)
+	openfpm::vector_gpu<aggregate<int>> fluid_ids;
+	openfpm::vector_gpu<aggregate<int>> border_ids;
+
+	// #if !defined(CUDA_ON_CPU) && !defined(__HIP__)
+	// 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+	// #endif
+
+#ifdef CUDIFY_USE_CUDA
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 #endif
 
@@ -36,10 +43,10 @@ int main(int argc, char *argv[])
 	AuxiliarParameters AuxParameters;
 
 	// create a Vcluster object ( like MPI communicator )
-	Vcluster<> &v_cl = create_vcluster();
+	// Vcluster<> &v_cl = create_vcluster();
 
 	ParseXMLFile(tmp, MainParameters, AuxParameters);
-	InitializeConstants(v_cl, MainParameters, AuxParameters);
+	InitializeConstants(MainParameters, AuxParameters);
 
 	MainParameters.WriteParameters("Parameters.txt");
 
@@ -50,16 +57,18 @@ int main(int argc, char *argv[])
 	}
 	cudaDeviceSynchronize();
 
+	//////////////////////// CHECK CORRECT GPU PARAMS COPY /////////////////////
 	// Parameters host_params_check;
 	// cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
 	// cudaDeviceSynchronize();
 	// host_params_check.WriteParameters(("check_params.txt"));
+	////////////////////////////////////////////////////////////////////////////
 
 	// Create a particle vector
 	particles vd;
 	// set names
-	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "force", "velocity", "force_transport",
-										"v_transport", "normal", "curvature", "arc_length", "volume", "vd_omega", "vorticity"});
+	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "velocity", "velocity_t", "force",
+										"force_t", "normal", "volume", "omega", "vorticity", "red_vel", "red_fx", "red_fy"});
 	vd.setPropNames(names);
 
 	std::vector<std::pair<probe_particles, int>> vp;
@@ -67,15 +76,15 @@ int main(int argc, char *argv[])
 	Obstacle *obstacle_ptr = nullptr;
 	if (MainParameters.SCENARIO == STEP)
 	{
-		CreateParticleGeometryStep(vd, vp, v_cl, MainParameters, AuxParameters);
+		CreateParticleGeometryStep(vd, vp, MainParameters, AuxParameters);
 	}
 	else if (MainParameters.SCENARIO == TAYLOR_COUETTE)
 	{
-		CreateParticleGeometryTaylorCouette(vd, vp, v_cl, obstacle_ptr, MainParameters, AuxParameters);
+		CreateParticleGeometryTaylorCouette(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	else
 	{
-		CreateParticleGeometry(vd, vp, v_cl, obstacle_ptr, MainParameters, AuxParameters);
+		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
 
@@ -96,68 +105,54 @@ int main(int argc, char *argv[])
 	// 	(vp[k].first).map();
 	// }
 
-	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
 	auto NN = vd.getCellList(MainParameters.r_cut);
-	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	vd.updateCellList(NN);
 
 	if (MainParameters.BC_TYPE == NEW_NO_SLIP) // Set up fluid vector and normal vector of the boundary particles
 	{
 		CalcFluidVec(vd, NN, MainParameters);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
 		CalcNormalVec(vd, NN, MainParameters);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
 		CalcCurvature(vd, NN, MainParameters);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
 		CalcVolume(vd, MainParameters.dp);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	}
 	vd.map();
 	vd.write_frame("Initialization", 0, MainParameters.WRITER);
 
-	// // regularize configuration
-	// vd.write_frame("reg", 0, MainParameters.WRITER);
-	// real_number dt_tmp = 10 * calc_deltaT(vd, v_cl, MainParameters);
-	// size_t Niters = 1e4;
-	// size_t iter = 0;
-	// while (iter < Niters)
-	// {
-	// 	kick_drift_int_regularize(vd, NN, dt_tmp, v_cl, iter, MainParameters);
-	// 	if (iter % 100 == 0)
-	// 		vd.write_frame("reg", iter, MainParameters.WRITER);
-	// }
-	// vd.write_frame("reg", iter, MainParameters.WRITER);
-
 	// move to gpu
-
 	vd.hostToDevicePos();
-	vd.template hostToDeviceProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
+	vd.template hostToDeviceProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
+
 	vd.map(RUN_ON_DEVICE);
-	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
-	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0f, CL_NON_SYMMETRIC | CL_GPU_REORDER_POSITION | CL_GPU_REORDER_PROPERTY | CL_GPU_RESTORE_PROPERTY, 2);
+	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
+	// auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER_POSITION | CL_GPU_REORDER_PROPERTY | CL_GPU_RESTORE_PROPERTY, 2);
+	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER, 2);
 
 	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
 	{
 		ExtrapolateVelocity(vd, NN_gpu);
-		vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>(RUN_ON_DEVICE);
+		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>(RUN_ON_DEVICE);
 	}
 
 	// Evolve
 	size_t write = 0;
 	real_number t = 0.0;
-	// std::ofstream avgvelstream(MainParameters.filename + "_DragLift.csv");
-	// bool calc_drag = false;
-	// real_number obstacle_force_x = 0.0;
-	// real_number obstacle_force_y = 0.0;
+	std::ofstream avgvelstream(AuxParameters.filename + "_DragLift.csv");
 
 	timer tot_sim;
 	tot_sim.start();
 	while (t <= MainParameters.t_end)
 	{
+		Vcluster<> &v_cl = create_vcluster();
 
 		//// Do rebalancing every 200 timesteps
 		// it_reb++;
@@ -176,27 +171,22 @@ int main(int argc, char *argv[])
 		// }
 
 		// Calculate dt for time stepping
-		real_number dt = calc_deltaT(MainParameters);
-
-		// in general we dont compute drag coeficient every time step
-		// calc_drag = false;
-		// if (write < (t + dt) * MainParameters.write_const)
-		// {
-		// 	calc_drag = true;
-		// }
+		real_number dt = calc_deltaT(vd, MainParameters);
 
 		// Integrate one time step
 		kick_drift_int(vd, NN_gpu, dt, t, MainParameters, AuxParameters);
 
 		// increment time
 		t += dt;
+
+		// every write_const write the configuration
 		if (write < t * MainParameters.write_const)
 		{
 			// // // sensor calculation require ghost and update cell-list
 			// if (MainParameters.PROBES_ENABLED)
 			// {
 			// 	vd.map();
-			// 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega>();
+			// 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector,  vd_volume, vd_omega>();
 
 			// 	vd.updateCellList(NN);
 			// 	for (size_t k = 0; k < vp.size(); k++)
@@ -210,15 +200,16 @@ int main(int argc, char *argv[])
 			// }
 
 			// send data from GPU to CPU
+			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
 			vd.deviceToHostPos();
-			vd.deviceToHostProp<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>();
+			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
 			// Update CPU cell list for computing vorticity
 			vd.updateCellList(NN);
 			CalcVorticity(vd, NN, MainParameters);
 			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
-			vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector, curvature_boundary, arc_length, vd_volume, vd_omega, vd_vorticity>(RUN_ON_DEVICE);
-			// CalcDragLift(vd, v_cl, t, avgvelstream, obstacle_force_x, obstacle_force_y, MainParameters, write);
+			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
+			CalcDragLift(t, avgvelstream, VxDragLift, MainParameters, write);
 
 			write++;
 

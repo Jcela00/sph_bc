@@ -104,14 +104,14 @@ inline __device__ __host__ Point<DIM, real_number> crossProduct3D(const Point<DI
 	return res;
 }
 
-inline __device__ __host__ void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, const Point<DIM, real_number> centre)
+inline __device__ __host__ Point<DIM, real_number> ApplyRotation(const Point<DIM, real_number> x, const real_number theta, const Point<DIM, real_number> centre)
 {
 
 	Point<DIM, real_number> x_rotated;
 	x_rotated.get(0) = cos(theta) * (x.get(0) - centre.get(0)) - sin(theta) * (x.get(1) - centre.get(1)) + centre.get(0);
 	x_rotated.get(1) = sin(theta) * (x.get(0) - centre.get(0)) + cos(theta) * (x.get(1) - centre.get(1)) + centre.get(1);
 
-	x = x_rotated;
+	return x_rotated;
 }
 
 // function to know the type of a variable

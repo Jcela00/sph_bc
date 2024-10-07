@@ -9,22 +9,19 @@
 
 void CreateParticleGeometry(particles &vd,
                             std::vector<std::pair<probe_particles, int>> &vp_vec,
-                            Vcluster<> &v_cl,
                             Obstacle *&obstacle_ptr,
                             Parameters &params,
-                             AuxiliarParameters &auxParams);
+                            AuxiliarParameters &auxParams);
 
 void CreateParticleGeometryTaylorCouette(particles &vd,
                                          std::vector<std::pair<probe_particles, int>> &vp_vec,
-                                         Vcluster<> &v_cl,
                                          Obstacle *&obstacle_ptr,
-                                         Parameters params, 
+                                         Parameters params,
                                          AuxiliarParameters &auxParams);
 
 void CreateParticleGeometryStep(particles &vd,
                                 std::vector<std::pair<probe_particles, int>> &vp_vec,
-                                Vcluster<> &v_cl,
-                                Parameters params, 
+                                Parameters params,
                                 AuxiliarParameters &auxParams);
 
 #endif // CREATEPARTICLEGEOMETRY_HPP

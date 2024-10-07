@@ -7,7 +7,7 @@
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
-        time="2"
+        time="1"
         write_const="10"
         custom_string=""
     />

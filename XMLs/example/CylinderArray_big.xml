@@ -8,7 +8,7 @@
         densityType="summation"
         writerType="vtk"
         time="1000"
-        write_const="0.5"
+        write_const="1.0"
         custom_string=""
     />
 
@@ -23,8 +23,8 @@
         nu="1e-4"
         Bfactor="1.0"
         gamma="1.0"
-        umax="4e-3"
-        gravityX="2.025e-4" gravityY="0.0" gravityZ="0.0"
+        umax="4.5e-3"
+        gravityX="2.4525e-4" gravityY="0.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />

@@ -232,9 +232,11 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         argParameters.Wout = static_cast<real_number>(tmpdouble);
     }
 }
-void InitializeConstants(Vcluster<> &v_cl, Parameters &argParameters, AuxiliarParameters &argAuxParameters)
+void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxParameters)
 {
     // Given the scenario and xml parameters, we set the constants of argParameters
+
+    Vcluster<> &v_cl = create_vcluster();
 
     // First set fixed values
     argParameters.Hconst = 1.0;

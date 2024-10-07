@@ -4,12 +4,9 @@
 #include "Definitions.hpp"
 #include "VectorUtilities.hpp"
 
-void CalcDragLift(particles &vd,
-                  Vcluster<> &v_cl,
-                  real_number t,
+void CalcDragLift(real_number t,
                   std::ofstream &avgvelstream,
-                  real_number obstacle_force_x,
-                  real_number obstacle_force_y,
+                  Point<3, real_number> &VxDragLift,
                   const Parameters &params,
                   size_t write);
 

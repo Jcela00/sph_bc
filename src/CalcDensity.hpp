@@ -14,7 +14,7 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
     // auto a = GET_PARTICLE(vd); // old unsorted code
 
     // if particle FLUID
-    if (vd.template getProp<type>(a) == FLUID)
+    if (vd.template getProp<vd0_type>(a) == FLUID)
     {
         Point<DIM, real_number> xa = vd.getPos(a);
 
@@ -33,7 +33,7 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
             {
                 const real_number r = sqrtf(r2);
 
-                if (vd.template getProp<type>(b) == FLUID)
+                if (vd.template getProp<vd0_type>(b) == FLUID)
                 {
                     // evaluate kernel
                     const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);
@@ -41,8 +41,8 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
                 }
                 else // if boundary particle
                 {
-                    const Point<DIM, real_number> normal = vd.template getProp<normal_vector>(b);
-                    const Point<3, real_number> vol = vd.template getProp<vd_volume>(b);
+                    const Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(b);
+                    const Point<3, real_number> vol = vd.template getProp<vd9_volume>(b);
 
                     // Apply offsets to dr to get 3 vectrors pointing to virtual particles
                     const std::array<Point<DIM, real_number>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, _params_gpu_.dp);
@@ -59,7 +59,7 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
             ++Np;
         }
 
-        vd.template getProp<rho>(a) = rho_sum;
+        vd.template getProp<vd1_rho>(a) = rho_sum;
     }
 }
 
@@ -72,7 +72,7 @@ __global__ void CalcDensityGPU_old(vd_type vd, NN_type NN)
     // auto a = GET_PARTICLE(vd); // old unsorted code
 
     // if particle FLUID
-    if (vd.template getProp<type>(a) == FLUID)
+    if (vd.template getProp<vd0_type>(a) == FLUID)
     {
         Point<DIM, real_number> xa = vd.getPos(a);
 
@@ -92,7 +92,7 @@ __global__ void CalcDensityGPU_old(vd_type vd, NN_type NN)
                 const real_number r = sqrtf(r2);
 
                 const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);
-                if (vd.template getProp<type>(b) == FLUID)
+                if (vd.template getProp<vd0_type>(b) == FLUID)
                 {
                     rho_sum += w * _params_gpu_.MassFluid;
                 }
@@ -105,11 +105,7 @@ __global__ void CalcDensityGPU_old(vd_type vd, NN_type NN)
             ++Np;
         }
 
-        vd.template getProp<rho>(a) = rho_sum;
-    }
-    else
-    {
-        vd.template getProp<rho>(a) = 100.0;
+        vd.template getProp<vd1_rho>(a) = rho_sum;
     }
 }
 
@@ -122,15 +118,15 @@ inline void CalcDensity(vd_type &vd, NN_type &NN, const Parameters &params)
 
     if (params.BC_TYPE == NO_SLIP)
     {
-        vd.template updateCellListGPU<type>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho>(NN);
         CUDA_LAUNCH(CalcDensityGPU_old, it, vd.toKernel(), NN.toKernel());
-        vd.template restoreOrder<rho>(NN);
+        vd.template restoreOrder<vd1_rho>(NN);
     }
     else if (params.BC_TYPE == NEW_NO_SLIP)
     {
-        vd.template updateCellListGPU<type, normal_vector, vd_volume>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho, vd8_normal, vd9_volume>(NN);
         CUDA_LAUNCH(CalcDensityGPU_new, it, vd.toKernel(), NN.toKernel());
-        vd.template restoreOrder<rho>(NN);
+        vd.template restoreOrder<vd1_rho>(NN);
     }
 }
 

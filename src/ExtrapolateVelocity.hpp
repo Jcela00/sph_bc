@@ -14,7 +14,7 @@ __global__ void ExtrapolateVelocityGPU(vd_type vd, NN_type NN)
     GET_PARTICLE_SORT(b, NN);
 
     // if particle boundary
-    if (vd.template getProp<type>(b) != FLUID)
+    if (vd.template getProp<vd0_type>(b) != FLUID)
     {
 
         // Get the position xb of the boundary particle
@@ -42,7 +42,7 @@ __global__ void ExtrapolateVelocityGPU(vd_type vd, NN_type NN)
             }
 
             // Skip other boundary particles
-            if (vd.template getProp<type>(f) != FLUID)
+            if (vd.template getProp<vd0_type>(f) != FLUID)
             {
                 ++Np;
                 continue;
@@ -52,13 +52,13 @@ __global__ void ExtrapolateVelocityGPU(vd_type vd, NN_type NN)
             Point<DIM, real_number> xf = vd.getPos(f);
 
             // Get the velocity of the fluid particle
-            Point<DIM, real_number> vf = vd.template getProp<velocity>(f);
+            Point<DIM, real_number> vf = vd.template getProp<vd4_velocity>(f);
 
             // Get the density of the fluid particle
-            real_number rhof = vd.template getProp<rho>(f);
+            real_number rhof = vd.template getProp<vd1_rho>(f);
 
             // Get the pressure of the fluid particle
-            real_number Pf = vd.template getProp<pressure>(f);
+            real_number Pf = vd.template getProp<vd2_pressure>(f);
 
             // Get the vector pointing at xb from xf rwf
             Point<DIM, real_number> dr = xb - xf;
@@ -93,34 +93,34 @@ __global__ void ExtrapolateVelocityGPU(vd_type vd, NN_type NN)
 
             // solid particles store the centre of rotation in the force transport field since it is unused
             // vector pointing from centre of rotation to marker particle
-            const Point<DIM, real_number> radial_vec = {xb.get(0) - vd.template getProp<force_transport>(b)[0], xb.get(1) - vd.template getProp<force_transport>(b)[1]};
+            const Point<DIM, real_number> radial_vec = {xb.get(0) - vd.template getProp<vd7_force_t>(b)[0], xb.get(1) - vd.template getProp<vd7_force_t>(b)[1]};
             const real_number radial = getVectorNorm(radial_vec);
             // vector tangential to the radial vector, rotation velocity is in this direction
             const Point<DIM, real_number> rotation_tangential = getPerpendicularUnit2D(radial_vec);
-            Point<DIM, real_number> vw = vd.template getProp<velocity>(b);
-            vw.get(0) += radial * vd.template getProp<vd_omega>(b) * rotation_tangential.get(0);
-            vw.get(1) += radial * vd.template getProp<vd_omega>(b) * rotation_tangential.get(1);
+            Point<DIM, real_number> vw = vd.template getProp<vd4_velocity>(b);
+            vw.get(0) += radial * vd.template getProp<vd10_omega>(b) * rotation_tangential.get(0);
+            vw.get(1) += radial * vd.template getProp<vd10_omega>(b) * rotation_tangential.get(1);
 
             for (int xyz = 0; xyz < DIM; ++xyz)
             {
-                vd.template getProp<v_transport>(b)[xyz] = 2.0 * vw[xyz] - sum_vW.get(xyz) / sum_W;
+                vd.template getProp<vd5_velocity_t>(b)[xyz] = 2.0 * vw[xyz] - sum_vW.get(xyz) / sum_W;
             }
 
             // Set the pressure of the boundary particle b
-            vd.template getProp<pressure>(b) = sum_pW / sum_W;
+            vd.template getProp<vd2_pressure>(b) = sum_pW / sum_W;
             // Compute density from inverted Eq of state
-            vd.template getProp<rho>(b) = InvEqState_particle(vd.template getProp<pressure>(b), _params_gpu_.rho0, _params_gpu_.B, _params_gpu_.gamma, _params_gpu_.xi);
+            vd.template getProp<vd1_rho>(b) = InvEqState_particle(vd.template getProp<vd2_pressure>(b), _params_gpu_.rho0, _params_gpu_.B, _params_gpu_.gamma, _params_gpu_.xi);
         }
         else
         {
 
             for (int xyz = 0; xyz < DIM; ++xyz)
             {
-                vd.template getProp<v_transport>(b)[xyz] = 2.0 * vd.template getProp<velocity>(b)[xyz];
+                vd.template getProp<vd5_velocity_t>(b)[xyz] = 2.0 * vd.template getProp<vd4_velocity>(b)[xyz];
             }
 
-            vd.template getProp<pressure>(b) = 0.0;
-            vd.template getProp<rho>(b) = _params_gpu_.rho0;
+            vd.template getProp<vd2_pressure>(b) = 0.0;
+            vd.template getProp<vd1_rho>(b) = _params_gpu_.rho0;
         }
     }
 }
@@ -133,11 +133,11 @@ inline void ExtrapolateVelocity(vd_type &vd, NN_type &NN)
 
     auto it = vd.getDomainIteratorGPU();
 
-    vd.template updateCellListGPU<type, rho, pressure, velocity, force_transport>(NN);
+    vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd7_force_t, vd10_omega>(NN);
 
     CUDA_LAUNCH(ExtrapolateVelocityGPU, it, vd.toKernel(), NN.toKernel());
 
-    vd.template restoreOrder<rho, pressure, v_transport>(NN);
+    vd.template restoreOrder<vd1_rho, vd2_pressure, vd5_velocity_t>(NN);
 }
 
 #endif // EXTRAPOLATEVEVELOCITY_HPP
