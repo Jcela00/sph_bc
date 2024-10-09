@@ -23,49 +23,55 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
         // if particle BOUNDARY
         if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
         {
-            // Get the position xa of the particle a
-            Point<DIM, real_number> xa = vd.getPos(a);
 
-            // initialize sum
-            Point<DIM, real_number> r_fluid_sum = {0.0, 0.0};
-
-            // neighborhood particles
-            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
-
-            // iterate the neighborhood particles
-            while (Np.isNext() == true)
+            // check if the normal vector is uninitialized
+            Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
+            if (normal.get(0) == 0.0 && normal.get(1) == 0.0)
             {
-                // Key of b particle
-                const unsigned long b = Np.get();
+                // Get the position xa of the particle a
+                Point<DIM, real_number> xa = vd.getPos(a);
 
-                if (vd.getProp<vd0_type>(b) == FLUID)
+                // initialize sum
+                Point<DIM, real_number> r_fluid_sum = {0.0, 0.0};
+
+                // neighborhood particles
+                auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
+
+                // iterate the neighborhood particles
+                while (Np.isNext() == true)
                 {
-                    // Get the position xb of the particle b
-                    const Point<DIM, real_number> xb = vd.getPos(b);
+                    // Key of b particle
+                    const unsigned long b = Np.get();
 
-                    // Get the vector pointing at fluid from boundary
-                    Point<DIM, real_number> dr = xb - xa;
-
-                    // take the norm squared of this vector
-                    const real_number r2 = norm2(dr);
-
-                    // If the particles interact ...
-                    if (r2 < params.r_cut * params.r_cut)
+                    if (vd.getProp<vd0_type>(b) == FLUID)
                     {
-                        normalizeVector(dr);
-                        r_fluid_sum += dr;
+                        // Get the position xb of the particle b
+                        const Point<DIM, real_number> xb = vd.getPos(b);
+
+                        // Get the vector pointing at fluid from boundary
+                        Point<DIM, real_number> dr = xb - xa;
+
+                        // take the norm squared of this vector
+                        const real_number r2 = norm2(dr);
+
+                        // If the particles interact ...
+                        if (r2 < params.r_cut * params.r_cut)
+                        {
+                            normalizeVector(dr);
+                            r_fluid_sum += dr;
+                        }
                     }
+
+                    ++Np;
                 }
+                normalizeVector(r_fluid_sum);
 
-                ++Np;
-            }
-            normalizeVector(r_fluid_sum);
-
-            // store in normal temporally, this vector is only needed for computing normals oriented "outside"
-            // later is overwritten by the normal vector
-            for (int xyz = 0; xyz < DIM; ++xyz)
-            {
-                vd.template getProp<vd8_normal>(a)[xyz] = r_fluid_sum.get(xyz);
+                // store in normal temporally, this vector is only needed for computing normals oriented "outside"
+                // later is overwritten by the normal vector
+                for (int xyz = 0; xyz < DIM; ++xyz)
+                {
+                    vd.template getProp<vd8_normal>(a)[xyz] = r_fluid_sum.get(xyz);
+                }
             }
         }
 
@@ -168,68 +174,84 @@ void CalcNormalVec(particles &vd, CellList &NN, const Parameters &params)
         // if particle BOUNDARY
         if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
         {
-            // Get the position xa of the particle a
-            Point<DIM, real_number> xa = vd.getPos(a);
 
             // get vector that points at fluid
             Point<DIM, real_number> Rfluid = vd.getProp<vd8_normal>(a);
+            real_number normRfluid = getVectorNorm(Rfluid);
 
-            // initialize sum
-            Point<DIM, real_number> n_sum = {0.0};
-
-            // neighborhood particles
-            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
-
-            // iterate the neighborhood particles
-            while (Np.isNext() == true)
+            // When we initialize the normals manually we give them a norm > 2.0 to distinguish the manually initialized from the ones we want to automatically initialize
+            if (normRfluid < 2.0) // AUTOMATIC INITIALIZATION
             {
-                // Key of b particle
-                const unsigned long b = Np.get();
-                if (a.getKey() == b)
+                // Get the position xa of the particle a
+                Point<DIM, real_number> xa = vd.getPos(a);
+
+                // initialize sum
+                Point<DIM, real_number> n_sum = {0.0};
+
+                // neighborhood particles
+                auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
+
+                // iterate the neighborhood particles
+                while (Np.isNext() == true)
                 {
-                    ++Np;
-                    continue;
-                }
-
-                if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
-                {
-                    // Get the position xb of the particle b
-                    const Point<DIM, real_number> xb = vd.getPos(b);
-
-                    // Get the vector pointing at a from b
-                    const Point<DIM, real_number> dr = xa - xb;
-
-                    // take the norm squared of this vector
-                    const real_number r2 = norm2(dr);
-
-                    // If the particles interact ...
-                    if (r2 < 9.0 * local_H * local_H)
+                    // Key of b particle
+                    const unsigned long b = Np.get();
+                    if (a.getKey() == b)
                     {
-                        // get perpendicular vector to dr
-                        Point<DIM, real_number> perp = getPerpendicularUnit2D(dr); // this is normalized
-
-                        // get scalar product of perp and Rfluid
-                        const real_number perp_dot_fluid = dotProduct(perp, Rfluid);
-
-                        // we want perp to point towards the fluid
-                        if (perp_dot_fluid < 0.0)
-                            perp = -1.0 * perp;
-
-                        // evaluate kernel
-                        real_number W = Wab(sqrt(r2), local_H, local_Kquintic);
-                        n_sum += perp * W;
+                        ++Np;
+                        continue;
                     }
+
+                    if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
+                    {
+                        // Get the position xb of the particle b
+                        const Point<DIM, real_number> xb = vd.getPos(b);
+
+                        // Get the vector pointing at a from b
+                        const Point<DIM, real_number> dr = xa - xb;
+
+                        // take the norm squared of this vector
+                        const real_number r2 = norm2(dr);
+
+                        // If the particles interact ...
+                        if (r2 < 9.0 * local_H * local_H)
+                        {
+                            // get perpendicular vector to dr
+                            Point<DIM, real_number> perp = getPerpendicularUnit2D(dr); // this is normalized
+
+                            // get scalar product of perp and Rfluid
+                            const real_number perp_dot_fluid = dotProduct(perp, Rfluid);
+
+                            // we want perp to point towards the fluid
+                            if (perp_dot_fluid < 0.0)
+                                perp = -1.0 * perp;
+
+                            // evaluate kernel
+                            real_number W = Wab(sqrt(r2), local_H, local_Kquintic);
+                            n_sum += perp * W;
+                        }
+                    }
+
+                    ++Np;
                 }
+                // normalize the summed vector
+                normalizeVector(n_sum);
 
-                ++Np;
+                // store in normal vector
+                for (int xyz = 0; xyz < DIM; ++xyz)
+                {
+                    vd.template getProp<vd8_normal>(a)[xyz] = n_sum.get(xyz);
+                }
             }
-            // normalize the summed vector
-            normalizeVector(n_sum);
-
-            // store in normal vector
-            for (int xyz = 0; xyz < DIM; ++xyz)
+            else // Manually initialized, we just need to normalize it
             {
-                vd.template getProp<vd8_normal>(a)[xyz] = n_sum.get(xyz);
+                normalizeVector(Rfluid);
+
+                // store in normal vector
+                for (int xyz = 0; xyz < DIM; ++xyz)
+                {
+                    vd.template getProp<vd8_normal>(a)[xyz] = Rfluid.get(xyz);
+                }
             }
         }
 

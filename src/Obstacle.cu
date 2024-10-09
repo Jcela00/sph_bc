@@ -45,16 +45,18 @@ void AddFlatWallModNewBC(particles &vd,
                          const real_number dx,
                          const Point<DIM, real_number> obstacle_centre,
                          const Point<DIM, real_number> obstacle_velocity,
+                         const Parameters &arg_p,
+                         const size_t particle_type,
                          const Point<DIM, real_number> given_normal,
                          const real_number obstacle_omega)
 {
 
     for (int k = k0; k < kmax; k++)
     {
-        Point<DIM, real_number> WallPos = Corner + (k + 0.5) * UnitOffset;
+        Point<DIM, real_number> WallPos = Corner + k * UnitOffset;
 
         vd.add();
-        vd.template getLastProp<vd0_type>() = BOUNDARY;
+        vd.template getLastProp<vd0_type>() = particle_type;
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getLastPos()[xyz] = WallPos.get(xyz); //+ ((real_number)rand() / RAND_MAX - 0.5) * dp;
@@ -66,7 +68,7 @@ void AddFlatWallModNewBC(particles &vd,
         }
 
         vd.template getLastProp<vd2_pressure>() = 0.0;
-        vd.template getLastProp<vd1_rho>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = arg_p.rho0;
         vd.template getLastProp<vd3_drho>() = 0.0;
         vd.template getLastProp<vd9_volume>()[0] = dx;
         vd.template getLastProp<vd10_omega>() = obstacle_omega;

@@ -385,6 +385,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
     }
 }
+
 void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Obstacle *&obstacle_ptr, Parameters params, AuxiliarParameters &auxParams)
 {
     Vcluster<> &v_cl = create_vcluster();
@@ -960,6 +961,666 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             vd.template getLastProp<vd9_volume>()[0] = dp;
 
             ++bound_box;
+        }
+    }
+}
+
+void CreateParticleGeometryDamBreak(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Parameters &params, AuxiliarParameters &auxParams)
+{
+
+    Vcluster<> &v_cl = create_vcluster();
+
+    // Non periodic situation grid of 5 fluid particles and 3 boundary particles
+    // We need a virtual grid of 5 + 2*(3+1) particles,
+    // therefore the domain is discretized with 13 grid points,
+    // when we use DrawParticles::DrawBox we will draw only the particles at the grid positons strictly inside the box,
+    // the () repesent the recipient box, and the || represent the fluid box, we can see how this distribution places exactly 5 fluid particles inside and 3 boundary particles
+    //           D-(-o--o--o-|-x--x--x--x--x--|-o-o-o-)-D
+    // D: domain, o: boundary, x: fluid, --: dp distance
+    // in a periodic situation we have the following
+    // .....--x--x--D-|-x--x--x--x--x--|-D--x--x--......
+    // therefore we need a grid of 5 + 2 particles, and the domain is discretized with 7 grid points
+
+    // Size of the virtual cartesian grid that defines where to place the particles
+    size_t sz[DIM];
+
+    real_number dp = params.dp;
+    real_number refine_factor = params.rf;
+
+    // Now define the iterator boxes
+    // We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
+    real_number offset_domain_left[DIM] = {0.0};
+    real_number offset_domain_right[DIM] = {0.0};
+    real_number offset_recipient[DIM] = {0.0};
+    real_number offset_periodic_fluid[DIM] = {0.0};
+    real_number offset_periodic_recipient[DIM] = {0.0};
+
+    for (int xyz = 0; xyz < DIM; xyz++)
+    {
+        if (params.bc[xyz] == NON_PERIODIC) // non periodic, fluid covered by boundary
+        {
+            sz[xyz] = params.Nfluid[xyz] + 2 * (params.Nboundary[xyz] + 1);
+            offset_domain_left[xyz] = (0.5 + params.Nboundary[xyz]) * dp;
+            offset_domain_right[xyz] = (0.5 + params.Nboundary[xyz]) * dp;
+
+            if (params.BC_TYPE == NEW_NO_SLIP) // Nboundary should only be 0 or 1 if we are using the new bc
+                offset_recipient[xyz] = 0.1 * params.Nboundary[xyz] * dp;
+            else if (params.BC_TYPE == NO_SLIP)
+                offset_recipient[xyz] = params.Nboundary[xyz] * dp;
+        }
+        else // periodic, open ended
+        {
+            sz[xyz] = params.Nfluid[xyz] + 1;
+
+            offset_domain_left[xyz] = 0.0;
+            offset_domain_right[xyz] = dp;
+            offset_periodic_fluid[xyz] = 0.75 * dp;
+            offset_periodic_recipient[xyz] = 0.85 * dp;
+        }
+    }
+
+    // Define the boxes
+    Box<DIM, real_number> domain({-offset_domain_left[0],
+                                  -offset_domain_left[1]},
+                                 {params.length[0] + offset_domain_right[0],
+                                  params.length[1] + offset_domain_right[1]});
+
+    Box<DIM, real_number> fluid_hole({0.0,
+                                      0.0},
+                                     {params.length[0] + offset_periodic_fluid[0],
+                                      params.length[1] + offset_periodic_fluid[1]});
+
+    real_number wlx = params.waterB;
+    real_number wly = params.waterH;
+
+    Box<DIM, real_number> fluid_box({0.0,
+                                     0.0},
+                                    {wlx,
+                                     wly});
+
+    Box<DIM, real_number> recipient({-offset_recipient[0],
+                                     -offset_recipient[1]},
+                                    {params.length[0] + offset_recipient[0] + offset_periodic_recipient[0],
+                                     params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
+
+    for (int xyz = 0; xyz < DIM; xyz++) // correct length in periodic case
+    {
+        if (params.bc[xyz] == PERIODIC)
+            params.length[xyz] += dp;
+    }
+
+    // extended boundary around the domain, and the processor domain
+    Ghost<DIM, real_number> g(params.r_cut);
+
+    // create particle object
+    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(128));
+    // vd is argument passed as reference we want to fill with particles
+    vd = vd_loc;
+
+    // Write constants on file
+    // WriteParameters(v_cl, params);
+
+    // place probes
+    // if (params.PROBES_ENABLED)
+    // {
+    //     // we want to place probes  in a vertical line at this locations
+    //     Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
+    //     Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0f, 0.0};
+    //     Point<DIM, real_number> HalfHeight = {0.0, params.length[1] / 2.0f};
+    //     Point<DIM, real_number> VerticalOffset = {0.0, dp};
+    //     Point<DIM, real_number> HorizontalOffset = {dp, 0.0};
+    //     int k0 = 0;
+    //     int kendHeight = params.Nfluid[1] + 1;
+    //     int kendWidth = params.Nfluid[0] + 1;
+
+    //     std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
+    //     std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+    //     std::vector<Point<DIM, real_number>> Offsets;
+    //     std::vector<int> maxIters;
+
+    //     if (params.SCENARIO == CAVITY)
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(HalfHeight);
+
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(1); // measure y velocity
+
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(HorizontalOffset);
+
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendWidth);
+    //     }
+    //     else
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(EndChannel);
+
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(0); // measure x velocity
+
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(VerticalOffset);
+
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendHeight);
+    //     }
+
+    //     for (unsigned int k = 0; k < ProbePoints.size(); k++)
+    //     {
+    //         // create probe object
+    //         Ghost<DIM, real_number> gp(0);
+    //         size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
+    //         probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+    //         if (ProbeComponents[k] == 0)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vx"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
+    //         else if (ProbeComponents[k] == 1)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vy"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
+
+    //         if (v_cl.getProcessUnitID() == 0)
+    //         {
+    //             PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+    //         }
+    //         std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
+    //         vp_vec.push_back(tmp);
+    //         params.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + params.filename);
+    //     }
+    // }
+
+    // Add the obstacle/walls as marker particles only on processor 0
+    if (params.BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
+    {
+
+        real_number dx_wall_x = dp / refine_factor;
+        int Nwall_x = ceil(params.length[0] / dx_wall_x);
+        dx_wall_x = params.length[0] / Nwall_x;
+        Point<DIM, real_number> X_Offset = {dx_wall_x, 0.0};
+
+        real_number dx_wall_y = dp / refine_factor;
+        int Nwall_y = ceil(params.length[1] / dx_wall_y);
+        dx_wall_y = params.length[1] / Nwall_y;
+        Point<DIM, real_number> Y_Offset = {0.0, dx_wall_y};
+
+        Point<DIM, real_number> LL_corner = {0.0, 0.0};
+        Point<DIM, real_number> LR_corner = {params.length[0], 0.0};
+
+        Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
+
+        // Top And Bottom Walls
+        AddFlatWallModNewBC(vd, 0, 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {10.0 * 1.0, 10.0 * 1.0}, 0.0);
+        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {10.0 * -1.0, 10.0 * 1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {0.0, 10.0 * 1.0}, 0.0);
+
+        AddFlatWallModNewBC(vd, 0, 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {10.0 * 1.0, 10.0 * -1.0}, 0.0);
+        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {-10.0 * 1.0, 10.0 * -1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {0.0, 10.0 * -1.0}, 0.0);
+
+        // Left And Right Walls
+        AddFlatWallModNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * 1.0, 0.0}, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * -1.0, 0.0}, 0.0);
+    }
+
+    // return an iterator to the fluid particles to add to vd
+    auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
+
+    // for each particle inside the fluid box ...
+    while (fluid_it.isNext())
+    {
+
+        Point<DIM, real_number> iterator_position = fluid_it.get();
+
+        // ... add a particle ...
+        vd.add();
+        vd.template getLastProp<vd0_type>() = FLUID;
+        vd.template getLastProp<vd10_omega>() = 0.0;
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+        }
+
+        // Set properties
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.getLastPos()[xyz] = iterator_position.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+        }
+
+        vd.template getLastProp<vd9_volume>()[0] = dp;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
+        // next fluid particle
+        ++fluid_it;
+    }
+
+    // Now place solid walls using iterators (only for OLD BC)
+
+    if (params.BC_TYPE == NO_SLIP)
+    {
+
+        openfpm::vector<Box<DIM, real_number>> holes;
+        holes.add(fluid_hole);
+        Box<DIM, real_number> hole_box = holes.get(0);
+        auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
+
+        if (params.bc[0] != PERIODIC || params.bc[1] != PERIODIC) // no walls in all periodic scenario
+        {
+            while (bound_box.isNext())
+            {
+                Point<DIM, real_number> position = bound_box.get();
+
+                // periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+                // When running on multiple cores, with this we check if particle is outside the recipient box
+                // Another bug places boundary particles in the correct plane, but inside the fluid box;
+                // if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
+                // {
+                // 	++bound_box;
+                // 	continue;
+                // }
+
+                if (!recipient.isInside((position)))
+                {
+                    ++bound_box;
+                    continue;
+                }
+                if (hole_box.isInside(position))
+                {
+                    ++bound_box;
+                    continue;
+                }
+
+                // if (params.BC_TYPE == NEW_NO_SLIP && (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC))
+                // {
+                // 	// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
+                // 	real_number remx = fmod(position.get(0), dp);
+                // 	real_number remz = fmod(position.get(1), dp);
+                // 	real_number tol = 0.5 * dp * 10e-2;
+
+                // 	if (remx > tol && remx < dp - tol)
+                // 	{
+                // 		++bound_box;
+                // 		continue;
+                // 	}
+                // 	if (remz > tol && remz < dp - tol)
+                // 	{
+                // 		++bound_box;
+                // 		continue;
+                // 	}
+                // }
+                vd.add();
+
+                vd.template getLastProp<vd0_type>() = BOUNDARY;
+                vd.template getLastProp<vd1_rho>() = params.rho0;
+                vd.template getLastProp<vd2_pressure>() = 0.0;
+                vd.template getLastProp<vd3_drho>() = 0.0;
+
+                for (int xyz = 0; xyz < DIM; xyz++)
+                {
+                    vd.getLastPos()[xyz] = bound_box.get().get(xyz);
+                    vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                    vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+                    if (position.get(1) < dp / 4.0) // bottom wall
+                    {
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_bottom[xyz];
+                    }
+                    else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
+                    {
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
+                    }
+                }
+
+                vd.template getLastProp<vd9_volume>()[0] = dp;
+
+                ++bound_box;
+            }
+        }
+    }
+}
+
+void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_particles, int>> &vp_vec, Parameters &params, AuxiliarParameters &auxParams)
+{
+
+    Vcluster<> &v_cl = create_vcluster();
+
+    // Size of the virtual cartesian grid that defines where to place the particles
+    size_t sz[DIM];
+    real_number dp = params.dp;
+
+    // Now define the iterator boxes
+    // We define the boxes in terms of offstes with respect to the fluid box that goes from 0 to length
+    real_number offset_domain_left[DIM] = {0.0};
+    real_number offset_domain_right[DIM] = {0.0};
+    real_number offset_recipient[DIM] = {0.0};
+    // Nboundary[0] = 3;
+    // Nboundary[1] = 3;
+
+    sz[0] = params.Nfluid[0] + 2 * (params.Nboundary[0] + 1) + 5;
+    sz[1] = params.Nfluid[1] + 2 * (params.Nboundary[1] + 1);
+
+    offset_domain_left[0] = (3.5 + params.Nboundary[0]) * dp;
+    offset_domain_left[1] = (0.5 + params.Nboundary[1]) * dp;
+
+    offset_domain_right[0] = (3.5 + params.Nboundary[0]) * dp;
+    offset_domain_right[1] = (0.5 + params.Nboundary[1]) * dp;
+
+    if (params.BC_TYPE == NEW_NO_SLIP) // Nboundary should only be 0 or 1 if we are using the new bc
+    {
+        offset_recipient[0] = 0.1 * params.Nboundary[0] * dp;
+        offset_recipient[1] = 0.1 * params.Nboundary[1] * dp;
+    }
+    else if (params.BC_TYPE == NO_SLIP)
+    {
+        offset_recipient[0] = params.Nboundary[0] * dp;
+        offset_recipient[1] = params.Nboundary[1] * dp;
+    }
+
+    // Define the boxes
+    Box<DIM, real_number> domain({-offset_domain_left[0],
+                                  -offset_domain_left[1]},
+                                 {params.length[0] + offset_domain_right[0],
+                                  params.length[1] + offset_domain_right[1]});
+
+    Box<DIM, real_number> fluid_box({0.0,
+                                     0.0},
+                                    {params.length[0],
+                                     params.length[1]});
+
+    Box<DIM, real_number> recipient({-offset_recipient[0],
+                                     -offset_recipient[1]},
+                                    {params.length[0] + offset_recipient[0],
+                                     params.length[1] + offset_recipient[1]});
+
+    // for (int xyz = 0; xyz < DIM; xyz++) // correct length in periodic case
+    // {
+    //     if (params.bc[xyz] == PERIODIC)
+    //         params.length[xyz] += dp;
+    // }
+
+    // extended boundary around the domain, and the processor domain
+    Ghost<DIM, real_number> g(params.r_cut);
+
+    // create particle object
+    particles vd_loc(0, domain, params.bc, g, DEC_GRAN(128));
+    // vd is argument passed as reference we want to fill with particles
+    vd = vd_loc;
+
+    // Write constants on file
+    // WriteParameters(v_cl, params);
+
+    // place probes
+    // if (params.PROBES_ENABLED)
+    // {
+    //     // we want to place probes  in a vertical line at this locations
+    //     Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
+    //     Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0f, 0.0};
+    //     Point<DIM, real_number> HalfHeight = {0.0, params.length[1] / 2.0f};
+    //     Point<DIM, real_number> VerticalOffset = {0.0, dp};
+    //     Point<DIM, real_number> HorizontalOffset = {dp, 0.0};
+    //     int k0 = 0;
+    //     int kendHeight = params.Nfluid[1] + 1;
+    //     int kendWidth = params.Nfluid[0] + 1;
+
+    //     std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
+    //     std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+    //     std::vector<Point<DIM, real_number>> Offsets;
+    //     std::vector<int> maxIters;
+
+    //     if (params.SCENARIO == CAVITY)
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(HalfHeight);
+
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(1); // measure y velocity
+
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(HorizontalOffset);
+
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendWidth);
+    //     }
+    //     else
+    //     {
+    //         ProbePoints.push_back(HalfChannel);
+    //         ProbePoints.push_back(EndChannel);
+
+    //         ProbeComponents.push_back(0); // measure x velocity
+    //         ProbeComponents.push_back(0); // measure x velocity
+
+    //         Offsets.push_back(VerticalOffset);
+    //         Offsets.push_back(VerticalOffset);
+
+    //         maxIters.push_back(kendHeight);
+    //         maxIters.push_back(kendHeight);
+    //     }
+
+    //     for (unsigned int k = 0; k < ProbePoints.size(); k++)
+    //     {
+    //         // create probe object
+    //         Ghost<DIM, real_number> gp(0);
+    //         size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
+    //         probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
+    //         if (ProbeComponents[k] == 0)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vx"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
+    //         else if (ProbeComponents[k] == 1)
+    //         {
+    //             openfpm::vector<std::string> names_p = {"vy"};
+    //             vp_loc.setPropNames(names_p);
+    //         }
+
+    //         if (v_cl.getProcessUnitID() == 0)
+    //         {
+    //             PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+    //         }
+    //         std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
+    //         vp_vec.push_back(tmp);
+    //         params.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + params.filename);
+    //     }
+    // }
+
+    // Add the obstacle/walls as marker particles only on processor 0
+    if (params.BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
+    {
+        real_number refine_factor = params.rf;
+        real_number dx_wall_x = dp / refine_factor;
+        int Nwall_x_bot = ceil(params.length[0] / dx_wall_x);
+        int Nwall_x_top = ceil((params.length[0] + 6.0f * dp) / dx_wall_x);
+
+        dx_wall_x = params.length[0] / Nwall_x_bot;
+        Point<DIM, real_number> X_Offset = {dx_wall_x, 0.0};
+
+        real_number dx_wall_y = dp / refine_factor;
+        int Nwall_y = ceil(params.length[1] / dx_wall_y);
+        dx_wall_y = params.length[1] / Nwall_y;
+        Point<DIM, real_number> Y_Offset = {0.0, dx_wall_y};
+
+        Point<DIM, real_number> LL_corner = {0.0, 0.0};
+        Point<DIM, real_number> LR_corner = {params.length[0], 0.0};
+
+        Point<DIM, real_number> UL_corner = {-3.0f * dp, params.length[1]};
+
+        // Top And Bottom Walls
+        AddFlatWallNewBC(vd, 0, Nwall_x_bot + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, 0.0);
+        AddFlatWallModNewBC(vd, 0, Nwall_x_top + 2, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {0.0, -10.0}, 0.0);
+
+        // Left And Right Walls
+        AddFlatWallNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, 0.0);
+        AddFlatWallNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, 0.0);
+    }
+
+    // return an iterator to the fluid particles to add to vd
+    auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
+
+    // for each particle inside the fluid box ...
+    while (fluid_it.isNext())
+    {
+
+        Point<DIM, real_number> iterator_position = fluid_it.get();
+
+        // ... add a particle ...
+        vd.add();
+        vd.template getLastProp<vd0_type>() = FLUID;
+        vd.template getLastProp<vd10_omega>() = 0.0;
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+        }
+
+        // Set properties
+        vd.template getLastProp<vd1_rho>() = params.rho0;
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.getLastPos()[xyz] = iterator_position.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+        }
+
+        vd.template getLastProp<vd9_volume>()[0] = dp;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
+        // next fluid particle
+        ++fluid_it;
+    }
+
+    // Now place solid walls using iterators (only for OLD BC)
+
+    if (params.BC_TYPE == NO_SLIP)
+    {
+
+        openfpm::vector<Box<DIM, real_number>> holes;
+        holes.add(fluid_box);
+        Box<DIM, real_number> hole_box = holes.get(0);
+        auto bound_box = DrawParticles::DrawSkin(vd, sz, domain, holes, recipient);
+
+        while (bound_box.isNext())
+        {
+            Point<DIM, real_number> position = bound_box.get();
+
+            // periodic bc, with no boundary particles in y direction has a bug, it puts 3 extra particles outside in the y direction
+            // When running on multiple cores, with this we check if particle is outside the recipient box
+            // Another bug places boundary particles in the correct plane, but inside the fluid box;
+            // if (bc[0] == PERIODIC && position.get(0) > dp / 2.0 && position.get(0) < length[0] - dp / 2.0)
+            // {
+            // 	++bound_box;
+            // 	continue;
+            // }
+
+            if (!recipient.isInside((position)))
+            {
+                ++bound_box;
+                continue;
+            }
+            if (hole_box.isInside(position))
+            {
+                ++bound_box;
+                continue;
+            }
+
+            // if (params.BC_TYPE == NEW_NO_SLIP && (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC))
+            // {
+            // 	// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
+            // 	real_number remx = fmod(position.get(0), dp);
+            // 	real_number remz = fmod(position.get(1), dp);
+            // 	real_number tol = 0.5 * dp * 10e-2;
+
+            // 	if (remx > tol && remx < dp - tol)
+            // 	{
+            // 		++bound_box;
+            // 		continue;
+            // 	}
+            // 	if (remz > tol && remz < dp - tol)
+            // 	{
+            // 		++bound_box;
+            // 		continue;
+            // 	}
+            // }
+            vd.add();
+
+            vd.template getLastProp<vd0_type>() = BOUNDARY;
+            vd.template getLastProp<vd1_rho>() = params.rho0;
+            vd.template getLastProp<vd2_pressure>() = 0.0;
+            vd.template getLastProp<vd3_drho>() = 0.0;
+
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.getLastPos()[xyz] = bound_box.get().get(xyz);
+                vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+                if (position.get(1) < dp / 4.0) // bottom wall
+                {
+                    vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_bottom[xyz];
+                }
+                else if (position.get(1) > params.length[1] - dp / 4.0) // top wall
+                {
+                    vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
+                }
+            }
+
+            vd.template getLastProp<vd9_volume>()[0] = dp;
+
+            ++bound_box;
+        }
+
+        if (v_cl.getProcessUnitID() == 0)
+        {
+            const Point<DIM, real_number> Corner = {params.length[0] + 2.5f * dp,
+                                                    params.length[1] + 0.5f * dp};
+
+            // Manually place chunck of particles to fill periodicity of top wall
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 7; j++)
+                {
+
+                    Point<DIM, real_number> offset = {(j + 1) * dp, (i)*dp};
+                    Point<DIM, real_number> position = Corner + offset;
+
+                    vd.add();
+
+                    vd.template getLastProp<vd0_type>() = BOUNDARY;
+                    vd.template getLastProp<vd1_rho>() = params.rho0;
+                    vd.template getLastProp<vd2_pressure>() = 0.0;
+                    vd.template getLastProp<vd3_drho>() = 0.0;
+
+                    for (int xyz = 0; xyz < DIM; xyz++)
+                    {
+                        vd.getLastPos()[xyz] = position.get(xyz);
+                        vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                        vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                        vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                        vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
+                    }
+
+                    vd.template getLastProp<vd9_volume>()[0] = dp;
+                }
+            }
         }
     }
 }

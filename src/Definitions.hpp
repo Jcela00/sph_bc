@@ -33,6 +33,7 @@ typedef float real_number;
 #define TAYLOR_COUETTE 10
 #define MOVING_OBSTACLE 11
 #define ELLIPSE 12
+#define DAM_BREAK 13
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
@@ -204,6 +205,10 @@ public:
     real_number Rout;
     real_number Win;
     real_number Wout;
+
+    // Dam break specific parameters
+    real_number waterH;
+    real_number waterB;
 
     // // constructor
     // Parameters()

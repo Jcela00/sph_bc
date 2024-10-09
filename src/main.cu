@@ -82,6 +82,14 @@ int main(int argc, char *argv[])
 	{
 		CreateParticleGeometryTaylorCouette(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
+	else if (MainParameters.SCENARIO == DAM_BREAK)
+	{
+		CreateParticleGeometryDamBreak(vd, vp, MainParameters, AuxParameters);
+	}
+	else if (MainParameters.SCENARIO == CAVITY)
+	{
+		CreateParticleGeometryCavity(vd, vp, MainParameters, AuxParameters);
+	}
 	else
 	{
 		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
@@ -136,6 +144,10 @@ int main(int argc, char *argv[])
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
 	// auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER_POSITION | CL_GPU_REORDER_PROPERTY | CL_GPU_RESTORE_PROPERTY, 2);
 	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER, 2);
+
+	// initialize density
+	// CalcDensity(vd, NN_gpu, MainParameters);
+	// vd.ghost_get<vd1_rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
 
 	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
 	{
@@ -202,13 +214,13 @@ int main(int argc, char *argv[])
 			// send data from GPU to CPU
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
 			vd.deviceToHostPos();
-			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
+			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
 			// Update CPU cell list for computing vorticity
 			vd.updateCellList(NN);
 			CalcVorticity(vd, NN, MainParameters);
-			vd.deleteGhost();
+			// vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
-			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
+			// vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
 			CalcDragLift(t, avgvelstream, VxDragLift, MainParameters, write);
 
 			write++;

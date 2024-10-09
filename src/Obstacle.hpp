@@ -17,15 +17,17 @@ void AddFlatWallNewBC(particles &vd,
 					  const real_number obstacle_omega = 0.0);
 
 void AddFlatWallModNewBC(particles &vd,
-						 const int k0,
-						 const int kmax,
-						 const Point<DIM, real_number> Corner,
-						 const Point<DIM, real_number> UnitOffset,
-						 const real_number dx,
-						 const Point<DIM, real_number> obstacle_centre,
-						 const Point<DIM, real_number> obstacle_velocity,
-						 const Point<DIM, real_number> given_normal,
-						 const real_number obstacle_omega);
+                         const int k0,
+                         const int kmax,
+                         const Point<DIM, real_number> Corner,
+                         const Point<DIM, real_number> UnitOffset,
+                         const real_number dx,
+                         const Point<DIM, real_number> obstacle_centre,
+                         const Point<DIM, real_number> obstacle_velocity,
+                         const Parameters &arg_p,
+                         const size_t particle_type,
+                         const Point<DIM, real_number> given_normal,
+                         const real_number obstacle_omega = 0.0);
 
 bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 bool isBelowLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);

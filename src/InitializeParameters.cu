@@ -46,9 +46,12 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = MOVING_OBSTACLE;
         else if (strcmp(scenario_str, "Ellipse") == 0)
             argParameters.SCENARIO = ELLIPSE;
+        else if (strcmp(scenario_str, "DamBreak") == 0)
+            argParameters.SCENARIO = DAM_BREAK;
         else
         {
-            throw std::runtime_error("Unknown scenario");
+            std::cout << "Unknown Scenario, defaulting to Poiseuille" << std::endl;
+            argParameters.SCENARIO = POISEUILLE;
         }
         argAuxParameters.filename = scenario_str;
 
@@ -86,10 +89,15 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
 
         // read density type
         const char *density_type_Str = simulationElement->Attribute("densityType");
-        if (strcmp(density_type_Str, "Summation") == 0)
+        if (strcmp(density_type_Str, "summation") == 0)
             argParameters.DENSITY_TYPE = DENSITY_SUMMATION;
-        else if (strcmp(density_type_Str, "Differential") == 0)
+        else if (strcmp(density_type_Str, "differential") == 0)
             argParameters.DENSITY_TYPE = DENSITY_DIFFERENTIAL;
+        else
+        {
+            std::cout << "Unknown density type, using default: summation" << std::endl;
+            argParameters.DENSITY_TYPE = DENSITY_SUMMATION;
+        }
 
         argAuxParameters.filename += "_";
         argAuxParameters.filename += density_type_Str;
@@ -231,6 +239,16 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         taylorCouetteElement->QueryDoubleAttribute("Wout", &tmpdouble);
         argParameters.Wout = static_cast<real_number>(tmpdouble);
     }
+
+    // Parse <DamBreak> element
+    tinyxml2::XMLElement *DamBreakElement = doc.FirstChildElement("configuration")->FirstChildElement("dambreak");
+    if (DamBreakElement)
+    {
+        DamBreakElement->QueryDoubleAttribute("WaterHeigth", &tmpdouble);
+        argParameters.waterH = static_cast<real_number>(tmpdouble);
+        DamBreakElement->QueryDoubleAttribute("WaterBase", &tmpdouble);
+        argParameters.waterB = static_cast<real_number>(tmpdouble);
+    }
 }
 void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxParameters)
 {
@@ -249,7 +267,16 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     size_t Nbound = (argParameters.BC_TYPE == NEW_NO_SLIP) ? 1 : 3;
 
     if (argParameters.bc[0] == PERIODIC)
-        argParameters.Nboundary[0] = 0;
+    {
+        if (argParameters.SCENARIO == CAVITY)
+        {
+            argParameters.Nboundary[0] = Nbound;
+        }
+        else
+        {
+            argParameters.Nboundary[0] = 0;
+        }
+    }
     else
         argParameters.Nboundary[0] = Nbound;
 

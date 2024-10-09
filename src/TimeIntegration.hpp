@@ -149,8 +149,9 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
         vd.getPos(a)[xyz] += dt * vd.template getProp<vd5_velocity_t>(a)[xyz];
     }
 
-    // if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-    //     vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt * vd.template getProp<vd3_drho>(a);
+    if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+        vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt * vd.template getProp<vd3_drho>(a);
+
     return;
 }
 

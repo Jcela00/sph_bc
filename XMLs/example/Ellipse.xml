@@ -5,16 +5,16 @@
         scenario="Ellipse"
         bcType="new"
         bcX="periodic" bcY="non_periodic"
-        densityType="summation"
+        densityType="differential"
         writerType="vtk"
-        time="1"
+        time="200"
         write_const="10"
         custom_string=""
     />
 
     <geometry
         lengthScale="6.0"
-        rf="2.0"
+        rf="1.0"
         sizeX="180" sizeY="90" sizeZ="0"
     />
 

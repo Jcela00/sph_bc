@@ -24,4 +24,14 @@ void CreateParticleGeometryStep(particles &vd,
                                 Parameters params,
                                 AuxiliarParameters &auxParams);
 
+void CreateParticleGeometryDamBreak(particles &vd,
+                                    std::vector<std::pair<probe_particles, int>> &vp_vec,
+                                    Parameters &params,
+                                    AuxiliarParameters &auxParams);
+
+void CreateParticleGeometryCavity(particles &vd,
+                                  std::vector<std::pair<probe_particles, int>> &vp_vec,
+                                  Parameters &params,
+                                  AuxiliarParameters &auxParams);
+
 #endif // CREATEPARTICLEGEOMETRY_HPP
