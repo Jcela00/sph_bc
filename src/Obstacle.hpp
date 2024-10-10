@@ -17,17 +17,18 @@ void AddFlatWallNewBC(particles &vd,
 					  const real_number obstacle_omega = 0.0);
 
 void AddFlatWallModNewBC(particles &vd,
-                         const int k0,
-                         const int kmax,
-                         const Point<DIM, real_number> Corner,
-                         const Point<DIM, real_number> UnitOffset,
-                         const real_number dx,
-                         const Point<DIM, real_number> obstacle_centre,
-                         const Point<DIM, real_number> obstacle_velocity,
-                         const Parameters &arg_p,
-                         const size_t particle_type,
-                         const Point<DIM, real_number> given_normal,
-                         const real_number obstacle_omega = 0.0);
+						 const int k0,
+						 const int kmax,
+						 const Point<DIM, real_number> Corner,
+						 const Point<DIM, real_number> UnitOffset,
+						 const real_number dx,
+						 const Point<DIM, real_number> obstacle_centre,
+						 const Point<DIM, real_number> obstacle_velocity,
+						 const Parameters &arg_p,
+						 const size_t particle_type,
+						 const Point<DIM, real_number> given_normal,
+						 const real_number given_kappa = 0.0,
+						const real_number obstacle_omega = 0.0);
 
 bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 bool isBelowLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
@@ -168,6 +169,29 @@ public:
 				 real_number omega = 0.0,
 				 real_number rf = 1.0);
 	~TriangleEqui() override = default;
+	bool isInside(Point<DIM, real_number> P) override;
+	void AddObstacle(particles &vd);
+};
+
+class TriangleTestObstacle : public Obstacle
+{
+private:
+	const real_number BaseLength_;
+	const real_number HeigthLength_;
+	Box<DIM, real_number> ContainingRectangle_;
+	Point<DIM, real_number> LowerLeft_;
+	Point<DIM, real_number> LowerRight_;
+	Point<DIM, real_number> UpperRight_;
+
+public:
+	TriangleTestObstacle(Point<DIM, real_number> centre,
+						 const Parameters &p,
+						 real_number BaseLength,
+						 real_number HeigthLength,
+						 Point<DIM, real_number> vel = {0.0, 0.0},
+						 real_number omega = 0.0,
+						 real_number rf = 1.0);
+	~TriangleTestObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
 };

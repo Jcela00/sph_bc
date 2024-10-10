@@ -3,29 +3,29 @@
 
     <simulation
         scenario="Cavity"
-        bcType="old"
+        bcType="new"
         bcX="periodic" bcY="non_periodic"
-        densityType="summation"
+        densityType="differential"
         writerType="vtk"
         time="50"
-        write_const="100"
+        write_const="80"
         custom_string=""
     />
 
     <geometry
         lengthScale="1.0"
-        rf="2.0"
-        sizeX="40" sizeY="40" sizeZ="0"
+        rf="1.0"
+        sizeX="100" sizeY="100" sizeZ="0"
     />
 
     <physics
         rho0="1.0"
         nu="0.01"
-        Bfactor="3.0"
-        gamma="1.0"
-        umax="2.0"
+        Bfactor="5.0"
+        gamma="7.0"
+        umax="3.0"
         gravityX="0.0" gravityY="0.0" gravityZ="0.0"
-        vTopX="2.0" vTopY="0.0" vTopZ="0.0"
+        vTopX="1.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />
 

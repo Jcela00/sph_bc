@@ -332,7 +332,7 @@ __global__ void calc_forcesGPU_old(vd_type vd,
 
                     if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
                     {
-                        vd.template getProp<vd3_drho>(a) += rhoa * massb * dotProduct(v_rel, DW) / rhob;
+                        vd.template getProp<vd3_drho>(a) += rhoa * massb * dotProduct(v_rel_aux, DW) / rhob;
                     }
                 }
                 else // INTERACT FLUID FLUID

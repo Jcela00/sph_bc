@@ -34,6 +34,7 @@ typedef float real_number;
 #define MOVING_OBSTACLE 11
 #define ELLIPSE 12
 #define DAM_BREAK 13
+#define TRIANGLE_TEST 14
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0

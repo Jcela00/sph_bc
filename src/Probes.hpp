@@ -24,12 +24,13 @@ void PlaceProbes(probe_particles &probes,
 template <typename CellList>
 inline void sensor_velocity_comp(particles &vd,
 								 probe_particles &probes,
-								 Vcluster<> &v_cl,
 								 CellList &NN,
 								 const int component,
 								 Obstacle *obstacle_ptr,
 								 const Parameters &params)
 {
+
+	Vcluster<> &v_cl = create_vcluster();
 
 	auto it = probes.getDomainIterator();
 	while (it.isNext()) // iterate all probes
@@ -71,9 +72,9 @@ inline void sensor_velocity_comp(particles &vd,
 						break;
 					}
 
-					// if (BC_TYPE == NEW_NO_SLIP)
+					// if (params.BC_TYPE == NEW_NO_SLIP)
 					// {
-					// 	// interact_probe_boundary_new(vd, probekey, dr, q, component, W_sum, magnitude_tmp);
+					// 	interact_probe_boundary_new(vd, probekey, dr, q, component, W_sum, magnitude_tmp);
 					// }
 					else if (params.BC_TYPE == NO_SLIP)
 					{

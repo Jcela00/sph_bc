@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 	}
 	else if (MainParameters.SCENARIO == CAVITY)
 	{
-		CreateParticleGeometryCavity(vd, vp, MainParameters, AuxParameters);
+		CreateParticleGeometryCavity(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	else
 	{
@@ -96,10 +96,10 @@ int main(int argc, char *argv[])
 	}
 	vd.map();
 
-	// for (size_t k = 0; k < vp.size(); k++)
-	// {
-	// 	(vp[k].first).map();
-	// }
+	for (size_t k = 0; k < vp.size(); k++)
+	{
+		(vp[k].first).map();
+	}
 
 	// Now that we fill the vector with particles, decompose the domain
 	// ModelCustom md;
@@ -126,9 +126,11 @@ int main(int argc, char *argv[])
 
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+		vd.write_frame("Normals", 0, MainParameters.WRITER);
 
 		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+		vd.write_frame("Curvature", 0, MainParameters.WRITER);
 
 		CalcVolume(vd, MainParameters.dp);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
@@ -159,7 +161,6 @@ int main(int argc, char *argv[])
 	size_t write = 0;
 	real_number t = 0.0;
 	std::ofstream avgvelstream(AuxParameters.filename + "_DragLift.csv");
-
 	timer tot_sim;
 	tot_sim.start();
 	while (t <= MainParameters.t_end)
@@ -194,33 +195,34 @@ int main(int argc, char *argv[])
 		// every write_const write the configuration
 		if (write < t * MainParameters.write_const)
 		{
-			// // // sensor calculation require ghost and update cell-list
-			// if (MainParameters.PROBES_ENABLED)
-			// {
-			// 	vd.map();
-			// 	vd.ghost_get<type, rho, pressure, force, velocity, force_transport, v_transport, normal_vector,  vd_volume, vd_omega>();
 
-			// 	vd.updateCellList(NN);
-			// 	for (size_t k = 0; k < vp.size(); k++)
-			// 	{
-			// 		probe_particles &probe = vp[k].first;
-			// 		// probe.map();
-			// 		int &component = vp[k].second;
-			// 		sensor_velocity_comp(vd, probe, v_cl, NN, component, obstacle_ptr, MainParameters);
-			// 		probe.write_frame(MainParameters.probe_filenames[k], write, MainParameters.WRITER);
-			// 	}
-			// }
-
-			// send data from GPU to CPU
+			// make necessary reductions for computing drag and lift
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
+			// send data from GPU to CPU for writing to file
+			vd.map(RUN_ON_DEVICE);
+			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
-			// Update CPU cell list for computing vorticity
+			// Update CPU cell list for computing vorticity ( and probes )
 			vd.updateCellList(NN);
+			// compute vorticity
 			CalcVorticity(vd, NN, MainParameters);
-			// vd.deleteGhost();
+
+			// sensor calculation requires ghost and updated cell-list
+			if (MainParameters.PROBES_ENABLED)
+			{
+				for (size_t k = 0; k < vp.size(); k++) // for each probe
+				{
+					probe_particles &probe = vp[k].first;
+					int &component = vp[k].second;
+					sensor_velocity_comp(vd, probe, NN, component, obstacle_ptr, MainParameters);
+					probe.write_frame(AuxParameters.probe_filenames[k], write, MainParameters.WRITER);
+				}
+			}
+
+			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
-			// vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
+			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
 			CalcDragLift(t, avgvelstream, VxDragLift, MainParameters, write);
 
 			write++;

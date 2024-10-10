@@ -17,14 +17,14 @@ void CalcDragLift(real_number t,
     // compute drag and lift
     VxDragLift[1] = VxDragLift[1] / (params.eta * VxDragLift[0]);
     VxDragLift[2] = VxDragLift[2] / (params.eta * VxDragLift[0]);
-
+    real_number Reynolds = VxDragLift[0] * params.ObstacleBase / params.nu;
     if (v_cl.getProcessUnitID() == 0)
     {
         if (write == 0)
         {
-            avgvelstream << "t, <vx>, drag, lift" << std::endl;
+            avgvelstream << "t, <vx>, drag, lift, Re" << std::endl;
         }
 
-        avgvelstream << t << ", " << VxDragLift[0] << ", " << VxDragLift[1] << ", " << VxDragLift[2] << std::endl;
+        avgvelstream << t << ", " << VxDragLift[0] << ", " << VxDragLift[1] << ", " << VxDragLift[2] << ", " << Reynolds << std::endl;
     }
 }

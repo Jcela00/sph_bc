@@ -5,7 +5,7 @@
         scenario="Ellipse"
         bcType="new"
         bcX="periodic" bcY="non_periodic"
-        densityType="summation"
+        densityType="differential"
         writerType="vtk"
         time="100"
         write_const="10"

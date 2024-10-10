@@ -48,6 +48,7 @@ void AddFlatWallModNewBC(particles &vd,
                          const Parameters &arg_p,
                          const size_t particle_type,
                          const Point<DIM, real_number> given_normal,
+                         const real_number given_kappa,
                          const real_number obstacle_omega)
 {
 
@@ -71,6 +72,8 @@ void AddFlatWallModNewBC(particles &vd,
         vd.template getLastProp<vd1_rho>() = arg_p.rho0;
         vd.template getLastProp<vd3_drho>() = 0.0;
         vd.template getLastProp<vd9_volume>()[0] = dx;
+        vd.template getLastProp<vd9_volume>()[1] = given_kappa;
+
         vd.template getLastProp<vd10_omega>() = obstacle_omega;
     }
 }
@@ -432,6 +435,86 @@ void TriangleObstacle::AddObstacle(particles &vd)
     AddFlatWallNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 }
 
+// TriangleTestObstacle class
+TriangleTestObstacle::TriangleTestObstacle(Point<DIM, real_number> centre,
+                                           const Parameters &p,
+                                           real_number BaseLength,
+                                           real_number HeigthLength,
+                                           Point<DIM, real_number> vel,
+                                           real_number omega,
+                                           real_number rf) : Obstacle(centre, p, vel, omega, rf), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
+{
+    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - 2.0f * BaseLength_ / 3.0f,
+                                         Centre_.get(1) - HeigthLength_ / 3.0f};
+
+    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
+                                          Centre_.get(1) - HeigthLength_ / 3.0f};
+
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
+                                          Centre_.get(1) + 2.0f * HeigthLength_ / 3.0f};
+
+    ContainingRectangle_ = Box<DIM, real_number>(LowerLeft_, UpperRight_);
+}
+
+bool TriangleTestObstacle::isInside(Point<DIM, real_number> P)
+{
+    return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P, params_.dp));
+}
+
+void TriangleTestObstacle::AddObstacle(particles &vd)
+{
+
+    // OPTION ONE
+    // const real_number dx_self = params_.dp / refine_factor;
+    // // Lower wall
+    // const int N_bottom = ceil(BaseLength_ / dx_self);
+    // const real_number dxwall_bottom = BaseLength_ / N_bottom;
+    // const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
+    // AddFlatWallModNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.0, -10.0}, AngularVelocity_);
+
+    // // Right wall
+    // const int N_right = ceil(HeigthLength_ / dx_self);
+    // const real_number dxwall_right = HeigthLength_ / N_right;
+    // const Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
+    // AddFlatWallModNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, {10.0, 0.0}, AngularVelocity_);
+
+    // //  Hypothenuse wall
+    // // We want particles spaced roughly by dp
+    // const real_number HypothenuseLength = sqrtf(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+    // const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
+    // const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
+    // const real_number sin_theta = HeigthLength_ / HypothenuseLength;
+    // const real_number cos_theta = BaseLength_ / HypothenuseLength;
+    // const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
+    // AddFlatWallModNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
+
+    // OPTION TWO
+    const real_number dx_self = params_.dp / refine_factor;
+    // Lower wall
+    const int N_bottom = ceil(BaseLength_ / dx_self);
+    const real_number dxwall_bottom = BaseLength_ / N_bottom;
+    const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
+    AddFlatWallModNewBC(vd, 1, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.0, -10.0}, AngularVelocity_);
+
+    // Right wall
+    const int N_right = ceil(HeigthLength_ / dx_self);
+    const real_number dxwall_right = HeigthLength_ / N_right;
+    const Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
+    AddFlatWallModNewBC(vd, 1, N_right, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, {10.0, 0.0}, AngularVelocity_);
+
+    //  Hypothenuse wall
+    // We want particles spaced roughly by dp
+    const real_number HypothenuseLength = sqrtf(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+    const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
+    const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
+    const real_number sin_theta = HeigthLength_ / HypothenuseLength;
+    const real_number cos_theta = BaseLength_ / HypothenuseLength;
+    const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
+    const Point<DIM, real_number> DiagNormal{-10.0f * sin_theta, 10.0f * cos_theta};
+    AddFlatWallModNewBC(vd, 0, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, DiagNormal, AngularVelocity_);
+}
+
+// Triangle equi class
 TriangleEqui::TriangleEqui(Point<DIM, real_number> centre,
                            const Parameters &p,
                            real_number sidelength,

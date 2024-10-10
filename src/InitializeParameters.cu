@@ -48,6 +48,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = ELLIPSE;
         else if (strcmp(scenario_str, "DamBreak") == 0)
             argParameters.SCENARIO = DAM_BREAK;
+        else if (strcmp(scenario_str, "TriangleTest") == 0)
+            argParameters.SCENARIO = TRIANGLE_TEST;
         else
         {
             std::cout << "Unknown Scenario, defaulting to Poiseuille" << std::endl;
@@ -298,8 +300,16 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
             argParameters.dp = 5.0 * argParameters.LengthScale / (real_number)argParameters.Nfluid[1];
     }
 
-    argParameters.length[0] = argParameters.dp * (argParameters.Nfluid[0] - argParameters.bc[0]);
-    argParameters.length[1] = argParameters.dp * (argParameters.Nfluid[1] - argParameters.bc[1]);
+    if (argParameters.SCENARIO == CAVITY)
+    {
+        argParameters.length[0] = argParameters.dp * (argParameters.Nfluid[0]);
+        argParameters.length[1] = argParameters.dp * (argParameters.Nfluid[1]);
+    }
+    else
+    {
+        argParameters.length[0] = argParameters.dp * (argParameters.Nfluid[0] - argParameters.bc[0]);
+        argParameters.length[1] = argParameters.dp * (argParameters.Nfluid[1] - argParameters.bc[1]);
+    }
 
     // WE NO LONGER SET THE MAXIMUM VELOCITY; WE READ IT FROM THE XML FILE, BUT THIS VALUES ARE USEFUL
     // // Set maximum velocity

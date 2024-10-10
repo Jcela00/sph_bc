@@ -280,7 +280,7 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
     // const real_number max_curvature = 1.0 / (1.0 * global_dp);
-    const real_number max_curvature = 1.0 / (3.0 * global_dp);
+    const real_number max_curvature = 1.0 / (1.0 * global_dp);
 
     // For each particle ...
     while (part.isNext())
@@ -291,80 +291,89 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
         // if particle BOUNDARY
         if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
         {
-            // Get the position xa of the particle a
-            Point<DIM, real_number> xa = vd.getPos(a);
 
-            // get normal of a
-            Point<DIM, real_number> normal_a = vd.getProp<vd8_normal>(a);
-
-            // initialize sums
-            real_number K_sum = 0.0;
-            real_number w_sum = 0.0;
-
-            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
-
-            // iterate the neighborhood particles
-            while (Np.isNext() == true)
+            Point<3, real_number> vol = vd.template getProp<vd9_volume>(a);
+            if (vol[1] == 0.0) // if curvature is uninitialized
             {
-                // Key of b particle
-                const unsigned long b = Np.get();
+                // Get the position xa of the particle a
+                Point<DIM, real_number> xa = vd.getPos(a);
 
-                if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
+                // get normal of a
+                Point<DIM, real_number> normal_a = vd.getProp<vd8_normal>(a);
+
+                // initialize sums
+                real_number K_sum = 0.0;
+                real_number w_sum = 0.0;
+
+                auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
+
+                // iterate the neighborhood particles
+                while (Np.isNext() == true)
                 {
-                    // Get the position xb of the particle b
-                    const Point<DIM, real_number> xb = vd.getPos(b);
+                    // Key of b particle
+                    const unsigned long b = Np.get();
 
-                    // Get the vector pointing at a from b
-                    const Point<DIM, real_number> dr = xa - xb;
-
-                    // take the norm squared of this vector
-                    const real_number r2 = norm2(dr);
-
-                    // If the particles interact ...
-                    if (r2 < 9.0 * local_H * local_H)
+                    if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
                     {
-                        if (a.getKey() != b)
+                        // Get the position xb of the particle b
+                        const Point<DIM, real_number> xb = vd.getPos(b);
+
+                        // Get the vector pointing at a from b
+                        const Point<DIM, real_number> dr = xa - xb;
+
+                        // take the norm squared of this vector
+                        const real_number r2 = norm2(dr);
+
+                        // If the particles interact ...
+                        if (r2 < 9.0 * local_H * local_H)
                         {
-                            // OLD CALCULATION
-                            // Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
-                            // real_number r = sqrt(r2);
-                            // real_number W = Wab(r, local_H, local_Kquintic);
-                            // Point<DIM, real_number> dW = DWab(dr, r, local_H, local_Kquintic);
-
-                            // real_number local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
-                            // if (local_k > max_curvature)
-                            // {
-                            //     local_k = max_curvature;
-                            // }
-
-                            // K_sum += local_k;
-                            // w_sum += W;
-
-                            // NEW CALCULATION
-                            Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
-                            real_number r = sqrt(r2);
-                            real_number W = Wab(r, local_H, local_Kquintic);
-                            Point<DIM, real_number> eab = -1.0 * dr;
-                            eab = eab / r;
-                            real_number local_k = dotProduct(normal_b - normal_a, eab) / r;
-
-                            if (local_k > max_curvature)
+                            if (a.getKey() != b)
                             {
-                                local_k = max_curvature;
-                            }
+                                // OLD CALCULATION
+                                // Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
+                                // real_number r = sqrt(r2);
+                                // real_number W = Wab(r, local_H, local_Kquintic);
+                                // Point<DIM, real_number> dW = DWab(dr, r, local_H, local_Kquintic);
 
-                            K_sum += local_k * W;
-                            w_sum += W;
+                                // real_number local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+                                // if (local_k > max_curvature)
+                                // {
+                                //     local_k = max_curvature;
+                                // }
+
+                                // K_sum += local_k;
+                                // w_sum += W;
+
+                                // NEW CALCULATION
+                                Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
+                                real_number r = sqrt(r2);
+                                real_number W = Wab(r, local_H, local_Kquintic);
+                                Point<DIM, real_number> eab = -1.0 * dr;
+                                eab = eab / r;
+                                real_number local_k = dotProduct(normal_b - normal_a, eab) / r;
+
+                                if (local_k > max_curvature)
+                                {
+                                    local_k = max_curvature;
+                                }
+
+                                K_sum += local_k * W;
+                                w_sum += W;
+                            }
                         }
                     }
+
+                    ++Np;
                 }
 
-                ++Np;
+                K_sum = K_sum / w_sum;
+                // store in curvature
+                vd.template getProp<vd9_volume>(a)[1] = K_sum;
             }
-
-            K_sum = K_sum / w_sum;
-            // store in curvature
-            vd.template getProp<vd9_volume>(a)[1] = K_sum;
+            else // curvature was manually initialized but we want to set it to 0
+            {
+                vd.template getProp<vd9_volume>(a)[1] = 0.0;
+            }
         }
         ++part;
     }
