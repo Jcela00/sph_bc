@@ -424,6 +424,10 @@ public:
     }
 };
 
+#ifdef __CUDACC__
 __constant__ Parameters _params_gpu_;
+#else
+extern Parameters _params_gpu_;
+#endif
 
 #endif // DEFINITIONS_H

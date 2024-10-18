@@ -20,23 +20,27 @@ OBJS = $(OBJS_CPP) $(OBJS_CU)
 LIBS += -ltinyxml2
 LIBS_SELECT += -ltinyxml2
 
+# Add flags if we're using NVCC
+ifdef CUDA_CC
+    ifeq ($(CUDA_CC), nvcc -ccbin=mpic++)
+        CUDA_OPTIONS += -Xcompiler -Wno-attributes -diag-suppress=549 -diag-suppress=68 -DBOOST_ALLOW_DEPRECATED_HEADERS
+    endif
+endif
 
-
-
-# Add flags
-CUDA_OPTIONS += -Xcompiler -Wno-attributes -diag-suppress=549 -diag-suppress=68 -DBOOST_ALLOW_DEPRECATED_HEADERS
 CUDA_OPTIONS := $(filter-out -DTEST_RUN, $(CUDA_OPTIONS))
 
 # Rule to compile .cu files to .o files in the build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cu | $(BUILD_DIR)
 	$(CUDA_CC) $(CUDA_OPTIONS) -c -o $@ $< $(INCLUDE_PATH_NVCC)
-	
-# # Rule to compile .cpp files to .o files in the build directory
+
+# Rule to compile .cpp files to .o files in the build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CC) $(OPT) $(CXX_STD) -c -o $@ $< $(INCLUDE_PATH)
 
+# Build the executable
 sph_dlb: $(OBJS)
-	$(CUDA_CC_LINK) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS_SELECT) 
+	$(CUDA_CC_LINK) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS_SELECT)
+
 # Ensure the build directory exists
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -46,7 +50,7 @@ all: sph_dlb sph_dlb_test
 
 # Target to run the sph_dlb executable
 run: sph_dlb
-	mpirun -np 4 ./sph_dlb XMLs/example/PERFORMANCE_TEST.xml
+	mpirun -np 1 ./sph_dlb XMLs/example/PERFORMANCE_TEST.xml
 
 # Phony targets
 .PHONY: clean all run
@@ -58,3 +62,5 @@ clean:
 # Clean up output files
 cleanout:
 	rm -f *.csv *.vtp *.pvtp *.txt
+print_cuda_cc:
+	@echo "CUDA_CC is set to: $(CUDA_CC)"

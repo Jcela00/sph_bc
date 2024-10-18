@@ -3,11 +3,11 @@
 
     <simulation
         scenario="TaylorCouette"
-        bcType="old"
+        bcType="new"
         bcX="non_periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
-        time="25"
+        time="30"
         write_const="10"
         custom_string=""
     />
@@ -15,15 +15,15 @@
     <geometry
         lengthScale="4.0"
         rf="1.0"
-        sizeX="120" sizeY="120" sizeZ="0"
+        sizeX="10" sizeY="10" sizeZ="0"
     />
 
     <physics
         rho0="1.0"
         nu="1"
-        Bfactor="9.0"
+        Bfactor="2.0"
         gamma="1.0"
-        umax="0.30"
+        umax="2.0"
         gravityX="0.0" gravityY="0.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"

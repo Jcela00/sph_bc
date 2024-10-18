@@ -1556,11 +1556,47 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
             // Manually place chunck of particles to fill periodicity of top wall
             for (int i = 0; i < 3; i++)
             {
-                for (int j = 0; j < 7; j++)
+                for (int j = 0; j < 3; j++)
                 {
 
                     Point<DIM, real_number> offset = {(j + 1) * dp, (i)*dp};
                     Point<DIM, real_number> position = Corner + offset;
+
+                    vd.add();
+
+                    vd.template getLastProp<vd0_type>() = BOUNDARY;
+                    vd.template getLastProp<vd1_rho>() = params.rho0;
+                    vd.template getLastProp<vd2_pressure>() = 0.0;
+                    vd.template getLastProp<vd3_drho>() = 0.0;
+
+                    for (int xyz = 0; xyz < DIM; xyz++)
+                    {
+                        vd.getLastPos()[xyz] = position.get(xyz);
+                        vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                        vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
+                        vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                        vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+
+                        vd.template getLastProp<vd4_velocity>()[xyz] = params.vw_top[xyz];
+                    }
+
+                    vd.template getLastProp<vd9_volume>()[0] = dp;
+                }
+            }
+
+            // LEFT CORNER
+
+            const Point<DIM, real_number> CornerUL = {0.0f - 2.5f * dp,
+                                                      params.length[1] + 0.5f * dp};
+
+            // Manually place chunck of particles to fill periodicity of top wall
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+
+                    Point<DIM, real_number> offset = {-(j + 1) * dp, (i)*dp};
+                    Point<DIM, real_number> position = CornerUL + offset;
 
                     vd.add();
 

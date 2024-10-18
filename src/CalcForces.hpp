@@ -9,6 +9,59 @@
 #include <stdio.h>
 #include <unistd.h>
 
+template <typename vd_type>
+inline __device__ void interact_fluid_fluid(vd_type &vd, unsigned int b, unsigned int a,
+                                            Point<DIM, real_number> va,
+                                            Point<DIM, real_number> dr,
+                                            real_number r2,
+                                            real_number massa,
+                                            real_number massb,
+                                            real_number rhoa,
+                                            real_number Pa)
+{
+    const real_number rhob = vd.template getProp<vd1_rho>(b);
+    const real_number Pb = vd.template getProp<vd2_pressure>(b);
+    const Point<DIM, real_number> vb = vd.template getProp<vd4_velocity>(b);
+
+    const real_number r = sqrtf(r2);
+
+    const Point<DIM, real_number> v_rel = va - vb;
+
+    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
+
+    const real_number Va2 = (massa / rhoa) * (massa / rhoa);
+    const real_number Vb2 = (massb / rhob) * (massb / rhob);
+
+    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, _params_gpu_.eta);
+    const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
+
+    const Point<DIM, real_number> vta = vd.template getProp<vd5_velocity_t>(a);
+    const Point<DIM, real_number> vtb = vd.template getProp<vd5_velocity_t>(b);
+    const Point<DIM, real_number> vdiff_a = vta - va;
+    const Point<DIM, real_number> vdiff_b = vtb - vb;
+
+    // real_number DivATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
+    std::array<Point<DIM, real_number>, DIM> Aa = dyadicProduct(rhoa * va, vdiff_a);
+    std::array<Point<DIM, real_number>, DIM> Ab = dyadicProduct(rhob * vb, vdiff_b);
+    std::array<Point<DIM, real_number>, DIM> SumA;
+    SumA[0] = Aa[0] + Ab[0];
+    SumA[1] = Aa[1] + Ab[1];
+    if constexpr (DIM == 3)
+        SumA[2] = Aa[2] + Ab[2];
+
+    Point<DIM, real_number> DivATerm = 0.5 * matVec(SumA, DW);
+
+    for (int xyz = 0; xyz < DIM; ++xyz)
+    {
+        vd.template getProp<vd6_force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
+        vd.template getProp<vd7_force_t>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
+    }
+    if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+    {
+        vd.template getProp<vd3_drho>(a) += rhoa * massb * dotProduct(v_rel, DW) / rhob;
+    }
+}
+
 template <typename vd_type, typename NN_type>
 __global__ void calc_forcesGPU_new(vd_type vd,
                                    NN_type NN)
@@ -39,6 +92,7 @@ __global__ void calc_forcesGPU_new(vd_type vd,
             vd.template getProp<vd7_force_t>(a)[xyz] = 0.0f;
         }
 
+        // reset accumulator for drag and lift
         vd.template getProp<vd13_force_red_x>(a) = 0.0f;
         vd.template getProp<vd14_force_red_y>(a) = 0.0f;
 
@@ -51,9 +105,6 @@ __global__ void calc_forcesGPU_new(vd_type vd,
         // For each neighborhood particle
         while (Np.isNext() == true)
         {
-
-            // get key of particle b
-            // auto b = Np.get(); // OLD unsorted code
 
             auto b = Np.get_sort();
 
@@ -72,8 +123,6 @@ __global__ void calc_forcesGPU_new(vd_type vd,
                 auto typeb = vd.template getProp<vd0_type>(b);
                 if (typeb == BOUNDARY || typeb == OBSTACLE)
                 {
-
-                    // interact_fluid_boundary_new(vd, a, massa, rhoa, Pa, xa, va, xb, dr, b, params);
                     // Points from fluid to wall
                     Point<DIM, real_number> r_fluid_to_wall = -1.0 * dr;
                     // real_number dist2marker = getVectorNorm(r_fluid_to_wall);
@@ -187,48 +236,7 @@ __global__ void calc_forcesGPU_new(vd_type vd,
                 }
                 else // INTERACT FLUID FLUID
                 {
-
-                    const real_number rhob = vd.template getProp<vd1_rho>(b);
-                    const real_number Pb = vd.template getProp<vd2_pressure>(b);
-                    const Point<DIM, real_number> vb = vd.template getProp<vd4_velocity>(b);
-
-                    const real_number r = sqrtf(r2);
-
-                    const Point<DIM, real_number> v_rel = va - vb;
-
-                    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
-
-                    const real_number Va2 = (massa / rhoa) * (massa / rhoa);
-                    const real_number Vb2 = (massb / rhob) * (massb / rhob);
-
-                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, _params_gpu_.eta);
-                    const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
-
-                    const Point<DIM, real_number> vta = vd.template getProp<vd5_velocity_t>(a);
-                    const Point<DIM, real_number> vtb = vd.template getProp<vd5_velocity_t>(b);
-                    const Point<DIM, real_number> vdiff_a = vta - va;
-                    const Point<DIM, real_number> vdiff_b = vtb - vb;
-
-                    // real_number DivATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
-                    std::array<Point<DIM, real_number>, DIM> Aa = dyadicProduct(rhoa * va, vdiff_a);
-                    std::array<Point<DIM, real_number>, DIM> Ab = dyadicProduct(rhob * vb, vdiff_b);
-                    std::array<Point<DIM, real_number>, DIM> SumA;
-                    SumA[0] = Aa[0] + Ab[0];
-                    SumA[1] = Aa[1] + Ab[1];
-                    if constexpr (DIM == 3)
-                        SumA[2] = Aa[2] + Ab[2];
-
-                    Point<DIM, real_number> DivATerm = 0.5 * matVec(SumA, DW);
-
-                    for (int xyz = 0; xyz < DIM; ++xyz)
-                    {
-                        vd.template getProp<vd6_force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
-                        vd.template getProp<vd7_force_t>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
-                    }
-                    if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-                    {
-                        vd.template getProp<vd3_drho>(a) += rhoa * massb * dotProduct(v_rel, DW) / rhob;
-                    }
+                    interact_fluid_fluid(vd, b, a, va, dr, r2, massa, massb, rhoa, Pa);
                 }
             }
             ++Np;
@@ -240,8 +248,6 @@ template <typename vd_type, typename NN_type>
 __global__ void calc_forcesGPU_old(vd_type vd,
                                    NN_type NN)
 {
-    // const real_number dp = _params_gpu_.dp;
-    // auto a = GET_PARTICLE(vd); // old unsorted code
 
     unsigned int a;
     GET_PARTICLE_SORT(a, NN);
@@ -337,47 +343,7 @@ __global__ void calc_forcesGPU_old(vd_type vd,
                 }
                 else // INTERACT FLUID FLUID
                 {
-                    const real_number rhob = vd.template getProp<vd1_rho>(b);
-                    const real_number Pb = vd.template getProp<vd2_pressure>(b);
-                    const Point<DIM, real_number> vb = vd.template getProp<vd4_velocity>(b);
-
-                    const real_number r = sqrtf(r2);
-
-                    const Point<DIM, real_number> v_rel = va - vb;
-
-                    const Point<DIM, real_number> DW = DWab(dr, r, _params_gpu_.H, _params_gpu_.Kquintic);
-
-                    const real_number Va2 = (massa / rhoa) * (massa / rhoa);
-                    const real_number Vb2 = (massb / rhob) * (massb / rhob);
-
-                    const Point<DIM, real_number> ViscosityTerm = Pi_physical(dr, r, v_rel, DW, _params_gpu_.eta);
-                    const real_number PressureTerm = PressureForce(rhoa, rhob, Pa, Pb);
-
-                    const Point<DIM, real_number> vta = vd.template getProp<vd5_velocity_t>(a);
-                    const Point<DIM, real_number> vtb = vd.template getProp<vd5_velocity_t>(b);
-                    const Point<DIM, real_number> vdiff_a = vta - va;
-                    const Point<DIM, real_number> vdiff_b = vtb - vb;
-
-                    // real_number DivATerm = 0.5 * (rhoa * dotProduct(va, vdiff_a) + rhob * dotProduct(vb, vdiff_b));
-                    std::array<Point<DIM, real_number>, DIM> Aa = dyadicProduct(rhoa * va, vdiff_a);
-                    std::array<Point<DIM, real_number>, DIM> Ab = dyadicProduct(rhob * vb, vdiff_b);
-                    std::array<Point<DIM, real_number>, DIM> SumA;
-                    SumA[0] = Aa[0] + Ab[0];
-                    SumA[1] = Aa[1] + Ab[1];
-                    if constexpr (DIM == 3)
-                        SumA[2] = Aa[2] + Ab[2];
-
-                    Point<DIM, real_number> DivATerm = 0.5 * matVec(SumA, DW);
-
-                    for (int xyz = 0; xyz < DIM; ++xyz)
-                    {
-                        vd.template getProp<vd6_force>(a)[xyz] += (Va2 + Vb2) * (PressureTerm * DW.get(xyz) + ViscosityTerm.get(xyz) + DivATerm.get(xyz)) / massa;
-                        vd.template getProp<vd7_force_t>(a)[xyz] += -1.0 * (Va2 + Vb2) * _params_gpu_.Pbackground * DW.get(xyz) / massa;
-                    }
-                    if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-                    {
-                        vd.template getProp<vd3_drho>(a) += rhoa * massb * dotProduct(v_rel, DW) / rhob;
-                    }
+                    interact_fluid_fluid(vd, b, a, va, dr, r2, massa, massb, rhoa, Pa);
                 }
             }
             ++Np;
@@ -394,7 +360,7 @@ inline void calc_forces(particles &vd,
 
     if (params.BC_TYPE == NO_SLIP)
     {
-        vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
         CUDA_LAUNCH(calc_forcesGPU_old, it, vd.toKernel(), NN.toKernel());
     }
     else if (params.BC_TYPE == NEW_NO_SLIP)
@@ -403,13 +369,7 @@ inline void calc_forces(particles &vd,
         CUDA_LAUNCH(calc_forcesGPU_new, it, vd.toKernel(), NN.toKernel());
     }
 
-    cudaError_t err = cudaDeviceSynchronize(); // Wait for the kernel to finish
-    if (err != cudaSuccess)
-    {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
-
-    vd.template restoreOrder<vd1_rho, vd3_drho, vd6_force, vd7_force_t, vd13_force_red_x, vd14_force_red_y>(NN);
+    vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
 }
 
 #endif // CALC_FORCES_HPP

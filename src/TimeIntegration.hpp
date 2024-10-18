@@ -114,9 +114,32 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
     // get particle a key
     auto a = GET_PARTICLE(vd);
 
-    if (vd.template getProp<vd0_type>(a) == BOUNDARY || vd.template getProp<vd0_type>(a) == OBSTACLE) // BOUNDARY
+    if (vd.template getProp<vd0_type>(a) == BOUNDARY) // BOUNDARY
     {
         // move boundary particles with their linear velocity
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
+        }
+
+        // // also rotate ( if omega == 0 this does nothing )
+        // real_number theta = vd.template getProp<vd10_omega>(a) * dt;
+        // Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
+
+        // // apply rotation
+        // Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
+        // Point<DIM, real_number> x = vd.getPos(a);
+        // x = ApplyRotation(x, theta, centre);
+        // vd.getPos(a)[0] = x.get(0);
+        // vd.getPos(a)[1] = x.get(1);
+        // // update normals ( rotated wrt origin )
+        // normal = ApplyRotation(normal, theta, {0.0, 0.0});
+        // vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
+        // vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
+    }
+    else if (vd.template getProp<vd0_type>(a) == OBSTACLE)
+    {
+        // move obstacle particles with their linear velocity
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
@@ -131,26 +154,31 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
         // apply rotation
         Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
         Point<DIM, real_number> x = vd.getPos(a);
+        real_number xnorm = norm(x - centre);
         x = ApplyRotation(x, theta, centre);
-        vd.getPos(a)[0] = x.get(0);
-        vd.getPos(a)[1] = x.get(1);
+        real_number xnorm_rot = norm(x - centre);
+        // rotation should preserve the distance to the centre
+        vd.getPos(a)[0] = centre.get(0) + (x.get(0) - centre.get(0)) * xnorm / xnorm_rot;
+        vd.getPos(a)[1] = centre.get(1) + (x.get(1) - centre.get(1)) * xnorm / xnorm_rot;
         // update normals ( rotated wrt origin )
         normal = ApplyRotation(normal, theta, {0.0, 0.0});
+        normalizeVector(normal); // renormalize to avoid numerical errors
         vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
         vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
-        return;
     }
-
-    // Otherwise it is a fluid particle
-    for (int xyz = 0; xyz < DIM; xyz++)
+    else if (vd.template getProp<vd0_type>(a) == FLUID)
     {
-        vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
-        vd.template getProp<vd5_velocity_t>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd7_force_t>(a)[xyz];
-        vd.getPos(a)[xyz] += dt * vd.template getProp<vd5_velocity_t>(a)[xyz];
-    }
+        // Otherwise it is a fluid particle
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
+            vd.template getProp<vd5_velocity_t>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd7_force_t>(a)[xyz];
+            vd.getPos(a)[xyz] += dt * vd.template getProp<vd5_velocity_t>(a)[xyz];
+        }
 
-    if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
-        vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt * vd.template getProp<vd3_drho>(a);
+        if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+            vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt_2 * vd.template getProp<vd3_drho>(a);
+    }
 
     return;
 }
@@ -170,6 +198,8 @@ __global__ void kdi_2_gpu(vd_type vd, const real_number dt)
             vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
             vd.template getProp<vd5_velocity_t>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd7_force_t>(a)[xyz];
         }
+        if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
+            vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt_2 * vd.template getProp<vd3_drho>(a);
     }
 }
 
@@ -214,6 +244,12 @@ void kick_drift_int(particles &vd,
     it = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt);
+    if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // If density differential, density has been updated in kdi_2
+    {
+        // Calculate pressure from the density
+        EqState(vd, params.rho0, params.B, params.gamma, params.xi);
+        vd.ghost_get<vd2_pressure>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+    }
 
     // increment the iteration counter
     auxParams.cnt++;

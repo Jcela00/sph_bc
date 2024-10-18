@@ -258,6 +258,14 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
 
     Vcluster<> &v_cl = create_vcluster();
 
+    if (argParameters.SCENARIO == TAYLOR_COUETTE)
+    {
+        // the input value is the number of particles in the radial direction
+        // by multiplying times 8 we get number of particles in the square grid containing the cylinders
+        argParameters.Nfluid[0] = argParameters.Nfluid[0] * 8;
+        argParameters.Nfluid[1] = argParameters.Nfluid[1] * 8;
+    }
+
     // First set fixed values
     argParameters.Hconst = 1.0;
     argParameters.coeff_sound = 10.0;

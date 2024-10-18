@@ -1,4 +1,3 @@
-#ifdef __NVCC__
 #define PRINT_STACKTRACE
 #define OPENMPI
 
@@ -6,19 +5,24 @@
 #include <sys/stat.h>
 #include <cmath>
 
-#include "Definitions.hpp"
 #include "CreateParticleGeometry.hpp"
 #include "DragLiftCoeficient.hpp"
 #include "InitializeParameters.hpp"
 #include "VectorUtilities.hpp"
+#include "Obstacle.hpp"
 #include "Kernel.hpp"
+#include "Probes.hpp"
 #include "Physics.hpp"
 #include "Calculations.hpp"
-#include "Obstacle.hpp"
-#include "Probes.hpp"
 #include "TimeIntegration.hpp"
 #include "CalcForces.hpp"
 #include "ExtrapolateVelocity.hpp"
+#include "Definitions.hpp"
+
+#ifdef __CUDACC__
+#else
+Parameters _params_gpu_;
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -29,9 +33,9 @@ int main(int argc, char *argv[])
 	openfpm::vector_gpu<aggregate<int>> fluid_ids;
 	openfpm::vector_gpu<aggregate<int>> border_ids;
 
-	// #if !defined(CUDA_ON_CPU) && !defined(__HIP__)
-	// 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
-	// #endif
+#if !defined(CUDA_ON_CPU) && !defined(__HIP__)
+	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+#endif
 
 #ifdef CUDIFY_USE_CUDA
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
@@ -42,20 +46,21 @@ int main(int argc, char *argv[])
 	Parameters MainParameters;
 	AuxiliarParameters AuxParameters;
 
-	// create a Vcluster object ( like MPI communicator )
-	// Vcluster<> &v_cl = create_vcluster();
-
 	ParseXMLFile(tmp, MainParameters, AuxParameters);
 	InitializeConstants(MainParameters, AuxParameters);
 
 	MainParameters.WriteParameters("Parameters.txt");
 
+#ifdef __CUDACC__
 	cudaError_t err = cudaMemcpyToSymbol(_params_gpu_, &MainParameters, sizeof(Parameters));
 	if (err != cudaSuccess)
 	{
 		std::cerr << "Error copying to constant memory: " << cudaGetErrorString(err) << std::endl;
 	}
 	cudaDeviceSynchronize();
+#else
+	_params_gpu_ = MainParameters;
+#endif
 
 	//////////////////////// CHECK CORRECT GPU PARAMS COPY /////////////////////
 	// Parameters host_params_check;
@@ -66,6 +71,7 @@ int main(int argc, char *argv[])
 
 	// Create a particle vector
 	particles vd;
+
 	// set names
 	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "velocity", "velocity_t", "force",
 										"force_t", "normal", "volume", "omega", "vorticity", "red_vel", "red_fx", "red_fy"});
@@ -126,7 +132,6 @@ int main(int argc, char *argv[])
 
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		vd.write_frame("Normals", 0, MainParameters.WRITER);
 
 		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
@@ -144,12 +149,7 @@ int main(int argc, char *argv[])
 
 	vd.map(RUN_ON_DEVICE);
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
-	// auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER_POSITION | CL_GPU_REORDER_PROPERTY | CL_GPU_RESTORE_PROPERTY, 2);
 	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER, 2);
-
-	// initialize density
-	// CalcDensity(vd, NN_gpu, MainParameters);
-	// vd.ghost_get<vd1_rho>(KEEP_PROPERTIES | RUN_ON_DEVICE);
 
 	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
 	{
@@ -161,12 +161,12 @@ int main(int argc, char *argv[])
 	size_t write = 0;
 	real_number t = 0.0;
 	std::ofstream avgvelstream(AuxParameters.filename + "_DragLift.csv");
-	timer tot_sim;
+	timer tot_sim, tot_step;
 	tot_sim.start();
+
+	Vcluster<> &v_cl = create_vcluster();
 	while (t <= MainParameters.t_end)
 	{
-		Vcluster<> &v_cl = create_vcluster();
-
 		//// Do rebalancing every 200 timesteps
 		// it_reb++;
 		// if (it_reb == 500)
@@ -192,21 +192,28 @@ int main(int argc, char *argv[])
 		// increment time
 		t += dt;
 
-		// every write_const write the configuration
+		// write the configuration
 		if (write < t * MainParameters.write_const)
 		{
 
 			// make necessary reductions for computing drag and lift
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
 			// send data from GPU to CPU for writing to file
-			vd.map(RUN_ON_DEVICE);
-			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
+			// vd.map(RUN_ON_DEVICE);
 			vd.deviceToHostPos();
-			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
+			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+
 			// Update CPU cell list for computing vorticity ( and probes )
-			vd.updateCellList(NN);
+			if (MainParameters.SCENARIO == ELLIPSE || MainParameters.PROBES_ENABLED)
+			{
+				vd.updateCellList(NN);
+			}
+
 			// compute vorticity
-			CalcVorticity(vd, NN, MainParameters);
+			if (MainParameters.SCENARIO == ELLIPSE)
+			{
+				CalcVorticity(vd, NN, MainParameters);
+			}
 
 			// sensor calculation requires ghost and updated cell-list
 			if (MainParameters.PROBES_ENABLED)
@@ -229,7 +236,7 @@ int main(int argc, char *argv[])
 
 			if (v_cl.getProcessUnitID() == 0)
 			{
-				std::cout << "TIME: " << t << "  write " << AuxParameters.cnt << std::endl;
+				std::cout << "TIME: " << t << " step " << AuxParameters.cnt << std::endl;
 			}
 		}
 	}
@@ -240,12 +247,3 @@ int main(int argc, char *argv[])
 	delete obstacle_ptr;
 	openfpm_finalize();
 }
-
-#else
-
-int main(int argc, char *argv[])
-{
-	return 0;
-}
-
-#endif

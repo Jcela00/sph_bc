@@ -137,7 +137,7 @@ inline void ExtrapolateVelocity(vd_type &vd, NN_type &NN)
 
     CUDA_LAUNCH(ExtrapolateVelocityGPU, it, vd.toKernel(), NN.toKernel());
 
-    vd.template restoreOrder<vd1_rho, vd2_pressure, vd5_velocity_t>(NN);
+    vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd7_force_t, vd10_omega, vd5_velocity_t>(NN);
 }
 
 #endif // EXTRAPOLATEVEVELOCITY_HPP

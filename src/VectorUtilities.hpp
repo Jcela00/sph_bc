@@ -108,8 +108,10 @@ inline __device__ __host__ Point<DIM, real_number> ApplyRotation(const Point<DIM
 {
 
 	Point<DIM, real_number> x_rotated;
-	x_rotated.get(0) = cos(theta) * (x.get(0) - centre.get(0)) - sin(theta) * (x.get(1) - centre.get(1)) + centre.get(0);
-	x_rotated.get(1) = sin(theta) * (x.get(0) - centre.get(0)) + cos(theta) * (x.get(1) - centre.get(1)) + centre.get(1);
+	double cos_theta = cos(static_cast<double>(theta));
+	double sin_theta = sin(static_cast<double>(theta));
+	x_rotated.get(0) = static_cast<real_number>(cos_theta * (x.get(0) - centre.get(0)) - sin_theta * (x.get(1) - centre.get(1)) + centre.get(0));
+	x_rotated.get(1) = static_cast<real_number>(sin_theta * (x.get(0) - centre.get(0)) + cos_theta * (x.get(1) - centre.get(1)) + centre.get(1));
 
 	return x_rotated;
 }
