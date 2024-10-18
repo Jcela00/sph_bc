@@ -49,7 +49,7 @@ $(BUILD_DIR):
 all: sph_dlb sph_dlb_test
 
 # Target to run the sph_dlb executable
-run: sph_dlb
+run: sph_dlb 
 	mpirun -np 1 ./sph_dlb XMLs/example/PERFORMANCE_TEST.xml
 
 # Phony targets
