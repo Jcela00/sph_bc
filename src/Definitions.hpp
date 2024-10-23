@@ -5,7 +5,7 @@
 #include "Draw/DrawParticles.hpp"
 
 // Type of floating point number
-typedef float real_number;
+typedef double real_number;
 
 // Number of dimensions, changes size of arrays, changes the normalizations of the kernels
 #define DIM 2

@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
 		// write the configuration
 		if (write < t * MainParameters.write_const)
 		{
+			std::string timestring = "time" + std::to_string(t);
 
 			// make necessary reductions for computing drag and lift
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
@@ -228,7 +229,7 @@ int main(int argc, char *argv[])
 			}
 
 			vd.deleteGhost();
-			vd.write_frame(AuxParameters.filename, write, MainParameters.WRITER);
+			vd.write_frame(AuxParameters.filename, write, static_cast<double>(t), MainParameters.WRITER);
 			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
 			CalcDragLift(t, avgvelstream, VxDragLift, MainParameters, write);
 
@@ -240,9 +241,53 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-
 	tot_sim.stop();
 	std::cout << "Time to complete: " << tot_sim.getwct() << " seconds" << std::endl;
+
+	vd.deviceToHostProp<vd0_type, vd1_rho>();
+
+	// get max density
+	// max_rho = reduce_local<vd0_type, _max_>(vd);
+
+	// // change sign of density for fluid particles to get min using max reduction
+	real_number max_rho, min_rho, avg_rho;
+	int count = 0;
+	max_rho = -1.0e10;
+	min_rho = 1.0e10;
+	auto part = vd.getDomainIterator();
+	while (part.isNext())
+	{
+		auto a = part.get();
+
+		if (vd.template getProp<vd0_type>(a) == FLUID)
+		{
+			real_number rho = vd.template getProp<vd1_rho>(a);
+			avg_rho += rho;
+			count++;
+			if (rho > max_rho)
+			{
+				max_rho = rho;
+			}
+			if (rho < min_rho)
+			{
+				min_rho = rho;
+			}
+		}
+		++part;
+	}
+
+	// min_rho = reduce_local<vd1_rho, max>(vd);
+	v_cl.max(max_rho);
+	v_cl.min(min_rho);
+	v_cl.sum(avg_rho);
+	v_cl.sum(count);
+	v_cl.execute();
+	avg_rho /= count;
+	// min_rho = -min_rho;
+
+	real_number deltaRho = max_rho - min_rho;
+	real_number percentFluctuation = deltaRho / MainParameters.rho0 * 100.0;
+	std::cout << "Max density: " << max_rho << " Min density: " << min_rho << "average density: " << avg_rho << " Delta rho: " << deltaRho << " % Fluctuation: " << percentFluctuation << std::endl;
 
 	delete obstacle_ptr;
 	openfpm_finalize();

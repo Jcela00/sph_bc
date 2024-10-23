@@ -116,6 +116,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         argParameters.t_end = static_cast<real_number>(tmpdouble);
         simulationElement->QueryDoubleAttribute("write_const", &tmpdouble);
         argParameters.write_const = static_cast<real_number>(tmpdouble);
+        simulationElement->QueryDoubleAttribute("CFL", &tmpdouble);
+        argParameters.CFLnumber = static_cast<real_number>(tmpdouble);
 
         // read custom string (optional) for custom output names
         const char *custom_str = simulationElement->Attribute("custom_string");
@@ -270,7 +272,6 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Hconst = 1.0;
     argParameters.coeff_sound = 10.0;
     argParameters.xi = 0.0;
-    argParameters.CFLnumber = 0.1;
     argParameters.PROBES_ENABLED = 0;
 
     // Set boundary conditions periodic or non periodic
@@ -295,17 +296,19 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     else
         argParameters.Nboundary[1] = Nbound;
 
-    // Set particle spacing, definition depends on scenario
-    if (argParameters.SCENARIO != CYLINDER_ARRAY && argParameters.SCENARIO != CYLINDER_LATTICE)
+    // Set particle spacing, definition depends on scenario, for most scenarios length scale gives height of the box, so dp is height divided by Nfluid[1]
+    if (argParameters.SCENARIO != CYLINDER_ARRAY && argParameters.SCENARIO != CYLINDER_LATTICE && argParameters.SCENARIO != TAYLOR_COUETTE)
     {
         argParameters.dp = argParameters.LengthScale / argParameters.Nfluid[1];
     }
     else
     {
-        if (argParameters.SCENARIO == CYLINDER_ARRAY) // chanel height is 4 times the cylinder radius
+        if (argParameters.SCENARIO == CYLINDER_ARRAY) // length scale is cylinder radius, chanel height is 4 times the cylinder radius
             argParameters.dp = 4.0 * argParameters.LengthScale / (real_number)argParameters.Nfluid[1];
-        else if (argParameters.SCENARIO == CYLINDER_LATTICE) // chanel height is 5 times the cylinder radius
+        else if (argParameters.SCENARIO == CYLINDER_LATTICE) // length scale is cylinder radius, chanel height is 5 times the cylinder radius
             argParameters.dp = 5.0 * argParameters.LengthScale / (real_number)argParameters.Nfluid[1];
+        else if (argParameters.SCENARIO == TAYLOR_COUETTE) // Length scale is inter-cylinder distance
+            argParameters.dp = 8.0 * argParameters.LengthScale / argParameters.Nfluid[1];
     }
 
     if (argParameters.SCENARIO == CAVITY)
@@ -356,12 +359,31 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / argParameters.H / argParameters.H / argParameters.H : 7.0 / 478.0 / M_PI / argParameters.H / argParameters.H;
     argParameters.MassFluid = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
     argParameters.MassBound = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
-    argParameters.cbar = argParameters.coeff_sound * argParameters.umax;
+    argParameters.gravity = getVectorNorm(argParameters.gravity_vector);
+    real_number c, cu, cnu, cg;
+    cu = argParameters.coeff_sound * argParameters.umax;
+    cnu = argParameters.coeff_sound * sqrt(argParameters.nu * argParameters.umax / argParameters.LengthScale);
+    cg = argParameters.coeff_sound * sqrt(argParameters.gravity * argParameters.LengthScale);
+    c = max(max(cu, cnu), cg);
+    argParameters.cbar = c;
+    if (c == cu)
+    {
+        std::cout << "Sound speed is set by umax c = " << c << std::endl;
+    }
+    else if (c == cnu)
+    {
+        std::cout << "Sound speed is set by nu c = " << c << std::endl;
+    }
+    else if (c == cg)
+    {
+        std::cout << "Sound speed is set by gravity c = " << c << std::endl;
+    }
+
+    // argParameters.cbar = argParameters.coeff_sound * argParameters.umax;
     argParameters.B = argParameters.rho0 * argParameters.cbar * argParameters.cbar / argParameters.gamma;
     argParameters.Pbackground = argParameters.Bfactor * argParameters.B;
     argParameters.eta = argParameters.nu * argParameters.rho0;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
-    argParameters.gravity = getVectorNorm(argParameters.gravity_vector);
     argParameters.ObstacleCenter[0] = (argParameters.length[0] + (real_number)argParameters.bc[0] * argParameters.dp) / 2.0f;
     argParameters.ObstacleCenter[1] = (argParameters.length[1] + (real_number)argParameters.bc[1] * argParameters.dp) / 2.0f;
 

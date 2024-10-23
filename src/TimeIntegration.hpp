@@ -121,21 +121,6 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
         {
             vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
         }
-
-        // // also rotate ( if omega == 0 this does nothing )
-        // real_number theta = vd.template getProp<vd10_omega>(a) * dt;
-        // Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
-
-        // // apply rotation
-        // Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
-        // Point<DIM, real_number> x = vd.getPos(a);
-        // x = ApplyRotation(x, theta, centre);
-        // vd.getPos(a)[0] = x.get(0);
-        // vd.getPos(a)[1] = x.get(1);
-        // // update normals ( rotated wrt origin )
-        // normal = ApplyRotation(normal, theta, {0.0, 0.0});
-        // vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
-        // vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
     }
     else if (vd.template getProp<vd0_type>(a) == OBSTACLE)
     {
@@ -148,13 +133,16 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
         }
 
         // also rotate ( if omega == 0 this does nothing )
-        real_number theta = vd.template getProp<vd10_omega>(a) * dt;
+        real_number omega = vd.template getProp<vd10_omega>(a);
+        real_number theta = omega * dt;
         Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
 
         // apply rotation
         Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
         Point<DIM, real_number> x = vd.getPos(a);
+
         real_number xnorm = norm(x - centre);
+        // printf("I am particle at r = %f, with theta = %f\n", xnorm, theta);
         x = ApplyRotation(x, theta, centre);
         real_number xnorm_rot = norm(x - centre);
         // rotation should preserve the distance to the centre

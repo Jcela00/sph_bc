@@ -195,7 +195,11 @@ void CylinderObstacle::AddObstacle(particles &vd)
 
         vd.template getLastProp<vd2_pressure>() = 0.0;
         vd.template getLastProp<vd1_rho>() = params_.rho0;
-        vd.template getLastProp<vd3_drho>() = 0.0;
+        if (k == 0)
+            vd.template getLastProp<vd3_drho>() = 10.0;
+        else
+            vd.template getLastProp<vd3_drho>() = 0.0;
+
         vd.template getLastProp<vd9_volume>()[0] = dxwall;
         vd.template getLastProp<vd10_omega>() = AngularVelocity_;
         theta += dtheta;

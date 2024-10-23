@@ -262,7 +262,14 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
-            vd.getLastPos()[xyz] = iterator_position.get(xyz);
+            if (params.SCENARIO == POISEUILLE) // add random displacement
+            {
+                vd.getLastPos()[xyz] = iterator_position.get(xyz) + params.dp * 0.0 * (2.0f * static_cast<real_number>(rand()) / static_cast<real_number>(RAND_MAX) - 1.0f);
+            }
+            else
+            {
+                vd.getLastPos()[xyz] = iterator_position.get(xyz);
+            }
             vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
             vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
         }
@@ -461,7 +468,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                 {
                     vd.add();
                     // Set properties
-                    vd.template getLastProp<vd0_type>() = BOUNDARY;
+                    vd.template getLastProp<vd0_type>() = OBSTACLE;
                     vd.template getLastProp<vd10_omega>() = (*obstacle_ptr_out).AngularVelocity_;
                     for (int xyz = 0; xyz < DIM; xyz++)
                     {
@@ -515,7 +522,7 @@ void CreateParticleGeometryTaylorCouette(particles &vd, std::vector<std::pair<pr
                     {
                         // ... add a particle ...
                         vd.add();
-                        vd.template getLastProp<vd0_type>() = BOUNDARY;
+                        vd.template getLastProp<vd0_type>() = OBSTACLE;
                         vd.template getLastProp<vd10_omega>() = (*obstacle_ptr_in).AngularVelocity_;
                         for (int xyz = 0; xyz < DIM; xyz++)
                         {

@@ -14,130 +14,31 @@ Hconst = 1;
 dim = 2;
 rho0 = 1;
 
-steps = 1:250;
+steps = [1:1:1000];
+E_1 = zeros(length(steps), 1);
+E_2 = zeros(length(steps), 1);
 
-% E_1 = zeros(length(steps), 2);
-% E_2 = zeros(length(steps), 2);
-% E_3 = zeros(length(steps), 2);
-% E_4 = zeros(length(steps), 2);
-% E_old = zeros(length(steps), 2);
+for k = 1:length(steps)
+    nfile = steps(k);
+    data1 = ParticleData('../CSV_Data/Poiseuille_new_summation_24_60_1rf_1prc/file', nfile, ['cfl1'], rho0, dim, Hconst);
+    data2 = ParticleData('../CSV_Data/Poiseuille_new_summation_unordered_24_60_1rf_1prc/file', nfile, ['unordered'], rho0, dim, Hconst);
+    set1 = {data1};
+    set2 = {data2};
 
-% for k = 1:length(steps)
-%     k
-nfile = 250;
-P_20_40_1 = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Summation_20_40_4prc_1rf/file', nfile, ['20x40x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-P_20_40_old = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Summation_20_40_4prc/file', nfile, ['20x40 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+    plot_setting = 0;
 
-P_40_80_1 = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Summation_40_80_4prc_1rf/file', nfile, ['40x80x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-P_40_80_old = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Summation_40_80_4prc/file', nfile, ['40x80 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+    if (k == length(steps))
+        plot_setting = 1;
+    end
 
-% P_60_120_1 = ParticleData('../CSV_Data/Poiseuille_NEW_BC_Summation_60_120_4prc_1rf/file', nfile, ['60x120x1'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
-% P_60_120_old = ParticleData('../CSV_Data/Poiseuille_OLD_BC_Summation_60_120_4prc/file', nfile, ['60x120 old'], dp, Nfluid, Nboundary, rho0, dim, Hconst);
+    E_1(k, 1) = ComputeErrorAndPlotPoiseuille(set1, plot_setting);
+    E_2(k, 1) = ComputeErrorAndPlotPoiseuille(set2, plot_setting);
+    k
+end
 
-set20 = {P_20_40_1, P_20_40_old};
-set40 = {P_40_80_1, P_40_80_old};
-% set60 = {P_60_120_1, P_60_120_old};
-
-E_20 = ComputeErrorAndPlotPoiseuille(set20, 0);
-E_40 = ComputeErrorAndPlotPoiseuille(set40, 0);
-% E_60 = ComputeErrorAndPlotPoiseuille(set60, 0);
-
-% E_1(k, :) = [E_20(1) E_40(1)];
-% E_old(k, :) = [E_20(2) E_40(2)];
-E_1 = [E_20(1) E_40(1)];
-E_old = [E_20(2) E_40(2)];
-
-% % do linear fit of E_1 and E_old
-res = [20 40];
-p1 = polyfit(log(res), log(E_1), 1);
-p2 = polyfit(log(res), log(E_old), 1);
-
-% figure;
-% loglog(res, E_1, 'o-'); hold on;
-% loglog(res, E_2, 'o-');
-% loglog(res, E_3, 'o-');
-% loglog(res, E_4, 'o-');
-% loglog(res, E_old, 'o-');
-% ylabel('$L_2$ error');
-% xlabel('$N_{particles}$');
-% legend('New BC', 'New BC 2x refined wall', 'New BC 3x refined wall', 'New BC 4x refined wall', 'Old BC', 'Location', 'best');
-
-figure;
-loglog(res, E_1, 'o-'); hold on;
-loglog(res, exp(polyval(p1, log(res))), 'k--');
-loglog(res, E_old, 'o-');
-loglog(res, exp(polyval(p2, log(res))), 'r--');
-text(res(2) * 0.9, E_1(2), ['Slope: ' num2str(p1(1)) '         '], 'HorizontalAlignment', 'right');
-text(res(2) * 1.1, E_old(2), ['         Slope: ' num2str(p2(1))], 'HorizontalAlignment', 'left');
-ylabel('$L_2$ error');
-xlabel('$N_{particles}$');
-legend('New BC', 'New BC linear fit', 'Old BC', 'Old BC linear fit', 'Location', 'best');
-
-% E_20 = E_20(1:end - 1);
-% E_40 = E_40(1:end - 1);
-% E_60 = E_60(1:end - 1);
-
-% figure;
-% ref = [1 2 3 4];
-% loglog(ref, E_20, 'o-');
-% % loglog(ref, E_40, 'o-');
-% ylabel('$L_2$ error');
-% xlabel('$Refinement$');
-% legend('20x40', 'Location', 'best');
-
-% figure;
-% loglog(ref, E_40, 'o-');
-% ylabel('$L_2$ error');
-% xlabel('$Refinement$');
-% legend('40x80', 'Location', 'best');
-
-% figure;
-% loglog(ref, E_60, 'o-');
-% ylabel('$L_2$ error');
-% xlabel('$Refinement$');
-% legend('60x120', 'Location', 'best');
-
-% pause;
-% close all;
-% end
-
-% figure;
-% semilogy(steps, E_1(:, 1), 'o-'); hold on;
-% semilogy(steps, E_1(:, 2), 'o-');
-% semilogy(steps, E_old(:, 1), 'o-'); hold on;
-% semilogy(steps, E_old(:, 2), 'o-');
-% ylabel('$L_2$ error');
-% legend('20x40', '40x80', '20x40 old', '40x80 old', 'Location', 'best');
-% title('Old BC');
-
-% E_1 = mean(E_1);
-% E_2 = mean(E_2);
-% E_3 = mean(E_3);
-% E_4 = mean(E_4);
-% E_old = mean(E_old);
-
-% % do linear fit of E_1 and E_old
-% res = [20 40];
-% p1 = polyfit(log(res), log(E_1), 1);
-% p2 = polyfit(log(res), log(E_old), 1);
-
-% figure;
-% loglog(res, E_1, 'o-'); hold on;
-% loglog(res, E_old, 'o-');
-% ylabel('$L_2$ error');
-% xlabel('$N_{particles}$');
-% legend('New BC', 'Old BC', 'Location', 'best');
-
-% figure;
-% loglog(res, E_1, 'o-'); hold on;
-% loglog(res, exp(polyval(p1, log(res))), 'k--');
-% loglog(res, E_old, 'o-');
-% loglog(res, exp(polyval(p2, log(res))), 'r--');
-% text(res(2) * 0.9, E_1(2), ['Slope: ' num2str(p1(1)) '         '], 'HorizontalAlignment', 'right');
-% text(res(2) * 1.1, E_old(2), ['         Slope: ' num2str(p2(1))], 'HorizontalAlignment', 'left');
-% ylabel('$L_2$ error');
-% xlabel('$N_{particles}$');
-% legend('New BC', 'New BC linear fit', 'Old BC', 'Old BC linear fit', 'Location', 'best');
+figure; hold on;
+plot(steps, E_1, 'o-');
+plot(steps, E_2, 'o-'); legend('Ordered', 'Unordered');
 
 function [ux, uy] = Poiseuille_Analytical(y, params)
     g = params(1);
@@ -150,7 +51,7 @@ end
 function u = prof_a_pouiseuille(x, t)
 
     g = 0.1;
-    nu = 0.1;
+    nu = 0.01;
     L = 1;
     Nterms = 20;
     u = (g / (2 * nu)) .* x .* (L - x);
@@ -188,7 +89,7 @@ function [errors] = ComputeErrorAndPlotPoiseuille(datasets, plot_setting)
     errors = zeros(nres, 2);
 
     g = 0.1;
-    nu = 0.1;
+    nu = 0.01;
     L = 1.0;
     params = [g nu L];
 
@@ -206,9 +107,9 @@ function [errors] = ComputeErrorAndPlotPoiseuille(datasets, plot_setting)
 
         % Remove boundary particles
 
-        pos = pos(data.Type == 1, :);
-        vel = vel(data.Type == 1, :);
-        velT = velT(data.Type == 1, :);
+        pos = pos(data.Type == data.TypeFluid, :);
+        vel = vel(data.Type == data.TypeFluid, :);
+        velT = velT(data.Type == data.TypeFluid, :);
 
         [ux, uy] = Poiseuille_Analytical(pos(:, 2), params);
         errors(k, 1) = P_Error(vel, ux, uy);
