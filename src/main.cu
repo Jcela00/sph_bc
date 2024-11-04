@@ -30,8 +30,12 @@ int main(int argc, char *argv[])
 	// initialize the library
 	openfpm_init(&argc, &argv);
 
-	openfpm::vector_gpu<aggregate<int>> fluid_ids;
-	openfpm::vector_gpu<aggregate<int>> border_ids;
+	// check if DIM is 2 or 3, if not, throw an error
+	if (DIM != 2 && DIM != 3)
+	{
+		std::cerr << "Error: DIM must be 2 or 3" << std::endl;
+		return -1;
+	}
 
 #if !defined(CUDA_ON_CPU) && !defined(__HIP__)
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
@@ -63,10 +67,10 @@ int main(int argc, char *argv[])
 #endif
 
 	//////////////////////// CHECK CORRECT GPU PARAMS COPY /////////////////////
-	// Parameters host_params_check;
-	// cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
-	// cudaDeviceSynchronize();
-	// host_params_check.WriteParameters(("check_params.txt"));
+	Parameters host_params_check;
+	cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
+	cudaDeviceSynchronize();
+	host_params_check.WriteParameters(("check_params.txt"));
 	////////////////////////////////////////////////////////////////////////////
 
 	// Create a particle vector
@@ -96,11 +100,16 @@ int main(int argc, char *argv[])
 	{
 		CreateParticleGeometryCavity(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
+	else if (MainParameters.SCENARIO == SPHERE)
+	{
+		CreateParticleGeometrySphere(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
+	}
 	else
 	{
 		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
+	vd.write_frame("After Create Geometry", 0, MainParameters.WRITER);
 
 	for (size_t k = 0; k < vp.size(); k++)
 	{
@@ -129,9 +138,11 @@ int main(int argc, char *argv[])
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+		// vd.write_frame("After Fluid Vec", 0, MainParameters.WRITER);
 
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+		// vd.write_frame("After Normal Vec", 0, MainParameters.WRITER);
 
 		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
@@ -142,6 +153,7 @@ int main(int argc, char *argv[])
 	}
 	vd.map();
 	vd.write_frame("Initialization", 0, MainParameters.WRITER);
+	vd.write_frame(AuxParameters.filename, 0, static_cast<double>(0.0), MainParameters.WRITER);
 
 	// move to gpu
 	vd.hostToDevicePos();

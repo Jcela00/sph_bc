@@ -124,35 +124,37 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
     }
     else if (vd.template getProp<vd0_type>(a) == OBSTACLE)
     {
-        // move obstacle particles with their linear velocity
-        for (int xyz = 0; xyz < DIM; xyz++)
+        if constexpr (DIM == 2)
         {
-            vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
-            // centre also moves
-            vd.template getProp<vd7_force_t>(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
+            // move obstacle particles with their linear velocity
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
+                // centre also moves
+                vd.template getProp<vd7_force_t>(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
+            }
+
+            // also rotate ( if omega == 0 this does nothing )
+            real_number omega = vd.template getProp<vd10_omega>(a);
+            real_number theta = omega * dt;
+            Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
+
+            // apply rotation
+            Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
+            Point<DIM, real_number> x = vd.getPos(a);
+
+            real_number xnorm = norm(x - centre);
+            x = ApplyRotation(x, theta, centre);
+            real_number xnorm_rot = norm(x - centre);
+            // rotation should preserve the distance to the centre
+            vd.getPos(a)[0] = centre.get(0) + (x.get(0) - centre.get(0)) * xnorm / xnorm_rot;
+            vd.getPos(a)[1] = centre.get(1) + (x.get(1) - centre.get(1)) * xnorm / xnorm_rot;
+            // update normals ( rotated wrt origin )
+            normal = ApplyRotation(normal, theta, {0.0, 0.0});
+            normalizeVector(normal); // renormalize to avoid numerical errors
+            vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
+            vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
         }
-
-        // also rotate ( if omega == 0 this does nothing )
-        real_number omega = vd.template getProp<vd10_omega>(a);
-        real_number theta = omega * dt;
-        Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(a);
-
-        // apply rotation
-        Point<DIM, real_number> centre = vd.template getProp<vd7_force_t>(a); // stored in force_transport
-        Point<DIM, real_number> x = vd.getPos(a);
-
-        real_number xnorm = norm(x - centre);
-        // printf("I am particle at r = %f, with theta = %f\n", xnorm, theta);
-        x = ApplyRotation(x, theta, centre);
-        real_number xnorm_rot = norm(x - centre);
-        // rotation should preserve the distance to the centre
-        vd.getPos(a)[0] = centre.get(0) + (x.get(0) - centre.get(0)) * xnorm / xnorm_rot;
-        vd.getPos(a)[1] = centre.get(1) + (x.get(1) - centre.get(1)) * xnorm / xnorm_rot;
-        // update normals ( rotated wrt origin )
-        normal = ApplyRotation(normal, theta, {0.0, 0.0});
-        normalizeVector(normal); // renormalize to avoid numerical errors
-        vd.template getProp<vd8_normal>(a)[0] = normal.get(0);
-        vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
     }
     else if (vd.template getProp<vd0_type>(a) == FLUID)
     {

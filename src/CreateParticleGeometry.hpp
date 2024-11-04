@@ -35,4 +35,10 @@ void CreateParticleGeometryCavity(particles &vd,
                                   Parameters &params,
                                   AuxiliarParameters &auxParams);
 
+void CreateParticleGeometrySphere(particles &vd,
+                                  std::vector<std::pair<probe_particles, int>> &vp_vec,
+                                  Obstacle *&obstacle_ptr,
+                                  Parameters &params,
+                                  AuxiliarParameters &auxParams);
+
 #endif // CREATEPARTICLEGEOMETRY_HPP

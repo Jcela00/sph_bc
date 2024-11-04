@@ -50,6 +50,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = DAM_BREAK;
         else if (strcmp(scenario_str, "TriangleTest") == 0)
             argParameters.SCENARIO = TRIANGLE_TEST;
+        else if (strcmp(scenario_str, "Sphere") == 0)
+            argParameters.SCENARIO = SPHERE;
         else
         {
             std::cout << "Unknown Scenario, defaulting to Poiseuille" << std::endl;
@@ -143,8 +145,10 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         if constexpr (DIM == 3)
             geometryElement->QueryAttribute("sizeZ", &argParameters.Nfluid[2]);
     }
-
-    argAuxParameters.filename += "_" + std::to_string(argParameters.Nfluid[0]) + "_" + std::to_string(argParameters.Nfluid[1]) + "_" + std::to_string((int)argParameters.rf) + "rf";
+    if constexpr (DIM == 2)
+        argAuxParameters.filename += "_" + std::to_string(argParameters.Nfluid[0]) + "_" + std::to_string(argParameters.Nfluid[1]) + "_" + std::to_string((int)argParameters.rf) + "rf";
+    else if constexpr (DIM == 3)
+        argAuxParameters.filename += "_" + std::to_string(argParameters.Nfluid[0]) + "_" + std::to_string(argParameters.Nfluid[1]) + "_" + std::to_string(argParameters.Nfluid[2]) + "_" + std::to_string((int)argParameters.rf) + "rf";
 
     // Parse <physics> element
     tinyxml2::XMLElement *physicsElement = doc.FirstChildElement("configuration")->FirstChildElement("physics");
@@ -296,6 +300,14 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     else
         argParameters.Nboundary[1] = Nbound;
 
+    if constexpr (DIM == 3)
+    {
+        if (argParameters.bc[2] == PERIODIC)
+            argParameters.Nboundary[2] = 0;
+        else
+            argParameters.Nboundary[2] = Nbound;
+    }
+
     // Set particle spacing, definition depends on scenario, for most scenarios length scale gives height of the box, so dp is height divided by Nfluid[1]
     if (argParameters.SCENARIO != CYLINDER_ARRAY && argParameters.SCENARIO != CYLINDER_LATTICE && argParameters.SCENARIO != TAYLOR_COUETTE)
     {
@@ -320,6 +332,10 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     {
         argParameters.length[0] = argParameters.dp * (argParameters.Nfluid[0] - argParameters.bc[0]);
         argParameters.length[1] = argParameters.dp * (argParameters.Nfluid[1] - argParameters.bc[1]);
+        if constexpr (DIM == 3)
+        {
+            argParameters.length[2] = argParameters.dp * (argParameters.Nfluid[2] - argParameters.bc[2]);
+        }
     }
 
     // WE NO LONGER SET THE MAXIMUM VELOCITY; WE READ IT FROM THE XML FILE, BUT THIS VALUES ARE USEFUL
@@ -384,8 +400,12 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Pbackground = argParameters.Bfactor * argParameters.B;
     argParameters.eta = argParameters.nu * argParameters.rho0;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
-    argParameters.ObstacleCenter[0] = (argParameters.length[0] + (real_number)argParameters.bc[0] * argParameters.dp) / 2.0f;
-    argParameters.ObstacleCenter[1] = (argParameters.length[1] + (real_number)argParameters.bc[1] * argParameters.dp) / 2.0f;
+    argParameters.ObstacleCenter[0] = (argParameters.length[0] + static_cast<real_number>(argParameters.bc[0]) * argParameters.dp) / 2.0;
+    argParameters.ObstacleCenter[1] = (argParameters.length[1] + static_cast<real_number>(argParameters.bc[1]) * argParameters.dp) / 2.0;
+    if constexpr (DIM == 3)
+    {
+        argParameters.ObstacleCenter[2] = (argParameters.length[2] + static_cast<real_number>(argParameters.bc[2]) * argParameters.dp) / 2.0;
+    }
 
     // add the number of processors to the filename
     const long int Nprc = v_cl.getProcessingUnits();

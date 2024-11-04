@@ -32,7 +32,7 @@ void CalcFluidVec(particles &vd, CellList &NN, const Parameters &params)
                 Point<DIM, real_number> xa = vd.getPos(a);
 
                 // initialize sum
-                Point<DIM, real_number> r_fluid_sum = {0.0, 0.0};
+                Point<DIM, real_number> r_fluid_sum = {0.0};
 
                 // neighborhood particles
                 auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
@@ -399,7 +399,17 @@ void CalcVolume(particles &vd, real_number dp)
 
             for (int i = 0; i < 3; i++)
             {
-                vd.template getProp<vd9_volume>(a)[i] = std::max(0.0, 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * (i + 1.0) * dp * dp * kappa) * dxwall);
+
+                // if constexpr (DIM == 2)
+                //     vd.template getProp<vd9_volume>(a)[i] = dp * dp;
+                // else if constexpr (DIM == 3)
+                //     vd.template getProp<vd9_volume>(a)[i] = dp * dp * dp;
+                // n=i+1
+                real_number n = static_cast<real_number>(i + 1);
+                if constexpr (DIM == 2)
+                    vd.template getProp<vd9_volume>(a)[i] = std::max(0.0, 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * n * dp * dp * kappa) * dxwall);
+                else if constexpr (DIM == 3)
+                    vd.template getProp<vd9_volume>(a)[i] = std::max(0.0, (1.0 / 3.0) * (3.0 * dp + kappa * dp * dp * (3.0 - 6.0 * n) + kappa * kappa * dp * dp * dp * (3 * n * n - 3 * n + 1)) * dxwall);
             }
         }
         ++part;

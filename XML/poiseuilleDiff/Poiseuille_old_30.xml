@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+
+    <simulation
+        scenario="Poiseuille"
+        bcType="old"
+        bcX="periodic" bcY="non_periodic"
+        densityType="differential"
+        writerType="vtk"
+        time="20"
+        write_const="10"
+        CFL="0.5"
+        custom_string=""
+    />
+
+    <geometry
+        lengthScale="1.0"
+        rf="1.0"
+        sizeX="12" sizeY="30" sizeZ="0"
+    />
+
+    <physics
+        rho0="1.0"
+        nu="0.1"
+        Bfactor="1.0"
+        gamma="1"
+        umax="0.125"
+        gravityX="0.1" gravityY="0.0" gravityZ="0.0"
+        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        vBotX="0.0" vBotY="0.0" vBotZ="0.0"
+    />
+
+    <obstacle 
+        velX="0.0" velY="0.0" velZ="0.0"
+        omega="0.0"
+    />
+
+</configuration>

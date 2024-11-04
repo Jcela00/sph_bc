@@ -16,6 +16,7 @@ classdef ParticleData
         Vorticity
         Domain
         Position
+        Time
         % Curvature % Not used anymore
         % ArcLength
         %%%%%%%%%%%%
@@ -55,7 +56,8 @@ classdef ParticleData
             obj.dim = dim;
             obj.Hconst_ = Hconst;
             obj.rho0 = rho0;
-
+            obj.Time = data(1, 1);
+            data = data(:, 2:end); % remove time column
             obj.Type = data(:, 1);
             obj.Density = data(:, 2);
             obj.Pressure = data(:, 3);

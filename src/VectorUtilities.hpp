@@ -25,7 +25,7 @@
 
 inline __device__ __host__ real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
-	real_number result = 0.0f;
+	real_number result = 0.0;
 	if constexpr (DIM == 2)
 		result = v.get(0) * w.get(0) + v.get(1) * w.get(1);
 	else if constexpr (DIM == 3)
@@ -62,32 +62,8 @@ inline __device__ __host__ real_number getVectorNorm(const Point<DIM, real_numbe
 inline __device__ __host__ void normalizeVector(Point<DIM, real_number> &v)
 {
 	const real_number norm = getVectorNorm(v);
-	if (norm > 0.0f)
+	if (norm > 0.0)
 		v = v / norm;
-}
-
-inline __device__ __host__ Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_number> &v)
-{
-	Point<DIM, real_number> perp;
-	perp.get(0) = -v.get(1);
-	perp.get(1) = v.get(0);
-	normalizeVector(perp);
-	return perp;
-}
-
-inline __device__ __host__ std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<DIM, real_number> &r, const Point<DIM, real_number> &normal, real_number dp)
-{
-	// aplies offset to a vector and returns the vectors pointing at the virtual wall particles
-	// r needs to be pointing to the wall particle
-
-	Point<DIM, real_number> offset_1 = -0.5f * normal * dp; // offset from wall to first particle
-	Point<DIM, real_number> offset_2 = -1.0f * normal * dp; // offset from first to second particle, and from second to third
-	std::array<Point<DIM, real_number>, 3> r_virtual;
-	r_virtual[0] = r + offset_1;
-	r_virtual[1] = r_virtual[0] + offset_2;
-	r_virtual[2] = r_virtual[1] + offset_2;
-
-	return r_virtual;
 }
 
 inline __device__ __host__ real_number crossProduct2D(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
@@ -102,6 +78,46 @@ inline __device__ __host__ Point<DIM, real_number> crossProduct3D(const Point<DI
 	res.get(1) = v.get(2) * w.get(0) - v.get(0) * w.get(2);
 	res.get(2) = v.get(0) * w.get(1) - v.get(1) * w.get(0);
 	return res;
+}
+
+inline __device__ __host__ Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_number> &v)
+{
+	Point<DIM, real_number> perp;
+	perp.get(0) = -v.get(1);
+	perp.get(1) = v.get(0);
+	normalizeVector(perp);
+	return perp;
+}
+
+inline __device__ __host__ void getPerpendicularUnit3D(const Point<DIM, real_number> &v, Point<DIM, real_number> &perp1, Point<DIM, real_number> &perp2)
+{
+	// return a pair of perpendicular vectors to v
+	if (v.get(0) == 0 && v.get(1) == 0 && v.get(2) != 0) // edge case v parallel to z axis (0,0,1)
+	{
+		perp1 = {1.0, 0.0, 0.0};
+		perp2 = {0.0, 1.0, 0.0};
+	}
+	else
+	{
+		perp1 = {v.get(1), -v.get(0), 0.0};
+		normalizeVector(perp1);
+		perp2 = crossProduct3D(v, perp1);
+	}
+}
+
+inline __device__ __host__ std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<DIM, real_number> &r, const Point<DIM, real_number> &normal, real_number dp)
+{
+	// aplies offset to a vector and returns the vectors pointing at the virtual wall particles
+	// r needs to be pointing to the wall particle
+
+	Point<DIM, real_number> offset_1 = -0.5 * normal * dp; // offset from wall to first particle
+	Point<DIM, real_number> offset_2 = -1.0 * normal * dp; // offset from first to second particle, and from second to third
+	std::array<Point<DIM, real_number>, 3> r_virtual;
+	r_virtual[0] = r + offset_1;
+	r_virtual[1] = r_virtual[0] + offset_2;
+	r_virtual[2] = r_virtual[1] + offset_2;
+
+	return r_virtual;
 }
 
 inline __device__ __host__ Point<DIM, real_number> ApplyRotation(const Point<DIM, real_number> x, const real_number theta, const Point<DIM, real_number> centre)

@@ -28,7 +28,7 @@ void AddFlatWallModNewBC(particles &vd,
 						 const size_t particle_type,
 						 const Point<DIM, real_number> given_normal,
 						 const real_number given_kappa = 0.0,
-						const real_number obstacle_omega = 0.0);
+						 const real_number obstacle_omega = 0.0);
 
 bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 bool isBelowLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
@@ -79,6 +79,23 @@ public:
 	~CylinderObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
 	bool isInside_minEps(Point<DIM, real_number> P); // for outer cylinder in taylor couette
+	void AddObstacle(particles &vd);
+};
+
+class SphereObstacle : public Obstacle
+{
+private:
+	real_number Radius_;
+
+public:
+	SphereObstacle(real_number Radius,
+				   Point<DIM, real_number> centre,
+				   const Parameters &p,
+				   Point<DIM, real_number> vel = {0.0, 0.0, 0.0},
+				   real_number omega = 0.0,
+				   real_number rf = 1.0);
+	~SphereObstacle() override = default;
+	bool isInside(Point<DIM, real_number> P) override;
 	void AddObstacle(particles &vd);
 };
 

@@ -35,6 +35,7 @@ typedef double real_number;
 #define ELLIPSE 12
 #define DAM_BREAK 13
 #define TRIANGLE_TEST 14
+#define SPHERE 15
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
@@ -380,10 +381,31 @@ public:
         file << "BC_TYPE: " << BC_TYPE << std::endl;
         file << "DENSITY_TYPE: " << DENSITY_TYPE << std::endl;
         file << "WRITER: " << WRITER << std::endl;
-        file << "length={" << length[0] << "," << length[1] << "}" << std::endl;
-        file << "bc={" << bc[0] << "," << bc[1] << "}" << std::endl;
-        file << "Nfluid={" << Nfluid[0] << "," << Nfluid[1] << "}" << std::endl;
-        file << "Nboundary={" << Nboundary[0] << "," << Nboundary[1] << "}" << std::endl;
+        if constexpr (DIM == 2)
+        {
+            file << "length={" << length[0] << "," << length[1] << "}" << std::endl;
+            file << "bc={" << bc[0] << "," << bc[1] << "}" << std::endl;
+            file << "Nfluid={" << Nfluid[0] << "," << Nfluid[1] << "}" << std::endl;
+            file << "Nboundary={" << Nboundary[0] << "," << Nboundary[1] << "}" << std::endl;
+            file << "gravity_vector: {" << gravity_vector[0] << "," << gravity_vector[1] << "}" << std::endl;
+            file << "vw_top: {" << vw_top[0] << "," << vw_top[1] << "}" << std::endl;
+            file << "vw_bottom: {" << vw_bottom[0] << "," << vw_bottom[1] << "}" << std::endl;
+            file << "ObstacleCenter: {" << ObstacleCenter[0] << "," << ObstacleCenter[1] << "}" << std::endl;
+            file << "ObstacleVelocity: {" << ObstacleVelocity[0] << "," << ObstacleVelocity[1] << "}" << std::endl;
+        }
+        else if constexpr (DIM == 3)
+        {
+            file << "length={" << length[0] << "," << length[1] << "," << length[2] << "}" << std::endl;
+            file << "bc={" << bc[0] << "," << bc[1] << "," << bc[2] << "}" << std::endl;
+            file << "Nfluid={" << Nfluid[0] << "," << Nfluid[1] << "," << Nfluid[2] << "}" << std::endl;
+            file << "Nboundary={" << Nboundary[0] << "," << Nboundary[1] << "," << Nboundary[2] << "}" << std::endl;
+            file << "gravity_vector: {" << gravity_vector[0] << "," << gravity_vector[1] << "," << gravity_vector[2] << "}" << std::endl;
+            file << "vw_top: {" << vw_top[0] << "," << vw_top[1] << "," << vw_top[2] << "}" << std::endl;
+            file << "vw_bottom: {" << vw_bottom[0] << "," << vw_bottom[1] << "," << vw_bottom[2] << "}" << std::endl;
+            file << "ObstacleCenter: {" << ObstacleCenter[0] << "," << ObstacleCenter[1] << "," << ObstacleCenter[2] << "}" << std::endl;
+            file << "ObstacleVelocity: {" << ObstacleVelocity[0] << "," << ObstacleVelocity[1] << "," << ObstacleVelocity[2] << "}" << std::endl;
+        }
+
         file << "LengthScale: " << LengthScale << std::endl;
         file << "rf: " << rf << std::endl;
         file << "H: " << H << std::endl;
@@ -398,10 +420,7 @@ public:
         file << "cbar: " << cbar << std::endl;
         file << "B: " << B << std::endl;
         file << "xi: " << xi << std::endl;
-        file << "gravity_vector: {" << gravity_vector[0] << "," << gravity_vector[1] << "}" << std::endl;
         file << "gravity: " << gravity << std::endl;
-        file << "vw_top: {" << vw_top[0] << "," << vw_top[1] << "}" << std::endl;
-        file << "vw_bottom: {" << vw_bottom[0] << "," << vw_bottom[1] << "}" << std::endl;
         file << "MassFluid: " << MassFluid << std::endl;
         file << "MassBound: " << MassBound << std::endl;
         file << "nu: " << nu << std::endl;
@@ -411,8 +430,6 @@ public:
         file << "t_end: " << t_end << std::endl;
         file << "CFLnumber: " << CFLnumber << std::endl;
         file << "write_const: " << write_const << std::endl;
-        file << "ObstacleCenter: {" << ObstacleCenter[0] << "," << ObstacleCenter[1] << "}" << std::endl;
-        file << "ObstacleVelocity: {" << ObstacleVelocity[0] << "," << ObstacleVelocity[1] << "}" << std::endl;
         file << "ObstacleOmega: " << ObstacleOmega << std::endl;
         file << "Rin: " << Rin << std::endl;
         file << "Rout: " << Rout << std::endl;

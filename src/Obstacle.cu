@@ -206,6 +206,67 @@ void CylinderObstacle::AddObstacle(particles &vd)
     }
 }
 
+// SphereObstacle class
+SphereObstacle::SphereObstacle(real_number Radius,
+                               Point<DIM, real_number> centre,
+                               const Parameters &p,
+                               Point<DIM, real_number> vel,
+                               real_number omega,
+                               real_number rf) : Obstacle(centre, p, vel, omega, rf), Radius_(Radius) {};
+
+bool SphereObstacle::isInside(Point<DIM, real_number> P)
+{
+    bool is_inside = false;
+    real_number tmp = (P.get(0) - Centre_.get(0)) * (P.get(0) - Centre_.get(0)) + (P.get(1) - Centre_.get(1)) * (P.get(1) - Centre_.get(1)) + (P.get(2) - Centre_.get(2)) * (P.get(2) - Centre_.get(2));
+    if (tmp <= Radius_ * Radius_)
+    {
+        is_inside = true;
+    }
+    return is_inside;
+}
+
+void SphereObstacle::AddObstacle(particles &vd)
+{
+    const real_number dx_self = params_.dp / refine_factor;
+    const real_number sphere_area = 4.0 * M_PI * Radius_ * Radius_;
+    const real_number area_element = dx_self * dx_self;
+
+    const unsigned int Npoints = ceil(sphere_area / area_element);
+    const real_number NpointsReal = static_cast<real_number>(Npoints);
+
+    const real_number area_element_actual = sphere_area / NpointsReal; // not exactly area_element since sphere area need not be an exact multiple of area_element
+
+    Point<DIM, real_number> SpherePositon;
+    const real_number golden_ratio = (1.0 + sqrt(5.0)) / 2.0;
+
+    for (int k = 1; k < Npoints + 1; k++)
+    {
+        real_number latitude = asin((2.0 * k - NpointsReal - 1.0) / NpointsReal);
+        real_number longitude = 2.0 * M_PI * k / golden_ratio;
+
+        SpherePositon.get(0) = Radius_ * cos(longitude) * cos(latitude);
+        SpherePositon.get(1) = Radius_ * sin(longitude) * cos(latitude);
+        SpherePositon.get(2) = Radius_ * sin(latitude);
+
+        vd.add();
+        vd.template getLastProp<vd0_type>() = OBSTACLE;
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.getLastPos()[xyz] = Centre_.get(xyz) + SpherePositon.get(xyz); // + ((real_number)rand() / RAND_MAX - 0.5) * dp;
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd8_normal>()[xyz] = 100.0 * SpherePositon.get(xyz);
+            vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+        }
+
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params_.rho0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = area_element_actual;
+        vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+    }
+}
 // Ellipse class
 EllipticObstacle::EllipticObstacle(real_number Major,
                                    real_number Minor,
@@ -321,11 +382,11 @@ RectangleObstacle::RectangleObstacle(Point<DIM, real_number> centre,
                                      real_number omega,
                                      real_number rf) : Obstacle(centre, p, vel, omega, rf), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 {
-    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - BaseLength_ / 2.0f,
-                                         Centre_.get(1) - HeigthLength_ / 2.0f};
+    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - BaseLength_ / 2.0,
+                                         Centre_.get(1) - HeigthLength_ / 2.0};
 
-    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 2.0f,
-                                          Centre_.get(1) + HeigthLength_ / 2.0f};
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 2.0,
+                                          Centre_.get(1) + HeigthLength_ / 2.0};
 
     // LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - (((real_number)BaseLength_ - 1.0) * params_.dp) / 2.0,
     //                                 Centre_.get(1) - (((real_number)HeigthLength_ - 1.0) * params_.dp) / 2.0};
@@ -395,14 +456,14 @@ TriangleObstacle::TriangleObstacle(Point<DIM, real_number> centre,
                                    real_number omega,
                                    real_number rf) : Obstacle(centre, p, vel, omega, rf), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 {
-    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - 2.0f * BaseLength_ / 3.0f,
-                                         Centre_.get(1) - HeigthLength_ / 3.0f};
+    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - 2.0 * BaseLength_ / 3.0,
+                                         Centre_.get(1) - HeigthLength_ / 3.0};
 
-    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
-                                          Centre_.get(1) - HeigthLength_ / 3.0f};
+    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0,
+                                          Centre_.get(1) - HeigthLength_ / 3.0};
 
-    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
-                                          Centre_.get(1) + 2.0f * HeigthLength_ / 3.0f};
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0,
+                                          Centre_.get(1) + 2.0 * HeigthLength_ / 3.0};
 
     ContainingRectangle_ = Box<DIM, real_number>(LowerLeft_, UpperRight_);
 }
@@ -448,14 +509,14 @@ TriangleTestObstacle::TriangleTestObstacle(Point<DIM, real_number> centre,
                                            real_number omega,
                                            real_number rf) : Obstacle(centre, p, vel, omega, rf), BaseLength_(BaseLength), HeigthLength_(HeigthLength)
 {
-    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - 2.0f * BaseLength_ / 3.0f,
-                                         Centre_.get(1) - HeigthLength_ / 3.0f};
+    LowerLeft_ = Point<DIM, real_number>{Centre_.get(0) - 2.0 * BaseLength_ / 3.0,
+                                         Centre_.get(1) - HeigthLength_ / 3.0};
 
-    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
-                                          Centre_.get(1) - HeigthLength_ / 3.0f};
+    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0,
+                                          Centre_.get(1) - HeigthLength_ / 3.0};
 
-    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0f,
-                                          Centre_.get(1) + 2.0f * HeigthLength_ / 3.0f};
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + BaseLength_ / 3.0,
+                                          Centre_.get(1) + 2.0 * HeigthLength_ / 3.0};
 
     ContainingRectangle_ = Box<DIM, real_number>(LowerLeft_, UpperRight_);
 }
@@ -514,7 +575,7 @@ void TriangleTestObstacle::AddObstacle(particles &vd)
     const real_number sin_theta = HeigthLength_ / HypothenuseLength;
     const real_number cos_theta = BaseLength_ / HypothenuseLength;
     const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
-    const Point<DIM, real_number> DiagNormal{-10.0f * sin_theta, 10.0f * cos_theta};
+    const Point<DIM, real_number> DiagNormal{-10.0 * sin_theta, 10.0 * cos_theta};
     AddFlatWallModNewBC(vd, 0, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, DiagNormal, AngularVelocity_);
 }
 
@@ -527,11 +588,11 @@ TriangleEqui::TriangleEqui(Point<DIM, real_number> centre,
                            real_number rf) : Obstacle(centre, p, vel, omega, rf), SideLength_(sidelength)
 {
 
-    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0f) * SideLength_ / 6.0f,
-                                          Centre_.get(1) + SideLength_ / 2.0f};
-    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0f) * SideLength_ / 6.0f,
-                                          Centre_.get(1) - SideLength_ / 2.0f};
-    TriangleTip_ = Point<DIM, real_number>{Centre_.get(0) - sqrtf(3.0f) * SideLength_ / 3.0f,
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0) * SideLength_ / 6.0,
+                                          Centre_.get(1) + SideLength_ / 2.0};
+    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0) * SideLength_ / 6.0,
+                                          Centre_.get(1) - SideLength_ / 2.0};
+    TriangleTip_ = Point<DIM, real_number>{Centre_.get(0) - sqrtf(3.0) * SideLength_ / 3.0,
                                            Centre_.get(1)};
 
     LowerLeft_ = Point<DIM, real_number>{TriangleTip_.get(0),
@@ -557,8 +618,8 @@ void TriangleEqui::AddObstacle(particles &vd)
 
     // Inclined walls
 
-    const real_number cos_theta = sqrtf(3.0) / 2.0f;
-    const real_number sin_theta = 1 / 2.0f;
+    const real_number cos_theta = sqrtf(3.0) / 2.0;
+    const real_number sin_theta = 1 / 2.0;
     const Point<DIM, real_number> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
     Point<DIM, real_number> DiagoffsetNW = Diagoffset;
     DiagoffsetNW.get(0) = -1.0 * DiagoffsetNW.get(0);
