@@ -3,11 +3,13 @@ clear all; clc; close all;
 set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultTextInterpreter', 'latex');
-set(groot, 'defaultAxesFontSize', 10);
-set(groot, 'defaultLineLineWidth', 1.5);
-set(groot, 'defaultLineMarkerSize', 8);
-set(groot, 'defaultFigurePosition', [1440 0 600 600]);
-
+set(groot, 'defaultAxesFontSize', 11);
+set(groot, 'defaultLineLineWidth', 1);
+set(groot, 'defaultLineMarkerSize', 6);
+% This is for exportgraphics
+set(groot, 'defaultFigureUnits', 'centimeters');
+% set(groot, 'defaultFigurePosition', [0, 0, 8.5, 6.0]); %single column
+set(groot, 'defaultFigurePosition', [0, 0, 16.0, 10.0]); %double column
 Hconst = 1;
 dim = 2;
 rho0 = 1;
@@ -25,6 +27,7 @@ L = 1;
 params = [g nu L];
 
 E_New = zeros(steps(end) - steps(1) + 1, length(res));
+E_NewConstV = zeros(steps(end) - steps(1) + 1, length(res));
 E_Old = zeros(steps(end) - steps(1) + 1, length(res));
 umax_new = zeros(steps(end) - steps(1) + 1, length(res));
 umax_old = zeros(steps(end) - steps(1) + 1, length(res));
@@ -35,12 +38,19 @@ dirname = 'poiseuilleNew';
 for k = 1:length(steps)
     nfile = steps(k);
 
-    dataNew1 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_12_30_1rf_1prc/file'], nfile, ['30 new'], rho0, dim, Hconst);
-    dataNew2 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_24_60_1rf_1prc/file'], nfile, ['60 new'], rho0, dim, Hconst);
-    dataNew3 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_36_90_1rf_1prc/file'], nfile, ['90 new'], rho0, dim, Hconst);
-    dataNew4 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_48_120_1rf_1prc/file'], nfile, ['120 new'], rho0, dim, Hconst);
-    dataNew5 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_72_180_1rf_1prc/file'], nfile, ['180 new'], rho0, dim, Hconst);
-    dataNew6 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_96_240_1rf_1prc/file'], nfile, ['240 new'], rho0, dim, Hconst);
+    % dataNew1 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_12_30_1rf_1prc/file'], nfile, ['30 new'], rho0, dim, Hconst);
+    % dataNew2 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_24_60_1rf_1prc/file'], nfile, ['60 new'], rho0, dim, Hconst);
+    % dataNew3 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_36_90_1rf_1prc/file'], nfile, ['90 new'], rho0, dim, Hconst);
+    % dataNew4 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_48_120_1rf_1prc/file'], nfile, ['120 new'], rho0, dim, Hconst);
+    % dataNew5 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_72_180_1rf_1prc/file'], nfile, ['180 new'], rho0, dim, Hconst);
+    % dataNew6 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_96_240_1rf_1prc/file'], nfile, ['240 new'], rho0, dim, Hconst);
+
+    dataNewConstV1 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_12_30_1rf_1prc/file'], nfile, ['30 new constV'], rho0, dim, Hconst);
+    dataNewConstV2 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_24_60_1rf_1prc/file'], nfile, ['60 new constV'], rho0, dim, Hconst);
+    dataNewConstV3 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_36_90_1rf_1prc/file'], nfile, ['90 new constV'], rho0, dim, Hconst);
+    dataNewConstV4 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_48_120_1rf_1prc/file'], nfile, ['120 new constV'], rho0, dim, Hconst);
+    dataNewConstV5 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_72_180_1rf_1prc/file'], nfile, ['180 new constV'], rho0, dim, Hconst);
+    dataNewConstV6 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_new_differential_ConstV_96_240_1rf_1prc/file'], nfile, ['240 new constV'], rho0, dim, Hconst);
 
     dataOld1 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_old_differential_12_30_1rf_1prc/file'], nfile, ['30 old'], rho0, dim, Hconst);
     dataOld2 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_old_differential_24_60_1rf_1prc/file'], nfile, ['60 old'], rho0, dim, Hconst);
@@ -49,10 +59,11 @@ for k = 1:length(steps)
     dataOld5 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_old_differential_72_180_1rf_1prc/file'], nfile, ['180 old'], rho0, dim, Hconst);
     dataOld6 = ParticleData(['../CSV_Data/' dirname '/Poiseuille_old_differential_96_240_1rf_1prc/file'], nfile, ['240 old'], rho0, dim, Hconst);
 
-    setNew = {dataNew1 dataNew2 dataNew3 dataNew4 dataNew5 dataNew6};
+    % setNew = {dataNew1 dataNew2 dataNew3 dataNew4 dataNew5 dataNew6};
+    setConstV = {dataNewConstV1 dataNewConstV2 dataNewConstV3 dataNewConstV4 dataNewConstV5 dataNewConstV6};
     setOld = {dataOld1 dataOld2 dataOld3 dataOld4 dataOld5 dataOld6};
 
-    umax_new(k, :) = [max(dataNew1.Velocity(:, 1)) max(dataNew2.Velocity(:, 1)) max(dataNew3.Velocity(:, 1)) max(dataNew4.Velocity(:, 1)) max(dataNew5.Velocity(:, 1)) max(dataNew6.Velocity(:, 1))];
+    % umax_new(k, :) = [max(dataNew1.Velocity(:, 1)) max(dataNew2.Velocity(:, 1)) max(dataNew3.Velocity(:, 1)) max(dataNew4.Velocity(:, 1)) max(dataNew5.Velocity(:, 1)) max(dataNew6.Velocity(:, 1))];
     umax_old(k, :) = [max(dataOld1.Velocity(:, 1)) max(dataOld2.Velocity(:, 1)) max(dataOld3.Velocity(:, 1)) max(dataOld4.Velocity(:, 1)) max(dataOld5.Velocity(:, 1)) max(dataOld6.Velocity(:, 1))];
 
     plot_setting = 0;
@@ -62,7 +73,8 @@ for k = 1:length(steps)
     %     plot_setting = 1;
     % end
 
-    E_New(k, :) = ComputeErrorAndPlotPoiseuille(setNew, plot_setting, params, restriction_setting);
+    % E_New(k, :) = ComputeErrorAndPlotPoiseuille(setNew, plot_setting, params, restriction_setting);
+    E_NewConstV(k, :) = ComputeErrorAndPlotPoiseuille(setConstV, plot_setting, params, restriction_setting);
     E_Old(k, :) = ComputeErrorAndPlotPoiseuille(setOld, plot_setting, params, restriction_setting);
 
     waitbar(k / nn, h, sprintf('Progress: %d percent ..', round((k / nn) * 100)));
@@ -71,49 +83,50 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-save('Poiseuille2.mat', 'E_New', 'E_Old', 'umax_new', 'umax_old', 'res', 'steps');
+% save('Poiseuille2.mat', 'E_New', 'E_Old', 'umax_new', 'umax_old', 'res', 'steps');
 % load('Poiseuille2.mat');
 close(h);
 
-figure; hold on;
-plot(steps, umax_new(:, 1), 'r-', 'DisplayName', '30 new');
-plot(steps, umax_new(:, 2), 'g-', 'DisplayName', '60 new');
-plot(steps, umax_new(:, 3), 'b-', 'DisplayName', '90 new');
-plot(steps, umax_new(:, 4), 'k-', 'DisplayName', '120 new');
-plot(steps, umax_new(:, 5), 'm-', 'DisplayName', '180 new');
-plot(steps, umax_new(:, 6), 'y-', 'DisplayName', '240 new');
-% plot(steps, umax_old(:, 1), 'r:', 'DisplayName', '30 old');
-% plot(steps, umax_old(:, 2), 'g:', 'DisplayName', '60 old');
-% plot(steps, umax_old(:, 3), 'b:', 'DisplayName', '90 old');
-% plot(steps, umax_old(:, 4), 'k:', 'DisplayName', '120 old');
-% plot(steps, umax_old(:, 5), 'm:', 'DisplayName', '180 old');
-% plot(steps, umax_old(:, 6), 'y:', 'DisplayName', '240 old');
-yline(0.125, 'k--', 'DisplayName', 'Analytical');
-legend('Location', 'best');
+% figure; hold on;
+% plot(steps, umax_new(:, 1), 'r-', 'DisplayName', '30 new');
+% plot(steps, umax_new(:, 2), 'g-', 'DisplayName', '60 new');
+% plot(steps, umax_new(:, 3), 'b-', 'DisplayName', '90 new');
+% plot(steps, umax_new(:, 4), 'k-', 'DisplayName', '120 new');
+% plot(steps, umax_new(:, 5), 'm-', 'DisplayName', '180 new');
+% plot(steps, umax_new(:, 6), 'y-', 'DisplayName', '240 new');
+% % plot(steps, umax_old(:, 1), 'r:', 'DisplayName', '30 old');
+% % plot(steps, umax_old(:, 2), 'g:', 'DisplayName', '60 old');
+% % plot(steps, umax_old(:, 3), 'b:', 'DisplayName', '90 old');
+% % plot(steps, umax_old(:, 4), 'k:', 'DisplayName', '120 old');
+% % plot(steps, umax_old(:, 5), 'm:', 'DisplayName', '180 old');
+% % plot(steps, umax_old(:, 6), 'y:', 'DisplayName', '240 old');
+% yline(0.125, 'k--', 'DisplayName', 'Analytical');
+% legend('Location', 'best');
 
-figure; hold on;
-plot(steps, log(E_New(:, 1)), 'r-', 'DisplayName', '30 new');
-plot(steps, log(E_New(:, 2)), 'g-', 'DisplayName', '60 new');
-plot(steps, log(E_New(:, 3)), 'b-', 'DisplayName', '90 new');
-plot(steps, log(E_New(:, 4)), 'k-', 'DisplayName', '120 new');
-plot(steps, log(E_New(:, 5)), 'm-', 'DisplayName', '180 new');
-plot(steps, log(E_New(:, 6)), 'y-', 'DisplayName', '240 new');
-% plot(steps, log(E_Old(:, 1)), 'r:', 'DisplayName', '30 old');
-% plot(steps, log(E_Old(:, 2)), 'g:', 'DisplayName', '60 old');
-% plot(steps, log(E_Old(:, 3)), 'b:', 'DisplayName', '90 old');
-% plot(steps, log(E_Old(:, 4)), 'k:', 'DisplayName', '120 old');
-% plot(steps, log(E_Old(:, 5)), 'm:', 'DisplayName', '180 old');
-% plot(steps, log(E_Old(:, 6)), 'y:', 'DisplayName', '240 old');
-legend('Location', 'best');
+% figure; hold on;
+% plot(steps, log(E_New(:, 1)), 'r-', 'DisplayName', '30 new');
+% plot(steps, log(E_New(:, 2)), 'g-', 'DisplayName', '60 new');
+% plot(steps, log(E_New(:, 3)), 'b-', 'DisplayName', '90 new');
+% plot(steps, log(E_New(:, 4)), 'k-', 'DisplayName', '120 new');
+% plot(steps, log(E_New(:, 5)), 'm-', 'DisplayName', '180 new');
+% plot(steps, log(E_New(:, 6)), 'y-', 'DisplayName', '240 new');
+% % plot(steps, log(E_Old(:, 1)), 'r:', 'DisplayName', '30 old');
+% % plot(steps, log(E_Old(:, 2)), 'g:', 'DisplayName', '60 old');
+% % plot(steps, log(E_Old(:, 3)), 'b:', 'DisplayName', '90 old');
+% % plot(steps, log(E_Old(:, 4)), 'k:', 'DisplayName', '120 old');
+% % plot(steps, log(E_Old(:, 5)), 'm:', 'DisplayName', '180 old');
+% % plot(steps, log(E_Old(:, 6)), 'y:', 'DisplayName', '240 old');
+% legend('Location', 'best');
 
 % central_step = 100; avg_window = 2;
 % E_New_avg = mean(E_New(central_step - avg_window:central_step + avg_window, :), 1);
 % E_Old_avg = mean(E_Old(central_step - avg_window:central_step + avg_window, :), 1);
 
-E_New_avg = E_New(end, :);
+% E_New_avg = E_New(end, :);
+E_NewConstV_avg = E_NewConstV(end, :);
 E_Old_avg = E_Old(end, :);
 
-pnew = polyfit(log10(hstep), log10(E_New_avg), 1);
+pnew = polyfit(log10(hstep), log10(E_NewConstV_avg), 1);
 pold = polyfit(log10(hstep), log10(E_Old_avg), 1);
 
 % Define the range for the reference lines based on log10(hstep)
@@ -126,24 +139,33 @@ offset_2 = -0.1;
 % Reference line with slope -1, shifted up
 y1 = log10(E_Old_avg(1)) + (1) * (x_range - log10(hstep(1))) + offset_1;
 % Reference line with slope -2, shifted down
-y2 = log10(E_New_avg(1)) + (2) * (x_range - log10(hstep(1))) + offset_2;
+y2 = log10(E_NewConstV(1)) + (2) * (x_range - log10(hstep(1))) + offset_2;
 
 figure; hold on;
-plot(log10(hstep), log10(E_New_avg), 's-', 'Markersize', 10);
-plot(log10(hstep), log10(E_Old_avg), 's-', 'Markersize', 10);
-% plot(log(hstep), pnew(1) * log(hstep) + pnew(2), 'k--');
-% plot(log(hstep), pold(1) * log(hstep) + pold(2), 'k--');
+plot(log10(hstep), log10(E_NewConstV), 'ro-');
+% plot(log10(hstep), log10(E_NewConstV_avg), 's-', 'Markersize', 10);
+plot(log10(hstep), log10(E_Old_avg), 'bo-');
 
-plot(x_range, y1, 'r');
+plot(x_range, y1, '--k');
 plot(x_range, y2, 'k');
 
-legend('E New', 'E Old', 'Slope 1', 'Slope 2', 'Location', 'bestoutside');
-xlabel('$\log_{10}(h)$');
+legend('New BC', 'Old BC', 'Slope 1', 'Slope 2', 'Location', 'bestoutside', 'box', 'off');
+xlabel('$h$');
 ylabel('$\log_{10}(L_1)$');
-% title('Error Convergence with Reference Slopes');
-pos = get(gca, 'Position');
+% pos = get(gca, 'Position');
+
 txt = {['slope new = ' num2str(pnew(1))]; [' slope old = ' num2str(pold(1))]};
-text(pos(1) + 0.6, pos(2) + 0.1, txt, 'Units', 'normalized');
+txt
+
+ticloc = fliplr(log10(hstep));
+ticlabels = {'$1/240$', '$1/180$', '$1/120$', '$1/90$', '$1/60$', '$1/30$'};
+
+xticks(ticloc);
+xticklabels(ticlabels);
+
+set(gca, 'FontSize', 11); % Adjust axes font size
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+exportgraphics(gcf, 'LatexFigures/PoiseuilleOrder.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 function [ux, uy] = Poiseuille_Analytical(y, params)
     g = params(1);

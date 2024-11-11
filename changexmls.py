@@ -28,6 +28,6 @@ def update_value_on_folder(folder_path, category, field, new_value):
             print(f"Updated {filename}")
 
 # Example usage:
-folder_path = "XML/poiseuilleDiff/"  # Replace with the actual folder path
-new_val = 1.0
-update_value_on_folder(folder_path, 'physics', 'Bfactor', new_val)
+folder_path = "XML/poiseuilleDiffConstV/"  # Replace with the actual folder path
+new_val = "ConstV"
+update_value_on_folder(folder_path, 'simulation', 'custom_string', new_val)

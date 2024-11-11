@@ -3,46 +3,16 @@ clear all; close all; clc;
 set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultTextInterpreter', 'latex');
-set(groot, 'defaultAxesFontSize', 16);
+set(groot, 'defaultAxesFontSize', 11);
 set(groot, 'defaultLineLineWidth', 1.5);
 set(groot, 'defaultLineMarkerSize', 8);
-set(groot, 'defaultFigurePosition', [1440 0 600 600]);
 
-dx = 0.1;
-kappa_max = 1 / dx;
-kappa_max_2 = 1 / (2 * dx);
-kappa_max_3 = 1 / (3 * dx);
-kappa_grid = linspace(0, 2 * kappa_max, 1000);
-vol = curvedVol(kappa_grid, dx);
-vref = dx ^ 2;
+% This is for exportgraphics
+set(groot, 'defaultFigureUnits', 'centimeters');
+% set(groot, 'defaultFigurePosition', [0, 0, 8.5, 6.0]); %single column
+set(groot, 'defaultFigurePosition', [0, 0, 16.0, 10.0]); %double column
 
-% figure; hold on;
-% plot(kappa_grid, vol(1, :), 'r-');
-% plot(kappa_grid, vol(2, :), 'g-');
-% plot(kappa_grid, vol(3, :), 'b-');
-% xline(kappa_max_3, '--', 'k=1/(3\Deltax)');
-% xline(kappa_max_2, '--', 'k=1/(2\Deltax)');
-% xline(kappa_max, '--', 'k=1/\Deltax');
-% yline(vref, '--', 'V_{flat}');
-% xlabel('$\kappa$');
-% ylabel('Volume');
-% legend('first', 'second', 'third');
-
-% r_grid = linspace(dx * 0.1, 30 * dx, 1000);
-% inv_r = 1 ./ r_grid;
-% vol = curvedVol(inv_r, dx);
-
-% figure; hold on;
-% plot(r_grid, vol(1, :), 'r-');
-% plot(r_grid, vol(2, :), 'g-');
-% plot(r_grid, vol(3, :), 'b-');
-% xline(dx, '--', '\Deltax');
-% xline(2 * dx, '--', '2\Deltax');
-% xline(3 * dx, '--', '3\Deltax');
-% yline(vref, '--', 'V_{flat}');
-% xlabel('$R_0$');
-% ylabel('Volume');
-
+MarkerParticleSize = 12;
 R0 = 0.05; dx = 0.01;
 kappa = 1 / R0;
 vols = curvedVol(kappa, dx);
@@ -115,33 +85,31 @@ vec = [cos(th - 2.0 * dtheta), sin(th - 2.0 * dtheta)];
 facc = 1.01;
 plabels = [(facc * R0) * vec; facc * (R0 - 1 * dx) * vec; facc * (R0 - 2 * dx) * vec; facc * (R0 - 3 * dx) * vec];
 % Add lebels to the volumes
-text(virtual_central(1, 1), virtual_central(1, 2), '$V_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(virtual_central(2, 1), virtual_central(2, 2), '$V_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(virtual_central(3, 1), virtual_central(3, 2), '$V_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
+text(virtual_central(1, 1), virtual_central(1, 2), '$V_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(virtual_central(2, 1), virtual_central(2, 2), '$V_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(virtual_central(3, 1), virtual_central(3, 2), '$V_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 % Add the labels along the curves
-text(plabels(1, 1), plabels(1, 2), '$R_0$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline', 'FontSize', 14);
-text(plabels(2, 1), plabels(2, 2), '$R_1$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline', 'FontSize', 14);
-text(plabels(3, 1), plabels(3, 2), '$R_2$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline', 'FontSize', 14);
-text(plabels(4, 1), plabels(4, 2), '$R_3$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline', 'FontSize', 14);
+text(plabels(1, 1), plabels(1, 2), '$R_0$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline');
+text(plabels(2, 1), plabels(2, 2), '$R_1$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline');
+text(plabels(3, 1), plabels(3, 2), '$R_2$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline');
+text(plabels(4, 1), plabels(4, 2), '$R_3$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline');
 
 % Add circular sector for dxwall
 PlotCircularSector(fig1, [0, 0], R0, th - dtheta / 2, th + dtheta / 2, 4, '-', 'r');
 th_offset = -0.25 * dtheta;
 dxlabelpos = 1.02 * R0 * [cos(th + th_offset), sin(th + th_offset)];
-text(dxlabelpos(1), dxlabelpos(2), '$\Delta x$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'FontSize', 14);
+text(dxlabelpos(1), dxlabelpos(2), '$\Delta s$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'baseline');
 % plot marker particles
-plot(pcentral(1), pcentral(2), 'ob', 'MarkerFaceColor', 'b');
-plot(pright(1), pright(2), 'ob', 'MarkerFaceColor', 'b');
-plot(pleft(1), pleft(2), 'ob', 'MarkerFaceColor', 'b');
+plot(pcentral(1), pcentral(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
+plot(pright(1), pright(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
+plot(pleft(1), pleft(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
 axis([-2 * dx, 2 * dx, R0 - 4 * dx, R0 + 1 * dx]);
 axis equal;
-% set(gca, 'Visible', 'off');
-set(gcf, 'Units', 'inches');
-screenposition = get(gcf, 'Position');
-set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print -dpdf -painters epsFig
-print(gcf, 'convex.pdf', '-dpdf', '-bestfit');
+set(gca, 'Visible', 'off');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, 'LatexFigures/convex.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 %%% CONVEX CASE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
 vols = curvedVol(-kappa, dx);
@@ -206,35 +174,33 @@ vec = [cos(th + 1.75 * dtheta), sin(th + 1.75 * dtheta)];
 facc = 0.97;
 plabels = [(facc * R0) * vec; facc * (R0 + 1 * dx) * vec; facc * (R0 + 2 * dx) * vec; facc * (R0 + 3 * dx) * vec];
 % Add lebels to the volumes
-text(virtual_central(1, 1), virtual_central(1, 2), '$V_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(virtual_central(2, 1), virtual_central(2, 2), '$V_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(virtual_central(3, 1), virtual_central(3, 2), '$V_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
+text(virtual_central(1, 1), virtual_central(1, 2), '$V_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(virtual_central(2, 1), virtual_central(2, 2), '$V_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(virtual_central(3, 1), virtual_central(3, 2), '$V_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 % Add the labels along the curves
-text(plabels(1, 1), plabels(1, 2), '$R_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(plabels(2, 1), plabels(2, 2), '$R_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(plabels(3, 1), plabels(3, 2), '$R_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
-text(plabels(4, 1), plabels(4, 2), '$R_3$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'FontSize', 14);
+text(plabels(1, 1), plabels(1, 2), '$R_0$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(plabels(2, 1), plabels(2, 2), '$R_1$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(plabels(3, 1), plabels(3, 2), '$R_2$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+text(plabels(4, 1), plabels(4, 2), '$R_3$', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 % Add circular sector for dxwall
 PlotCircularSector(fig2, [0, 0], R0, th - dtheta / 2, th + dtheta / 2, 4, '-', 'r');
 th_offset = +0.25 * dtheta;
 dxlabelpos = 0.97 * R0 * [cos(th + th_offset), sin(th + th_offset)];
-text(dxlabelpos(1), dxlabelpos(2), '$\Delta x$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'FontSize', 14);
+text(dxlabelpos(1), dxlabelpos(2), '$\Delta s$', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
 % plot marker particles
-plot(pcentral(1), pcentral(2), 'ob', 'MarkerFaceColor', 'b');
-plot(pright(1), pright(2), 'ob', 'MarkerFaceColor', 'b');
-plot(pleft(1), pleft(2), 'ob', 'MarkerFaceColor', 'b');
+plot(pcentral(1), pcentral(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
+plot(pright(1), pright(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
+plot(pleft(1), pleft(2), 'ok', 'MarkerFaceColor', 'k', 'MarkerSize', MarkerParticleSize);
 axis([-2 * dx, 2 * dx, -R0 - 4 * dx, -R0 + 1.0 * dx]);
 axis equal;
-% set(gca, 'Visible', 'off');
-set(gcf, 'Units', 'inches');
-screenposition = get(gcf, 'Position');
-set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print -dpdf -painters epsFig
-print(gcf, 'concave.pdf', '-dpdf', '-bestfit');
+set(gca, 'Visible', 'off');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, 'LatexFigures/concave.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
-%%%% kernel function
+% %%%% kernel function
 h = 1;
 rfine = linspace(0, 3 * h, 1000);
 W = zeros(length(rfine), 1);
@@ -250,11 +216,10 @@ plot(rfine, W, 'k-'); hold on;
 plot(rfine, gradW, 'r-');
 xlabel('$r/h$');
 legend('$W(r)$', '$\nabla W(r)$');
-set(gcf, 'Units', 'inches');
-screenposition = get(gcf, 'Position');
-set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print -dpdf -painters epsFig
-print(gcf, 'kernel.pdf', '-dpdf', '-bestfit');
+
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, 'LatexFigures/kernel.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 function W = kernel(r, h)
 

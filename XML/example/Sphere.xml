@@ -10,13 +10,13 @@
         time="1000"
         write_const="1"
         CFL="1"
-        custom_string=""
+        custom_string="ComputedNormals"
     />
 
     <geometry
         lengthScale="1.0"
         rf="2.0"
-        sizeX="30" sizeY="30" sizeZ="80"
+        sizeX="30" sizeY="30" sizeZ="90"
     />
 
     <physics

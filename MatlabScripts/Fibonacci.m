@@ -1,5 +1,5 @@
 clear all; clc; close all;
-Npoints = 3000;
+Npoints = 1000;
 phi = (1 + sqrt(5)) / 2;
 R = 1;
 xyz = zeros(Npoints, 3);

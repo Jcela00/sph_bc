@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+
+    <simulation
+        scenario="CylinderLattice"
+        bcType="new"
+        bcX="periodic" bcY="periodic"
+        densityType="summation"
+        writerType="vtk"
+        time="10000"
+        write_const="0.01"
+        CFL="1"
+        custom_string=""
+    />
+
+    <geometry
+        lengthScale="0.02"
+        rf="1.0"
+        sizeX="100" sizeY="100" sizeZ="0"
+    />
+
+    <physics
+        rho0="1000.0"
+        nu="1e-6"
+        Bfactor="1.0"
+        gamma="1.0"
+        umax="1.2e-4"
+        gravityX="1.5e-7" gravityY="0.0" gravityZ="0.0"
+        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        vBotX="0.0" vBotY="0.0" vBotZ="0.0"
+    />
+
+    <obstacle 
+        velX="0.0" velY="0.0" velZ="0.0"
+        omega="0.0"
+    />
+
+</configuration>

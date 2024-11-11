@@ -53,6 +53,7 @@ public:
 	Obstacle(const Parameters &p);
 	virtual bool isInside(Point<DIM, real_number> P) = 0;
 	virtual void AddObstacle(particles &vd) = 0;
+	virtual bool isInsidePlusTol(Point<DIM, real_number> P) = 0;
 };
 
 class EmptyObstacle : public Obstacle
@@ -61,6 +62,7 @@ public:
 	EmptyObstacle(const Parameters &p);
 	~EmptyObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd) override;
 };
 
@@ -78,6 +80,7 @@ public:
 					 real_number rf = 1.0);
 	~CylinderObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P) override;
 	bool isInside_minEps(Point<DIM, real_number> P); // for outer cylinder in taylor couette
 	void AddObstacle(particles &vd);
 };
@@ -86,6 +89,7 @@ class SphereObstacle : public Obstacle
 {
 private:
 	real_number Radius_;
+	bool autoNormals_;
 
 public:
 	SphereObstacle(real_number Radius,
@@ -93,9 +97,11 @@ public:
 				   const Parameters &p,
 				   Point<DIM, real_number> vel = {0.0, 0.0, 0.0},
 				   real_number omega = 0.0,
-				   real_number rf = 1.0);
+				   real_number rf = 1.0,
+				   bool autoNormals = false);
 	~SphereObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
 
@@ -117,6 +123,7 @@ public:
 					 real_number rf = 1.0);
 	~EllipticObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 	Point<DIM, real_number> parametricEllipse(real_number theta);
 };
@@ -142,6 +149,7 @@ public:
 					  real_number rf = 1.0);
 	~RectangleObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
 
@@ -165,6 +173,7 @@ public:
 					 real_number rf = 1.0);
 	~TriangleObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
 
@@ -187,6 +196,7 @@ public:
 				 real_number rf = 1.0);
 	~TriangleEqui() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
 
@@ -210,6 +220,7 @@ public:
 						 real_number rf = 1.0);
 	~TriangleTestObstacle() override = default;
 	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
 

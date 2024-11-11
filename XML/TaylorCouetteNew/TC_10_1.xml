@@ -10,7 +10,7 @@
         time="30"
         write_const="10"
         CFL="0.5"
-        custom_string="flatvolume"
+        custom_string="constV"
     />
 
     <geometry

@@ -3,208 +3,217 @@ clear all; close all; clc;
 set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultTextInterpreter', 'latex');
-set(groot, 'defaultAxesFontSize', 16);
-set(groot, 'defaultLineLineWidth', 1.5);
+set(groot, 'defaultAxesFontSize', 11);
+set(groot, 'defaultLineLineWidth', 1);
 set(groot, 'defaultLineMarkerSize', 8);
-set(groot, 'defaultFigurePosition', [1440 0 600 600]);
+% This is for exportgraphics
+set(groot, 'defaultFigureUnits', 'centimeters');
+% set(groot, 'defaultFigurePosition', [0, 0, 8.5, 6.0]); %single column
+set(groot, 'defaultFigurePosition', [0, 0, 16.0, 10.0]); %double column
 
 virtual_color = [0.8, 0.8, 0.8];
-virtual_size = 8;
+virtual_size = 6;
 marker_size = 4;
 vecsize = 0.3;
 
-% Nsine = 27;
-% Ncircle = 40;
-% Nflat = 10;
-% % CIRCLE CURVE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Npoints = Ncircle;
-% R = 1.0;
-% perimeter = 2 * pi * R;
-% rf = 1.0; % refinement factor
-% darc = 2 * pi * R / Npoints;
-% dx = rf * darc;
+Ncircle = 22;
+Nflat = 22;
+Nsine = 32;
+% CIRCLE CURVE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Npoints = Ncircle;
+R = 1.0;
+perimeter = pi * R;
+rf = 1.0; % refinement factor
+darc = pi * R / Npoints;
+dx = rf * darc
 
-% points = zeros(Npoints, 2);
-% normals = zeros(Npoints, 2);
-% curvature = 1 / R;
-% Vref = dx ^ 2;
-% rref = Volume2Radius(Vref);
+points = zeros(Npoints + 1, 2);
+normals = zeros(Npoints + 1, 2);
+curvature = 1 / R;
+Vref = dx ^ 2;
+rref = Volume2Radius(Vref);
 
-% theta = 0;
-% dtheta = 2 * pi / (Npoints);
+theta = 0;
+dtheta = pi / (Npoints);
 
-% for k = 1:Npoints
+for k = 1:Npoints + 1
 
-%     points(k, :) = R * [cos(theta), sin(theta)];
-%     normals(k, :) = [cos(theta), sin(theta)];
-%     theta = theta + dtheta;
-% end
+    points(k, :) = R * [cos(theta), sin(theta)];
+    normals(k, :) = [cos(theta), sin(theta)];
+    theta = theta + dtheta;
+end
 
-% fig1 = figure; hold on;
+fig1 = figure; hold on;
 % PlotCircle(fig1, [0, 0], R, 1, '-');
-% plot(points(:, 1), points(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
-% quiver(points(:, 1), points(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
+thfine = linspace(0, theta - dtheta, 1000);
+plot(R * cos(thfine), R * sin(thfine), '-k');
+plot(points(:, 1), points(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
+quiver(points(:, 1), points(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
 
-% for k = 1:Npoints
-%     [vol] = curvedVol(curvature, dx);
-%     r = Volume2Radius(vol);
-%     ratio = r ./ rref;
-%     first = points(k, :) - 0.5 * dx * normals(k, :);
-%     second = points(k, :) - 1.5 * dx * normals(k, :);
-%     third = points(k, :) - 2.5 * dx * normals(k, :);
-%     sizeofpoint = virtual_size * ratio;
+for k = 1:Npoints + 1
+    [vol] = curvedVol(curvature, dx);
+    r = Volume2Radius(vol);
+    ratio = r ./ rref;
+    first = points(k, :) - 0.5 * dx * normals(k, :);
+    second = points(k, :) - 1.5 * dx * normals(k, :);
+    third = points(k, :) - 2.5 * dx * normals(k, :);
+    sizeofpoint = virtual_size * ratio;
 
-%     if sizeofpoint(1) > 0
-%         plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(1) > 0
+        plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
+    end
 
-%     if sizeofpoint(2) > 0
-%         plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(2) > 0
+        plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
+    end
 
-%     if sizeofpoint(3) > 0
-%         plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(3) > 0
+        plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
+    end
 
-% end
+end
 
-% axis equal;
+axis equal;
 
-% set(gca, 'Visible', 'off');
+set(gca, 'Visible', 'off');
 % set(gcf, 'Units', 'inches');
 % screenposition = get(gcf, 'Position');
 % set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print(gcf, 'circle.pdf', '-dpdf', '-bestfit');
+% print(gcf, 'LatexFigures/circle.pdf', '-dpdf', '-bestfit');
 
-% % FLAT WALL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Npoints = Nflat;
-% L = Npoints - 1;
-% darc = L / (Npoints - 1);
+set(gca, 'FontSize', 11); % Adjust axes font size
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+exportgraphics(gcf, 'LatexFigures/circle.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
-% points = zeros(Npoints, 2);
-% normals = zeros(Npoints, 2);
-% curvature = 0;
-% dx = darc;
-% Vref = dx ^ 2;
-% rref = Volume2Radius(Vref);
+% FLAT WALL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Npoints = Nflat;
+L = pi * R;
+darc = L / (Npoints - 1);
 
-% for k = 1:Npoints
+points = zeros(Npoints, 2);
+normals = zeros(Npoints, 2);
+curvature = 0;
+dx = darc
+Vref = dx ^ 2;
+rref = Volume2Radius(Vref);
 
-%     points(k, :) = [darc * (k - 1), 0];
-%     normals(k, :) = [0 1];
-% end
+for k = 1:Npoints
 
-% fig2 = figure; hold on;
-% plot(points(:, 1), points(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
-% yline(0, 'k', 'LineWidth', 1);
-% quiver(points(:, 1), points(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
+    points(k, :) = [darc * (k - 1), 0];
+    normals(k, :) = [0 1];
+end
 
-% for k = 1:Npoints
-%     [vol] = curvedVol(curvature, dx);
-%     r = Volume2Radius(vol);
-%     ratio = r ./ rref;
-%     first = points(k, :) - 0.5 * dx * normals(k, :);
-%     second = points(k, :) - 1.5 * dx * normals(k, :);
-%     third = points(k, :) - 2.5 * dx * normals(k, :);
-%     sizeofpoint = virtual_size * ratio;
+fig2 = figure; hold on;
+plot(points(:, 1), points(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
+yline(0, 'k', 'LineWidth', 1);
+quiver(points(:, 1), points(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
 
-%     if sizeofpoint(1) > 0
-%         plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
-%     end
+for k = 1:Npoints
+    [vol] = curvedVol(curvature, dx);
+    r = Volume2Radius(vol);
+    ratio = r ./ rref;
+    first = points(k, :) - 0.5 * dx * normals(k, :);
+    second = points(k, :) - 1.5 * dx * normals(k, :);
+    third = points(k, :) - 2.5 * dx * normals(k, :);
+    sizeofpoint = virtual_size * ratio;
 
-%     if sizeofpoint(2) > 0
-%         plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(1) > 0
+        plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
+    end
 
-%     if sizeofpoint(3) > 0
-%         plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(2) > 0
+        plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
+    end
 
-% end
+    if sizeofpoint(3) > 0
+        plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
+    end
 
-% axis equal;
-% set(gca, 'Visible', 'off');
-% set(gcf, 'Units', 'inches');
-% screenposition = get(gcf, 'Position');
-% set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print(gcf, 'flat.pdf', '-dpdf', '-bestfit');
+end
 
-% % SINE WAVE CURVE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Npoints = Nsine;
-% period = 2 * pi;
-% L = sqrt(2) * ellipticE(period, 1/2);
-% darc = L / (Npoints - 1);
-% dx = darc;
-% Vref = dx ^ 2;
-% rref = Volume2Radius(Vref);
-% t = linspace(0, period, Npoints);
+axis equal;
+set(gca, 'Visible', 'off');
+set(gca, 'FontSize', 11); % Adjust axes font size
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+% print(gcf, 'LatexFigures/convex.pdf', '-dpdf');
+exportgraphics(gcf, 'LatexFigures/flat.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
-% positions = zeros(Npoints, 2);
-% normals = zeros(Npoints, 2);
-% curvature = zeros(Npoints, 1);
-% arclength = zeros(Npoints, 1);
+% SINE WAVE CURVE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Npoints = Nsine;
+period = 2 * pi;
+L = sqrt(2) * ellipticE(period, 1/2);
+darc = L / (Npoints - 1);
+dx = darc
+Vref = dx ^ 2;
+rref = Volume2Radius(Vref);
+t = linspace(0, period, Npoints);
 
-% % place first particle at t=0
-% positions(1, :) = [0, 0];
-% normals(1, :) = [-cos(0), 1];
-% normals(1, :) = normals(1, :) ./ norm(normals(1, :));
-% arclength(1) = darc;
-% curvature(1) = sincurvature(0);
+positions = zeros(Npoints, 2);
+normals = zeros(Npoints, 2);
+curvature = zeros(Npoints, 1);
+arclength = zeros(Npoints, 1);
 
-% for k = 1:Npoints - 1
-%     fun = @(phi) paramfun(phi, k, darc);
-%     phi = fzero(fun, t(k)); % equispaced angles as initial guess
+% place first particle at t=0
+positions(1, :) = [0, 0];
+normals(1, :) = [-cos(0), 1];
+normals(1, :) = normals(1, :) ./ norm(normals(1, :));
+arclength(1) = darc;
+curvature(1) = sincurvature(0);
 
-%     positions(k + 1, :) = [phi, sin(phi)];
-%     normals(k + 1, :) = [-cos(phi), 1];
-%     normals(k + 1, :) = normals(k + 1, :) ./ norm(normals(k + 1, :));
-%     arclength(k + 1) = darc;
-%     curvature(k + 1) = sincurvature(phi);
-% end
+for k = 1:Npoints - 1
+    fun = @(phi) paramfun(phi, k, darc);
+    phi = fzero(fun, t(k)); % equispaced angles as initial guess
 
-% tfine = linspace(0, period, 1000);
-% figure; hold on;
-% plot(tfine, sin(tfine), '-k');
-% plot(positions(:, 1), positions(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
-% quiver(positions(:, 1), positions(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
+    positions(k + 1, :) = [phi, sin(phi)];
+    normals(k + 1, :) = [-cos(phi), 1];
+    normals(k + 1, :) = normals(k + 1, :) ./ norm(normals(k + 1, :));
+    arclength(k + 1) = darc;
+    curvature(k + 1) = sincurvature(phi);
+end
 
-% for k = 1:Npoints
-%     vol = curvedVol(curvature(k), darc);
-%     curvature(k);
-%     r = Volume2Radius(vol);
-%     ratio = r ./ rref;
-%     first = positions(k, :) - 0.5 * darc * normals(k, :);
-%     second = positions(k, :) - 1.5 * darc * normals(k, :);
-%     third = positions(k, :) - 2.5 * darc * normals(k, :);
-%     sizeofpoint = virtual_size * ratio;
+tfine = linspace(0, period, 1000);
+figure; hold on;
+plot(tfine, sin(tfine), '-k');
+plot(positions(:, 1), positions(:, 2), 'ko', 'MarkerSize', marker_size, 'MarkerFaceColor', 'k');
+quiver(positions(:, 1), positions(:, 2), normals(:, 1), normals(:, 2), vecsize, 'k');
 
-%     if sizeofpoint(1) > 0
-%         plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
-%     end
+for k = 1:Npoints
+    vol = curvedVol(curvature(k), darc);
+    curvature(k);
+    r = Volume2Radius(vol);
+    ratio = r ./ rref;
+    first = positions(k, :) - 0.5 * darc * normals(k, :);
+    second = positions(k, :) - 1.5 * darc * normals(k, :);
+    third = positions(k, :) - 2.5 * darc * normals(k, :);
+    sizeofpoint = virtual_size * ratio;
 
-%     if sizeofpoint(2) > 0
-%         plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(1) > 0
+        plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
+    end
 
-%     if sizeofpoint(3) > 0
-%         plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
-%     end
+    if sizeofpoint(2) > 0
+        plot(second(1), second(2), 'ko', 'MarkerSize', sizeofpoint(2), 'MarkerFaceColor', virtual_color);
+    end
 
-% end
+    if sizeofpoint(3) > 0
+        plot(third(1), third(2), 'ko', 'MarkerSize', sizeofpoint(3), 'MarkerFaceColor', virtual_color);
+    end
 
-% axis equal;
-% set(gca, 'Visible', 'off');
-% set(gcf, 'Units', 'inches');
-% screenposition = get(gcf, 'Position');
-% set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-% print(gcf, 'sine.pdf', '-dpdf', '-bestfit');
-% % figure;
-% % plot(positions(:, 1), curvature);
+end
 
-% %% check that arcs are equispaced
-% % arc1 = sqrt(2) * ellipticE(positions(1:end - 1, 1), 1/2);
-% % arc2 = sqrt(2) * ellipticE(positions(2:end, 1), 1/2);
-% % darcs = arc2 - arc1;
+axis equal;
+set(gca, 'Visible', 'off');
+set(gca, 'FontSize', 11); % Adjust axes font size
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+exportgraphics(gcf, 'LatexFigures/sine.pdf', 'ContentType', 'vector', 'Resolution', 300);
+
+% figure;
+% plot(positions(:, 1), curvature);
+
+%% check that arcs are equispaced
+% arc1 = sqrt(2) * ellipticE(positions(1:end - 1, 1), 1/2);
+% arc2 = sqrt(2) * ellipticE(positions(2:end, 1), 1/2);
+% darcs = arc2 - arc1;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FLAT WITH LABELS
 % FLAT WALL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -271,10 +280,9 @@ plot(pfluid(1), pfluid(2), 'ok', 'MarkerSize', virtual_size, 'MarkerFaceColor', 
 % axis([-2 4 -4 * dx 4 * dx]);
 axis equal;
 set(gca, 'Visible', 'off');
-set(gcf, 'Units', 'inches');
-screenposition = get(gcf, 'Position');
-set(gcf, 'PaperPosition', [0 0 screenposition(3:4)], 'PaperSize', [screenposition(3:4)]);
-print(gcf, 'flat_scheme.pdf', '-dpdf', '-bestfit');
+set(gca, 'FontSize', 11); % Adjust axes font size
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+exportgraphics(gcf, 'LatexFigures/scheme.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FUNCTIONS %%%%%%%%%%%%%%%%%%%%%%%
 

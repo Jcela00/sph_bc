@@ -133,11 +133,12 @@ inline void ExtrapolateVelocity(vd_type &vd, NN_type &NN)
 
     auto it = vd.getDomainIteratorGPU();
 
-    vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd7_force_t, vd10_omega>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
 
     CUDA_LAUNCH(ExtrapolateVelocityGPU, it, vd.toKernel(), NN.toKernel());
 
-    vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd7_force_t, vd10_omega, vd5_velocity_t>(NN);
+    vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
+
 }
 
 #endif // EXTRAPOLATEVEVELOCITY_HPP

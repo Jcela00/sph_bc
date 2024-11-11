@@ -11,7 +11,6 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
     // Key of the particle a
     unsigned int a;
     GET_PARTICLE_SORT(a, NN);
-    // auto a = GET_PARTICLE(vd); // old unsorted code
 
     // if particle FLUID
     if (vd.template getProp<vd0_type>(a) == FLUID)
@@ -31,7 +30,7 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
 
             if (r2 < _params_gpu_.r_cut2)
             {
-                const real_number r = sqrtf(r2);
+                const real_number r = sqrt(r2);
 
                 if (vd.template getProp<vd0_type>(b) == FLUID)
                 {
@@ -69,7 +68,6 @@ __global__ void CalcDensityGPU_old(vd_type vd, NN_type NN)
     // Key of the particle a
     unsigned int a;
     GET_PARTICLE_SORT(a, NN);
-    // auto a = GET_PARTICLE(vd); // old unsorted code
 
     // if particle FLUID
     if (vd.template getProp<vd0_type>(a) == FLUID)
@@ -89,7 +87,7 @@ __global__ void CalcDensityGPU_old(vd_type vd, NN_type NN)
 
             if (r2 < _params_gpu_.r_cut2)
             {
-                const real_number r = sqrtf(r2);
+                const real_number r = sqrt(r2);
 
                 const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);
                 if (vd.template getProp<vd0_type>(b) == FLUID)

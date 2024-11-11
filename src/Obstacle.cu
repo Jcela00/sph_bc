@@ -126,6 +126,10 @@ bool EmptyObstacle::isInside(Point<DIM, real_number> P)
 {
     return false;
 }
+bool EmptyObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
 void EmptyObstacle::AddObstacle(particles &vd)
 {
 }
@@ -143,6 +147,17 @@ bool CylinderObstacle::isInside(Point<DIM, real_number> P)
     bool is_inside = false;
     real_number tmp = (P.get(0) - Centre_.get(0)) * (P.get(0) - Centre_.get(0)) + (P.get(1) - Centre_.get(1)) * (P.get(1) - Centre_.get(1));
     if (tmp <= Radius_ * Radius_)
+    {
+        is_inside = true;
+    }
+    return is_inside;
+}
+bool CylinderObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    bool is_inside = false;
+    real_number tol = 0.25 * params_.dp;
+    real_number tmp = (P.get(0) - Centre_.get(0)) * (P.get(0) - Centre_.get(0)) + (P.get(1) - Centre_.get(1)) * (P.get(1) - Centre_.get(1));
+    if (tmp <= (Radius_ + tol) * (Radius_ + tol))
     {
         is_inside = true;
     }
@@ -212,7 +227,8 @@ SphereObstacle::SphereObstacle(real_number Radius,
                                const Parameters &p,
                                Point<DIM, real_number> vel,
                                real_number omega,
-                               real_number rf) : Obstacle(centre, p, vel, omega, rf), Radius_(Radius) {};
+                               real_number rf,
+                               bool autoNormals) : Obstacle(centre, p, vel, omega, rf), Radius_(Radius), autoNormals_(autoNormals) {};
 
 bool SphereObstacle::isInside(Point<DIM, real_number> P)
 {
@@ -223,6 +239,10 @@ bool SphereObstacle::isInside(Point<DIM, real_number> P)
         is_inside = true;
     }
     return is_inside;
+}
+bool SphereObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
 }
 
 void SphereObstacle::AddObstacle(particles &vd)
@@ -256,7 +276,11 @@ void SphereObstacle::AddObstacle(particles &vd)
             vd.template getLastProp<vd6_force>()[xyz] = 0.0;
             vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
             vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
-            vd.template getLastProp<vd8_normal>()[xyz] = 100.0 * SpherePositon.get(xyz);
+            if (autoNormals_)
+                vd.template getLastProp<vd8_normal>()[xyz] = 100.0 * SpherePositon.get(xyz);
+            else
+                vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+
             vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
         }
 
@@ -286,13 +310,17 @@ bool EllipticObstacle::isInside(Point<DIM, real_number> P)
     // check if the point is inside the ellipse
     return (Paux.get(0) * Paux.get(0) / (Major_ * Major_) + Paux.get(1) * Paux.get(1) / (Minor_ * Minor_) <= 1.0);
 }
+bool EllipticObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
 
 void EllipticObstacle::AddObstacle(particles &vd)
 {
     // first we need to determine the perimeter of the ellipse
     // we can use c++ std::comp_ellint_2 function
     // first compute eccentricity
-    const real_number e = sqrtf(1.0 - Minor_ * Minor_ / Major_ / Major_);
+    const real_number e = sqrt(1.0 - Minor_ * Minor_ / Major_ / Major_);
     // compute the perimeter
     const real_number perimeter = 4.0 * Major_ * std::comp_ellint_2(e);
     const real_number dx_self = params_.dp / refine_factor;
@@ -404,6 +432,10 @@ bool RectangleObstacle::isInside(Point<DIM, real_number> P)
 {
     return Rectangle_.isInside(P);
 }
+bool RectangleObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
 
 void RectangleObstacle::AddObstacle(particles &vd)
 {
@@ -472,6 +504,10 @@ bool TriangleObstacle::isInside(Point<DIM, real_number> P)
 {
     return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P, params_.dp));
 }
+bool TriangleObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
 
 void TriangleObstacle::AddObstacle(particles &vd)
 {
@@ -490,7 +526,7 @@ void TriangleObstacle::AddObstacle(particles &vd)
 
     //  Hypothenuse wall
     // We want particles spaced roughly by dp
-    const real_number HypothenuseLength = sqrtf(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+    const real_number HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
     const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
     const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
     const real_number sin_theta = HeigthLength_ / HypothenuseLength;
@@ -525,6 +561,10 @@ bool TriangleTestObstacle::isInside(Point<DIM, real_number> P)
 {
     return (ContainingRectangle_.isInside(P) && !isAvobeLine(LowerLeft_, UpperRight_, P, params_.dp));
 }
+bool TriangleTestObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
 
 void TriangleTestObstacle::AddObstacle(particles &vd)
 {
@@ -545,7 +585,7 @@ void TriangleTestObstacle::AddObstacle(particles &vd)
 
     // //  Hypothenuse wall
     // // We want particles spaced roughly by dp
-    // const real_number HypothenuseLength = sqrtf(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+    // const real_number HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
     // const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
     // const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
     // const real_number sin_theta = HeigthLength_ / HypothenuseLength;
@@ -569,7 +609,7 @@ void TriangleTestObstacle::AddObstacle(particles &vd)
 
     //  Hypothenuse wall
     // We want particles spaced roughly by dp
-    const real_number HypothenuseLength = sqrtf(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
+    const real_number HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
     const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
     const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
     const real_number sin_theta = HeigthLength_ / HypothenuseLength;
@@ -588,11 +628,11 @@ TriangleEqui::TriangleEqui(Point<DIM, real_number> centre,
                            real_number rf) : Obstacle(centre, p, vel, omega, rf), SideLength_(sidelength)
 {
 
-    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0) * SideLength_ / 6.0,
+    UpperRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrt(3.0) * SideLength_ / 6.0,
                                           Centre_.get(1) + SideLength_ / 2.0};
-    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrtf(3.0) * SideLength_ / 6.0,
+    LowerRight_ = Point<DIM, real_number>{Centre_.get(0) + sqrt(3.0) * SideLength_ / 6.0,
                                           Centre_.get(1) - SideLength_ / 2.0};
-    TriangleTip_ = Point<DIM, real_number>{Centre_.get(0) - sqrtf(3.0) * SideLength_ / 3.0,
+    TriangleTip_ = Point<DIM, real_number>{Centre_.get(0) - sqrt(3.0) * SideLength_ / 3.0,
                                            Centre_.get(1)};
 
     LowerLeft_ = Point<DIM, real_number>{TriangleTip_.get(0),
@@ -604,6 +644,10 @@ TriangleEqui::TriangleEqui(Point<DIM, real_number> centre,
 bool TriangleEqui::isInside(Point<DIM, real_number> P)
 {
     return (ContainingRectangle_.isInside(P) && !isAvobeLine(TriangleTip_, UpperRight_, P, params_.dp) && !isBelowLine(TriangleTip_, LowerRight_, P, params_.dp));
+}
+bool TriangleEqui::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
 }
 
 void TriangleEqui::AddObstacle(particles &vd)
@@ -618,7 +662,7 @@ void TriangleEqui::AddObstacle(particles &vd)
 
     // Inclined walls
 
-    const real_number cos_theta = sqrtf(3.0) / 2.0;
+    const real_number cos_theta = sqrt(3.0) / 2.0;
     const real_number sin_theta = 1 / 2.0;
     const Point<DIM, real_number> Diagoffset{dxwall * cos_theta, dxwall * sin_theta};
     Point<DIM, real_number> DiagoffsetNW = Diagoffset;

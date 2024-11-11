@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
-	vd.write_frame("After Create Geometry", 0, MainParameters.WRITER);
+	vd.write_frame("AfterCreateGeometry", 0, MainParameters.WRITER);
 
 	for (size_t k = 0; k < vp.size(); k++)
 	{
@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
 
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
+	// This will be the cell list used for CPU calculations
 	auto NN = vd.getCellList(MainParameters.r_cut);
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	vd.updateCellList(NN);
@@ -138,11 +139,11 @@ int main(int argc, char *argv[])
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		// vd.write_frame("After Fluid Vec", 0, MainParameters.WRITER);
+		vd.write_frame("FluidVec", 0, MainParameters.WRITER);
 
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		// vd.write_frame("After Normal Vec", 0, MainParameters.WRITER);
+		vd.write_frame("NormalVec", 0, MainParameters.WRITER);
 
 		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
@@ -155,7 +156,7 @@ int main(int argc, char *argv[])
 	vd.write_frame("Initialization", 0, MainParameters.WRITER);
 	vd.write_frame(AuxParameters.filename, 0, static_cast<double>(0.0), MainParameters.WRITER);
 
-	// move to gpu
+	// move to gpu and get gpu cell list
 	vd.hostToDevicePos();
 	vd.template hostToDeviceProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
 
@@ -163,17 +164,19 @@ int main(int argc, char *argv[])
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
 	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER, 2);
 
-	if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
-	{
-		ExtrapolateVelocity(vd, NN_gpu);
-		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>(RUN_ON_DEVICE);
-	}
+	// if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
+	// {
+	// 	ExtrapolateVelocity(vd, NN_gpu);
+	// 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>(RUN_ON_DEVICE);
+	// }
 
 	// Evolve
 	size_t write = 0;
+	size_t last_write = static_cast<size_t>(MainParameters.write_const * MainParameters.t_end);
+	std::cout << "Last write: " << last_write << std::endl;
 	real_number t = 0.0;
-	std::ofstream avgvelstream(AuxParameters.filename + "_DragLift.csv");
-	timer tot_sim, tot_step;
+	std::ofstream DragFile(AuxParameters.filename + "_DragLift.csv");
+	timer tot_sim;
 	tot_sim.start();
 
 	Vcluster<> &v_cl = create_vcluster();
@@ -207,29 +210,27 @@ int main(int argc, char *argv[])
 		// write the configuration
 		if (write < t * MainParameters.write_const)
 		{
-			std::string timestring = "time" + std::to_string(t);
 
 			// make necessary reductions for computing drag and lift
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
+
 			// send data from GPU to CPU for writing to file
-			// vd.map(RUN_ON_DEVICE);
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
-			// Update CPU cell list for computing vorticity ( and probes )
-			if (MainParameters.SCENARIO == ELLIPSE || MainParameters.PROBES_ENABLED)
-			{
-				vd.updateCellList(NN);
-			}
+			// Update CPU cell list for computing vorticity and probes
+			vd.updateCellList(NN);
 
-			// compute vorticity
-			if (MainParameters.SCENARIO == ELLIPSE)
+			if constexpr (DIM == 2)
 			{
 				CalcVorticity(vd, NN, MainParameters);
 			}
+			else if constexpr (DIM == 3)
+			{
+			}
 
-			// sensor calculation requires ghost and updated cell-list
-			if (MainParameters.PROBES_ENABLED)
+			// probe calculation requires ghost and updated cell-list
+			if (MainParameters.PROBES_ENABLED && write == last_write)
 			{
 				for (size_t k = 0; k < vp.size(); k++) // for each probe
 				{
@@ -243,7 +244,7 @@ int main(int argc, char *argv[])
 			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, static_cast<double>(t), MainParameters.WRITER);
 			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
-			CalcDragLift(t, avgvelstream, VxDragLift, MainParameters, write);
+			CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
 
 			write++;
 
@@ -256,14 +257,11 @@ int main(int argc, char *argv[])
 	tot_sim.stop();
 	std::cout << "Time to complete: " << tot_sim.getwct() << " seconds" << std::endl;
 
+	// Calculate final density statistics to know density fluctuation percentage
 	vd.deviceToHostProp<vd0_type, vd1_rho>();
 
-	// get max density
-	// max_rho = reduce_local<vd0_type, _max_>(vd);
-
-	// // change sign of density for fluid particles to get min using max reduction
 	real_number max_rho, min_rho, avg_rho;
-	int count = 0;
+	unsigned int count = 0;
 	max_rho = -1.0e10;
 	min_rho = 1.0e10;
 	auto part = vd.getDomainIterator();
@@ -276,6 +274,7 @@ int main(int argc, char *argv[])
 			real_number rho = vd.template getProp<vd1_rho>(a);
 			avg_rho += rho;
 			count++;
+
 			if (rho > max_rho)
 			{
 				max_rho = rho;
@@ -288,14 +287,12 @@ int main(int argc, char *argv[])
 		++part;
 	}
 
-	// min_rho = reduce_local<vd1_rho, max>(vd);
 	v_cl.max(max_rho);
 	v_cl.min(min_rho);
 	v_cl.sum(avg_rho);
 	v_cl.sum(count);
 	v_cl.execute();
 	avg_rho /= count;
-	// min_rho = -min_rho;
 
 	real_number deltaRho = max_rho - min_rho;
 	real_number percentFluctuation = deltaRho / MainParameters.rho0 * 100.0;

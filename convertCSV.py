@@ -2,7 +2,20 @@ from paraview.simple import *
 import sys
 import os
 
-def convert_vtk_to_csv(vtk_file, csv_file):
+def convert_vtk_to_csv_old(vtk_file, csv_file):
+    # Load the VTK file
+    reader = OpenDataFile(vtk_file)
+
+    # Save data as CSV
+    writer = CreateWriter(csv_file, reader)
+    writer.FieldAssociation = "Point Data"  # or "Cells"
+    writer.UpdatePipeline()
+
+    # Cleanup
+    Delete(reader)
+    Delete(writer)
+
+def convert_vtk_to_csv_new(vtk_file, csv_file):
     # Load the VTK file
     reader = OpenDataFile(vtk_file)
     
@@ -17,9 +30,17 @@ def convert_vtk_to_csv(vtk_file, csv_file):
     writer.AddTime = 1  # Enable time information
 
     # Write each time step individually if time steps are present
-    for time in reader.TimestepValues:
-        animationScene.TimeKeeper.Time = time  # Set the animation scene to the current time step
-        writer.UpdatePipeline(time)  # Write the current time step
+    if hasattr(reader, 'TimestepValues'):  # Check if the file has time steps
+        for time in reader.TimestepValues:
+            animationScene.TimeKeeper.Time = time  # Set the animation scene to the current time step
+            writer.UpdatePipeline(time)
+    else:
+        # If no time steps are available, write once
+        writer.UpdatePipeline()
+
+    # Cleanup
+    Delete(reader)
+    Delete(writer)
 
 # Get filename and range from command line
 filename = sys.argv[1]
@@ -35,4 +56,8 @@ if not os.path.exists(output_dir):
 for i in range(start, end + 1):
     pvtp_file = f"{filename}_{i}.pvtp"
     csv_file = f"{output_dir}/file_{i}.csv"
-    convert_vtk_to_csv(pvtp_file, csv_file)
+    
+    if "probes" in pvtp_file:
+        convert_vtk_to_csv_old(pvtp_file, csv_file)
+    else:
+        convert_vtk_to_csv_new(pvtp_file, csv_file)

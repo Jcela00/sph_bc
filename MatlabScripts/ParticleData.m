@@ -103,45 +103,6 @@ classdef ParticleData
             obj = ParticleData(obj.filename_base, filenum, obj.BaseName, obj.rho0, obj.dim, obj.Hconst_);
         end
 
-        function [obj, zmatrix] = SPHinterp(obj, xi, yi)
-            %function to interpolate particle properties to a grid defined by the cartesian product of xi and yi
-            % the interpolation is done using the SPH kernel considering particles inside the kernel support
-            % the result is returned in zmatrix
-
-            zmatrix = zeros(length(xi), length(yi));
-
-            for i = 1:length(xi)
-
-                for j = 1:length(yi)
-                    x = xi(i);
-                    y = yi(j);
-                    Wsum = 0;
-
-                    for k = 1:length(obj.FluidIndexes) % loop over fluid particles
-                        % acces the fluid particle index
-                        n = FluidIndexes(k);
-
-                        if (obj.Type(n) == obj.TypeFluid)
-                            r = norm([x, y] - obj.Position(n, 1:2));
-
-                            if (r < 3 * obj.H)
-                                W = obj.kernel(r);
-                                Wsum = Wsum + W * obj.mass / obj.Density(n, 1);
-                                zmatrix(i, j) = zmatrix(i, j) + obj.mass * obj.Velocity(n, 1) * W / obj.Density(n, 1);
-                            end
-
-                        end
-
-                    end
-
-                    zmatrix(i, j) = zmatrix(i, j) / Wsum;
-
-                end
-
-            end
-
-        end
-
         function obj = OnlyBoundaryFluid(obj, fluidorboundary)
 
             if (fluidorboundary ~= 0 && fluidorboundary ~= 1)
@@ -168,27 +129,343 @@ classdef ParticleData
 
         end
 
-        function obj = PlotContour(obj, fig, levels)
+        function [obj zmatrix_cell] = GridDataInterpVelocity(obj, xi, yi, H)
+
+            x = obj.Position(obj.FluidIndexes, 1);
+            y = obj.Position(obj.FluidIndexes, 2);
+            u = obj.Velocity(obj.FluidIndexes, 1);
+            v = obj.Velocity(obj.FluidIndexes, 2);
+
+            Z = obj.Velocity(:, 1);
+
+            [xq, yq] = meshgrid(xi, yi);
+
+            ui = griddata(x, y, u, xq, yq, 'cubic');
+            vi = griddata(x, y, v, xq, yq, 'cubic');
+
+            zmatrix_cell = {ui, vi};
+        end
+
+        function [obj, zmatrix_cell] = SPHinterpVelocity(obj, xi, yi, H, setting)
+            % magnitude is the property to be interpolated
+            % function to interpolate particle properties to a grid defined by the cartesian product of xi and yi
+            % the interpolation is done using the SPH kernel considering particles inside the kernel support
+            % the result is returned in zmatrix
+
+            % setting = 0 for x velocity interpolation
+            % setting = 1 for y velocity interpolation
+            % setting = 2 for both
+            % setting = 3 for velocity magnitude
+
+            if (setting == 0 || setting == 1)
+
+                magnitude = obj.Velocity(:, setting + 1);
+                zmatrix = zeros(length(xi), length(yi));
+
+                total = length(xi) * length(yi);
+
+                for i = 1:length(xi)
+
+                    for j = 1:length(yi)
+
+                        x = xi(i); y = yi(j);
+                        Wsum = 0;
+
+                        for k = 1:length(obj.FluidIndexes) % loop over fluid particles
+                            n = obj.FluidIndexes(k); % acces the fluid particle index
+
+                            r = norm([x, y] - obj.Position(n, 1:2));
+
+                            if (r < 3 * H)
+                                W = obj.kernel(r, H);
+                                Wsum = Wsum + W * obj.mass / obj.Density(n, 1);
+                                zmatrix(i, j) = zmatrix(i, j) + obj.mass * magnitude(n, 1) * W / obj.Density(n, 1);
+                            end
+
+                        end
+
+                        zmatrix(i, j) = zmatrix(i, j) / Wsum;
+
+                        progress = ((i - 1) * length(yi) + j) / total * 100;
+                        fprintf('\rInterpolating: %.2f%%', progress);
+                    end
+
+                end
+
+                zmatrix_cell = {zmatrix};
+
+            elseif (setting == 2)
+                zmatrix_u = zeros(length(xi), length(yi));
+                zmatrix_v = zeros(length(xi), length(yi));
+                zmatrix_w = zeros(length(xi), length(yi));
+
+                pos = obj.Position(obj.FluidIndexes, 1:2);
+                vel = obj.Velocity(obj.FluidIndexes, 1:2);
+                vorticity = obj.Vorticity(obj.FluidIndexes, :);
+                density = obj.Density(obj.FluidIndexes, 1);
+                total = length(xi) * length(yi);
+
+                for i = 1:length(xi)
+
+                    for j = 1:length(yi)
+
+                        x = xi(i); y = yi(j);
+                        Wsum = 0;
+
+                        for k = 1:length(obj.FluidIndexes) % loop over fluid particles
+                            % n = obj.FluidIndexes(k); % acces the fluid particle index
+
+                            r = norm([x, y] - pos(k, :));
+
+                            if (r < 3 * H)
+                                W = obj.kernel(r, H);
+                                Wsum = Wsum + W * obj.mass / density(k, 1);
+                                zmatrix_u(i, j) = zmatrix_u(i, j) + obj.mass * vel(k, 1) * W / density(k, 1);
+                                zmatrix_v(i, j) = zmatrix_v(i, j) + obj.mass * vel(k, 2) * W / density(k, 1);
+                                zmatrix_w(i, j) = zmatrix_w(i, j) + obj.mass * vorticity(k, 1) * W / density(k, 1);
+
+                            end
+
+                        end
+
+                        zmatrix_u(i, j) = zmatrix_u(i, j) / Wsum;
+                        zmatrix_v(i, j) = zmatrix_v(i, j) / Wsum;
+                        zmatrix_w(i, j) = zmatrix_w(i, j) / Wsum;
+
+                        progress = ((i - 1) * length(yi) + j) / total * 100;
+                        fprintf('\rInterpolating: %.2f%%', progress);
+                    end
+
+                end
+
+                zmatrix_cell = {zmatrix_u, zmatrix_v, zmatrix_w};
+
+            elseif (setting == 3)
+                magnitude = sqrt(obj.Velocity(:, 1) .^ 2 + obj.Velocity(:, 2) .^ 2);
+                zmatrix = zeros(length(xi), length(yi));
+
+                total = length(xi) * length(yi);
+
+                for i = 1:length(xi)
+
+                    for j = 1:length(yi)
+
+                        x = xi(i); y = yi(j);
+                        Wsum = 0;
+
+                        for k = 1:length(obj.FluidIndexes) % loop over fluid particles
+                            n = obj.FluidIndexes(k); % acces the fluid particle index
+
+                            r = norm([x, y] - obj.Position(n, 1:2));
+
+                            if (r < 3 * H)
+                                W = obj.kernel(r, H);
+                                Wsum = Wsum + W * obj.mass / obj.Density(n, 1);
+                                zmatrix(i, j) = zmatrix(i, j) + obj.mass * magnitude(n, 1) * W / obj.Density(n, 1);
+                            end
+
+                        end
+
+                        zmatrix(i, j) = zmatrix(i, j) / Wsum;
+
+                        progress = ((i - 1) * length(yi) + j) / total * 100;
+                        fprintf('\rInterpolating: %.2f%%', progress);
+                    end
+
+                end
+
+                zmatrix_cell = {zmatrix};
+            else
+                error('Invalid setting parameter, must be 0, 1, 2 or 3.');
+            end
+
+        end
+
+        % function [obj, zmatrix_cell] = SPHinterpVorticity(obj, xi, yi, H)
+        %     % function to interpolate particle properties to a grid defined by the cartesian product of xi and yi
+        %     % the interpolation is done using the SPH kernel considering particles inside the kernel support
+        %     % the result is returned in zmatrix
+
+        %     pos = obj.Position(obj.FluidIndexes, 1:2);
+        %     vorticity = obj.Vorticity(obj.FluidIndexes, :);
+        %     density = obj.Density(obj.FluidIndexes, 1);
+        %     mass = obj.mass;
+
+        %     zmatrix = zeros(length(xi), length(yi));
+
+        %     total = length(xi) * length(yi);
+
+        %     for i = 1:length(xi)
+
+        %         for j = 1:length(yi)
+
+        %             x = xi(i); y = yi(j);
+        %             Wsum = 0;
+
+        %             for k = 1:length(obj.FluidIndexes) % loop over fluid particles
+
+        %                 r = norm([x, y] - pos(k, :));
+
+        %                 if (r < 3 * H)
+        %                     W = obj.kernel(r, H);
+        %                     Wsum = Wsum + W * mass / density(k, 1);
+        %                     zmatrix(i, j) = zmatrix(i, j) + mass * vorticity(k, 1) * W / density(k, 1);
+        %                 end
+
+        %             end
+
+        %             zmatrix(i, j) = zmatrix(i, j) / Wsum;
+
+        %             progress = ((i - 1) * length(yi) + j) / total * 100;
+        %             fprintf('\rInterpolating Vorticity: %.2f%%', progress);
+        %         end
+
+        %     end
+
+        %     zmatrix_cell = {zmatrix};
+
+        % end
+
+        function obj = PlotVelocityContour(obj, fig, levels, lnwdth)
             X = obj.Position(:, 1);
             Y = obj.Position(:, 2);
             Z = obj.Velocity(:, 1);
 
-            N = round(1.5 * sqrt(obj.NpartFluid));
+            N = 50;
             xi = linspace(0, 0.1, N);
             yi = linspace(0, 0.1, N);
-            % [xi, yi] = meshgrid(xi, yi);
-            % Zi = griddata(X, Y, Z, xi, yi, 'cubic');
 
-            [obj, Zi] = obj.SPHinterp(xi, yi);
+            Vmag = sqrt(obj.Velocity(:, 1) .^ 2 + obj.Velocity(:, 2) .^ 2);
+            [obj, Zi] = obj.SPHinterpVelocity(xi, yi, obj.H, 3);
 
             [xi, yi] = meshgrid(xi, yi);
             Zi = Zi';
             figure(fig);
-            contour(xi, yi, Zi, levels, "LineWidth", 4, "LineColor", "black", 'ShowText', 'on');
+            contour(xi, yi, Zi, levels, "LineWidth", lnwdth, "LineColor", "black", 'ShowText', 'on');
 
-            xlabel('$x$');
-            ylabel('$y$');
-            title(obj.PlotName);
+        end
+
+        function obj = PlotStreamlines(obj, fig2, fig3, fig4, lnwdth, xrange, yrange, Npoints, streamlinedensity, levelsStreamfunction, levelsVorticity)
+
+            N = sqrt(length(obj.FluidIndexes));
+
+            Hfac = N / Npoints;
+
+            % equispace interpolation points
+            xi = linspace(xrange(1), xrange(2), Npoints);
+            yi = linspace(yrange(1), yrange(2), Npoints);
+
+            fprintf('Interpolating...\n');
+            [obj, v_cell] = obj.SPHinterpVelocity(xi, yi, Hfac * obj.H, 2);
+            % [obj, v_cell] = obj.GridDataInterpVelocity(xi, yi, obj.H);
+
+            ui = v_cell{1};
+            vi = v_cell{2};
+            vorticity = v_cell{3};
+
+            % add boundary velues to ui and vi
+            % u(x=0) = 0    u(x=1) = 0    u(y=0) = 0    u(y=1) = 1
+            % v(x=0) = 0    v(x=1) = 0    v(y=0) = 0    v(y=1) = 0
+
+            % [nrows, ncols] = size(vi);
+            % vi = [zeros(1, ncols); vi; zeros(1, ncols)];
+            % vi = [zeros(nrows + 2, 1) vi zeros(nrows + 2, 1)];
+            % ui = [zeros(1, ncols); ui; zeros(1, ncols)];
+            % ui = [zeros(nrows + 2, 1) ui ones(nrows + 2, 1)];
+
+            vi(1, :) = zeros(1, Npoints);
+            vi(end, :) = zeros(1, Npoints);
+            vi(:, 1) = zeros(Npoints, 1);
+            vi(:, end) = zeros(Npoints, 1);
+
+            ui(1, :) = zeros(1, Npoints);
+            ui(end, :) = zeros(1, Npoints);
+            ui(:, 1) = zeros(Npoints, 1);
+            ui(:, end) = ones(Npoints, 1);
+
+            ui = ui';
+            vi = vi';
+
+            vorticity = vorticity';
+
+            dx = xi(2) - xi(1);
+            dy = yi(2) - yi(1);
+
+            [xi, yi] = meshgrid(xi, yi);
+
+            % SOLVE STREAM FUNCTION
+            psi = zeros(Npoints, Npoints); % Initial guess for stream function
+            tol = 1e-10; % Convergence tolerance
+            maxIter = 20000; % Maximum number of iterations
+            err = 1; iter = 0;
+
+            while err > tol && iter < maxIter
+                psi_old = psi;
+
+                for i = 2:Npoints - 1
+
+                    for j = 2:Npoints - 1
+                        % Solve using Jacobi method
+                        psi(i, j) = 0.25 * (psi_old(i + 1, j) + psi_old(i - 1, j) + psi_old(i, j + 1) + psi_old(i, j - 1) + dx ^ 2 * vorticity(i, j));
+                    end
+
+                end
+
+                % Compute error as the maximum change
+                err = max(max(abs(psi - psi_old)));
+                iter = iter + 1;
+            end
+
+            fprintf('Jacobi solver in %d iterations with error %e\n', iter, err);
+
+            % normalize the vectors for quiver plot
+            norm = sqrt(ui .^ 2 + vi .^ 2);
+            unorm = ui ./ norm;
+            vnorm = vi ./ norm;
+
+            % save('streamlines.mat', 'xi', 'yi', 'ui', 'vi', 'vorticity');
+
+            figure(fig1);
+            l = streamslice(xi, yi, ui, vi, streamlinedensity, 'noarrows', 'cubic');
+            set(l, 'Color', 'k', 'LineWidth', lnwdth);
+            axis equal;
+            axis([0 1 0 1]);
+            xline(0, 'k'); yline(0, 'k');
+            xline(1, 'k'); yline(1, 'k');
+            xlabel('$x$'); ylabel('$y$');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            figure(fig4);
+            contour(xi, yi, psi, levelsStreamfunction, 'LineWidth', lnwdth, 'LineColor', 'black');
+            axis equal;
+            axis([0 1 0 1]);
+            xlabel('$x$'); ylabel('$y$');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            figure(fig2);
+            contour(xi, yi, -vorticity, levelsVorticity, 'ShowText', 'on', 'LineWidth', lnwdth, 'LineColor', 'black', 'LabelSpacing', 10000);
+            axis equal;
+            axis([0 1 0 1]);
+            xlabel('$x$'); ylabel('$y$');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            figure(fig3);
+            % Cavity.PlotParticles(fig3, mrksz);
+            contourf(xi, yi, sqrt(ui .^ 2 + vi .^ 2), 100, 'LineStyle', 'none');
+            % quiver(xi, yi, unorm, vnorm, 'Color', 'm', 'LineWidth', 1);
+            axis equal;
+            fig3.Colormap = turbo;
+            cb = colorbar;
+            set(cb, 'TickLabelInterpreter', 'latex');
+            clim([obj.VelMin, obj.VelMax]);
+            axis([0 1 0 1]);
+            xlabel('$x$'); ylabel('$y$');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
         end
 
         function plotNormals(obj, fig)
@@ -210,7 +487,26 @@ classdef ParticleData
 
         end
 
-        function PlotParticles(obj, fig)
+        function plotNormals3d(obj, fig)
+
+            figure(fig); hold on;
+
+            for k = 1:length(obj.Position(:, 1))
+
+                if (obj.Type(k) == obj.TypeBoundary || obj.Type(k) == obj.TypeObstacle)
+                    plot(obj.Position(k, 1), obj.Position(k, 2), obj.Position(k, 3), 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'y', 'Marker', 'o', 'MarkerSize', 6);
+                    quiver(obj.Position(k, 1), obj.Position(k, 2), obj.Position(k, 3), obj.Normal(k, 1), obj.Normal(k, 2), obj.Normal(k, 3), obj.Nfluid(1) * obj.dp * 0.025, 'Color', 'k');
+                    % plot([obj.Position(k, 1) obj.Position(k, 1) - 2.5 * obj.dp * obj.Normal(k, 1)], [obj.Position(k, 2) obj.Position(k, 2) - 2.5 * obj.dp * obj.Normal(k, 2)], '--k');
+                    % plot(obj.Position(k, 1) -0.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -0.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    % plot(obj.Position(k, 1) -1.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -1.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                    % plot(obj.Position(k, 1) -2.5 * obj.dp * obj.Normal(k, 1), obj.Position(k, 2) -2.5 * obj.dp * obj.Normal(k, 2), 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'Marker', 's', 'MarkerSize', 6);
+                end
+
+            end
+
+        end
+
+        function PlotParticles(obj, fig, mrksz)
             figure(fig);
             custom_colormap = turbo;
 
@@ -219,9 +515,9 @@ classdef ParticleData
                 if (obj.Type(k) == obj.TypeFluid)
                     vel_magnitude = norm(obj.Velocity(k, :));
                     color_index = round(1 + ((255 - 1) / (obj.VelMax - obj.VelMin)) * (vel_magnitude - obj.VelMin));
-                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', 4);
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
                 else
-                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'm', 'MarkerFaceColor', 'm', 'Marker', 'o', 'MarkerSize', 4);
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k', 'Marker', 'o', 'MarkerSize', mrksz);
 
                 end
 
@@ -229,21 +525,26 @@ classdef ParticleData
 
             fig.Colormap = custom_colormap;
 
-            colorbar;
+            cb = colorbar;
+            set(cb, 'TickLabelInterpreter', 'latex');
             clim([obj.VelMin, obj.VelMax]);
-            xlabel('$z$'); ylabel('$x$');
-            title(obj.PlotName);
+            % title(obj.PlotName);
 
         end
 
-        function W = kernel(obj, r)
+        function W = kernel(obj, r, H)
 
-            q = r / obj.H;
+            if nargin < 3
+                H = obj.H;
+                disp('Using default H');
+            end
+
+            q = r / H;
 
             if (obj.dim == 2)
-                K = 7.0/478.0 / pi / obj.H / obj.H;
+                K = 7.0/478.0 / pi / H / H;
             elseif (obj.dim == 3)
-                K = 1.0/120.0 / pi / obj.H / obj.H / obj.H;
+                K = 1.0/120.0 / pi / H / H / H;
             end
 
             tmp3 = (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q) * (3.0 - q);

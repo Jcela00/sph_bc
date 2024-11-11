@@ -6,7 +6,7 @@ void CalcDragLift(real_number t,
                   const Parameters &params,
                   size_t write)
 {
-
+    // VxDragLif contains vx, dragForce, liftForce
     Vcluster<> &v_cl = create_vcluster();
 
     // normalization factor, 1/normalization is equal to dx^2/Channel_area

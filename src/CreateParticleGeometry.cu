@@ -89,10 +89,10 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                                      params.length[1] + offset_recipient[1] + offset_periodic_recipient[1]});
 
     // Will only be used in the new bc
-    Box<DIM, real_number> recipient_hole({offset_recipient[0],
-                                          offset_recipient[1]},
-                                         {params.length[0] - offset_recipient[0] + offset_periodic_fluid[0],
-                                          params.length[1] - offset_recipient[1] + offset_periodic_fluid[1]});
+    // Box<DIM, real_number> recipient_hole({offset_recipient[0],
+    //                                       offset_recipient[1]},
+    //                                      {params.length[0] - offset_recipient[0] + offset_periodic_fluid[0],
+    //                                       params.length[1] - offset_recipient[1] + offset_periodic_fluid[1]});
 
     for (int xyz = 0; xyz < DIM; xyz++) // correct length in periodic case
     {
@@ -111,7 +111,9 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     // place probes
     if (params.PROBES_ENABLED)
     {
+        // In practice this is only used in the Cylinder Lattice scenario
         // we want to place probes  in a vertical line at this locations
+
         Point<DIM, real_number> EndChannel = {params.length[0], 0.0};
         Point<DIM, real_number> HalfChannel = {params.length[0] / 2.0, 0.0};
         Point<DIM, real_number> VerticalOffset = {0.0, dp};
@@ -120,7 +122,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         int kendHeight = params.Nfluid[1] + 1;
 
         std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
-        std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+        std::vector<int> ProbeComponents;                 // velocity component to measure 0 for x 1 for y
         std::vector<Point<DIM, real_number>> Offsets;
         std::vector<int> maxIters;
 
@@ -139,7 +141,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             maxIters.push_back(kendHeight);
         }
 
-        for (unsigned int k = 0; k < ProbePoints.size(); k++)
+        for (unsigned int k = 0; k < ProbePoints.size(); k++) // for each probe in the list
         {
             // create probe object
             Ghost<DIM, real_number> gp(0);
@@ -158,7 +160,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
 
             if (v_cl.getProcessUnitID() == 0)
             {
-                PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+                PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k], obstacle_ptr);
             }
             std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
             vp_vec.push_back(tmp);
@@ -166,6 +168,7 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
     }
 
+    // For the new bc we place the wall/obstacle particles manually
     // Add the obstacle/walls as marker particles only on processor 0
     if (params.BC_TYPE == NEW_NO_SLIP && v_cl.getProcessUnitID() == 0)
     {
@@ -213,7 +216,11 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
         }
     }
 
-    real_number poiseuille_coef = params.gravity / (2.0 * params.nu);
+    // Now place fluid particles
+    // For the old bc, some of the fluid positions will be inside the obstacle
+    // if that is true we need to set them as boundary particles
+    // For the new bc, we will not add particles that are inside the obstacle, since we already added them
+
     // return an iterator to the fluid particles to add to vd
     auto fluid_it = DrawParticles::DrawBox(vd, sz, domain, fluid_box);
 
@@ -251,43 +258,37 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             vd.template getLastProp<vd10_omega>() = 0.0;
             for (int xyz = 0; xyz < DIM; xyz++)
             {
+                vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
                 vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
             }
         }
 
-        // Set properties
+        // Set properties common to fluid and obstacle particles
         vd.template getLastProp<vd1_rho>() = params.rho0;
         vd.template getLastProp<vd2_pressure>() = 0.0;
         vd.template getLastProp<vd3_drho>() = 0.0;
 
         for (int xyz = 0; xyz < DIM; xyz++)
         {
-            if (params.SCENARIO == POISEUILLE) // add random displacement
-            {
-                vd.getLastPos()[xyz] = iterator_position.get(xyz); // + params.dp * 0.25 * (2.0 * static_cast<real_number>(rand()) / static_cast<real_number>(RAND_MAX) - 1.0);
-            }
-            else
-            {
-                vd.getLastPos()[xyz] = iterator_position.get(xyz);
-            }
+            //  random displacement ( useful for debugging )
+            // double random_number = static_cast<double>(std::rand()) / RAND_MAX * 2.0 - 1.0;
+
+            vd.getLastPos()[xyz] = iterator_position.get(xyz); //+ 0.1 * dp * random_number;
             vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
             vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
         }
 
-        if (params.SCENARIO == POISEUILLE) // add random displacement
-        {
-            vd.template getLastProp<vd4_velocity>()[0] = 0.0; // poiseuille_coef * vd.getLastPos()[1] * (1.0 - vd.getLastPos()[1]);
-            vd.template getLastProp<vd4_velocity>()[1] = 0.0;
-        }
-        else
-        {
-            vd.template getLastProp<vd4_velocity>()[0] = 0.0;
-            vd.template getLastProp<vd4_velocity>()[1] = 0.0;
-        }
-
+        // fluid particles carry dp in volume[0], it is useful to read it in postprocessing
+        // this array is unused for fluid particles anyway
         vd.template getLastProp<vd9_volume>()[0] = dp;
         vd.template getLastProp<vd9_volume>()[1] = 0.0;
         vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
+        vd.template getLastProp<vd11_vorticity>() = 0.0;
+        vd.template getLastProp<vd12_vel_red>() = 0.0;
+        vd.template getLastProp<vd13_force_red_x>() = 0.0;
+        vd.template getLastProp<vd14_force_red_y>() = 0.0;
 
         // next fluid particle
         ++fluid_it;
@@ -329,24 +330,6 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                     continue;
                 }
 
-                // if (params.BC_TYPE == NEW_NO_SLIP && (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC))
-                // {
-                // 	// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
-                // 	real_number remx = fmod(position.get(0), dp);
-                // 	real_number remz = fmod(position.get(1), dp);
-                // 	real_number tol = 0.5 * dp * 10e-2;
-
-                // 	if (remx > tol && remx < dp - tol)
-                // 	{
-                // 		++bound_box;
-                // 		continue;
-                // 	}
-                // 	if (remz > tol && remz < dp - tol)
-                // 	{
-                // 		++bound_box;
-                // 		continue;
-                // 	}
-                // }
                 vd.add();
 
                 vd.template getLastProp<vd0_type>() = BOUNDARY;
@@ -372,6 +355,12 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
                 }
 
                 vd.template getLastProp<vd9_volume>()[0] = dp;
+                vd.template getLastProp<vd9_volume>()[1] = 0.0;
+                vd.template getLastProp<vd9_volume>()[2] = 0.0;
+                vd.template getLastProp<vd11_vorticity>() = 0.0;
+                vd.template getLastProp<vd12_vel_red>() = 0.0;
+                vd.template getLastProp<vd13_force_red_x>() = 0.0;
+                vd.template getLastProp<vd14_force_red_y>() = 0.0;
 
                 ++bound_box;
             }
@@ -603,6 +592,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
 {
 
     Vcluster<> &v_cl = create_vcluster();
+    Obstacle *obstacle_ptr = new EmptyObstacle(params);
 
     // Size of the virtual cartesian grid that defines where to place the particles
     size_t sz[DIM];
@@ -791,7 +781,7 @@ void CreateParticleGeometryStep(particles &vd, std::vector<std::pair<probe_parti
             openfpm::vector<std::string> names_p({"vx"});
             vp_loc.setPropNames(names_p);
 
-            PlaceProbes(vp_loc, k0, kendHeight, ProbePoints[k], VerticalOffset);
+            PlaceProbes(vp_loc, k0, kendHeight, ProbePoints[k], VerticalOffset, obstacle_ptr);
             std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, 0);
             vp_vec.push_back(tmp);
             auxParams.probe_filenames.push_back("probes_" + std::to_string(k) + "_" + auxParams.filename);
@@ -1366,9 +1356,17 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
         int kendWidth = params.Nfluid[0] + 1;
 
         std::vector<Point<DIM, real_number>> ProbePoints; // start points for the PlaceProbes function
-        std::vector<int> ProbeComponents;                 // component to measure 0 for x 1 for y
+        std::vector<int> ProbeComponents;                 // velocity component to measure 0 for x 1 for y
         std::vector<Point<DIM, real_number>> Offsets;
         std::vector<int> maxIters;
+
+        std::vector<int> FixedProbeIndices_horizontal = {k0, kendWidth - 1};
+        std::vector<int> FixedProbeIndices_vertical = {k0, kendHeight - 1};
+        std::vector<real_number> FixedProbeValues_horizontal = {0.0, 0.0};
+        std::vector<real_number> FixedProbeValues_vertical = {0.0, params.vw_top[0]};
+
+        std::vector<std::vector<int>> FixedProbeIndices;
+        std::vector<std::vector<real_number>> FixedProbeValues;
 
         if (params.SCENARIO == CAVITY)
         {
@@ -1383,6 +1381,11 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
 
             maxIters.push_back(kendHeight);
             maxIters.push_back(kendWidth);
+
+            FixedProbeIndices.push_back(FixedProbeIndices_vertical);
+            FixedProbeIndices.push_back(FixedProbeIndices_horizontal);
+            FixedProbeValues.push_back(FixedProbeValues_vertical);
+            FixedProbeValues.push_back(FixedProbeValues_horizontal);
         }
 
         for (unsigned int k = 0; k < ProbePoints.size(); k++)
@@ -1391,19 +1394,20 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
             Ghost<DIM, real_number> gp(0);
             size_t bc_p[DIM] = {NON_PERIODIC, NON_PERIODIC};
             probe_particles vp_loc(0, domain, bc_p, gp, DEC_GRAN(512));
-            if (ProbeComponents[k] == 0)
-            {
-                openfpm::vector<std::string> names_p = {"vx"};
-                vp_loc.setPropNames(names_p);
-            }
-            else if (ProbeComponents[k] == 1)
-            {
-                openfpm::vector<std::string> names_p = {"vy"};
-                vp_loc.setPropNames(names_p);
-            }
+
             if (v_cl.getProcessUnitID() == 0)
             {
-                PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k]);
+                PlaceProbes(vp_loc, k0, maxIters[k], ProbePoints[k], Offsets[k], obstacle_ptr, FixedProbeIndices[k], FixedProbeValues[k]);
+            }
+            if (ProbeComponents[k] == 0) // measuring x velocity
+            {
+                openfpm::vector<std::string> names_p({"type", "vx"});
+                vp_loc.setPropNames(names_p);
+            }
+            else if (ProbeComponents[k] == 1) // measuring y velocity
+            {
+                openfpm::vector<std::string> names_p({"type", "vy"});
+                vp_loc.setPropNames(names_p);
             }
             std::pair<probe_particles, int> tmp = std::make_pair(vp_loc, ProbeComponents[k]);
             vp_vec.push_back(tmp);
@@ -1519,24 +1523,6 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
                 continue;
             }
 
-            // if (params.BC_TYPE == NEW_NO_SLIP && (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC))
-            // {
-            // 	// Check if x and z coordinates are multiples of dp, keep multiples, discard the rest
-            // 	real_number remx = fmod(position.get(0), dp);
-            // 	real_number remz = fmod(position.get(1), dp);
-            // 	real_number tol = 0.5 * dp * 10e-2;
-
-            // 	if (remx > tol && remx < dp - tol)
-            // 	{
-            // 		++bound_box;
-            // 		continue;
-            // 	}
-            // 	if (remz > tol && remz < dp - tol)
-            // 	{
-            // 		++bound_box;
-            // 		continue;
-            // 	}
-            // }
             vd.add();
 
             vd.template getLastProp<vd0_type>() = BOUNDARY;
@@ -1562,12 +1548,19 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
             }
 
             vd.template getLastProp<vd9_volume>()[0] = dp;
+            vd.template getLastProp<vd9_volume>()[1] = 0.0;
+            vd.template getLastProp<vd9_volume>()[2] = 0.0;
+            vd.template getLastProp<vd11_vorticity>() = 0.0;
+            vd.template getLastProp<vd12_vel_red>() = 0.0;
+            vd.template getLastProp<vd13_force_red_x>() = 0.0;
+            vd.template getLastProp<vd14_force_red_y>() = 0.0;
 
             ++bound_box;
         }
 
         if (v_cl.getProcessUnitID() == 0)
         {
+            // RIGHT CORNER
             const Point<DIM, real_number> Corner = {params.length[0] + 2.5 * dp,
                                                     params.length[1] + 0.5 * dp};
 
@@ -1603,7 +1596,6 @@ void CreateParticleGeometryCavity(particles &vd, std::vector<std::pair<probe_par
             }
 
             // LEFT CORNER
-
             const Point<DIM, real_number> CornerUL = {0.0 - 2.5 * dp,
                                                       params.length[1] + 0.5 * dp};
 
@@ -1664,7 +1656,7 @@ void CreateParticleGeometrySphere(particles &vd, std::vector<std::pair<probe_par
     real_number dp = params.dp;
     // Initialize obstacle in scenarios where needed
     if (params.SCENARIO == SPHERE)
-        obstacle_ptr = new SphereObstacle(params.ObstacleBase, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        obstacle_ptr = new SphereObstacle(params.ObstacleBase, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf, false);
 
     real_number refine_factor = params.rf;
 

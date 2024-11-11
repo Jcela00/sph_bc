@@ -204,7 +204,6 @@ void kick_drift_int(particles &vd,
 
     // particle iterator
     auto it = vd.getDomainIteratorGPU();
-
     CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt);
 
     // map particles if they have gone outside the domain
@@ -234,6 +233,7 @@ void kick_drift_int(particles &vd,
     it = vd.getDomainIteratorGPU();
 
     CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt);
+
     if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // If density differential, density has been updated in kdi_2
     {
         // Calculate pressure from the density

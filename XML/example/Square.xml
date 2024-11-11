@@ -3,12 +3,13 @@
 
     <simulation
         scenario="Square"
-        bcType="new"
+        bcType="old"
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
         time="40"
         write_const="10"
+        CFL="1.0"
         custom_string=""
     />
 
@@ -30,7 +31,7 @@
     />
 
     <obstacle 
-        ObstacleBase ="0.5"
+        ObstacleBase ="0.2"
         ObstacleHeight="0.2"
         velX="0.0" velY="0.0" velZ="0.0"
         omega="0.0"

@@ -23,7 +23,7 @@ inline __device__ void interact_fluid_fluid(vd_type &vd, unsigned int b, unsigne
     const real_number Pb = vd.template getProp<vd2_pressure>(b);
     const Point<DIM, real_number> vb = vd.template getProp<vd4_velocity>(b);
 
-    const real_number r = sqrtf(r2);
+    const real_number r = sqrt(r2);
 
     const Point<DIM, real_number> v_rel = va - vb;
 
@@ -63,8 +63,8 @@ inline __device__ void interact_fluid_fluid(vd_type &vd, unsigned int b, unsigne
 }
 
 template <typename vd_type, typename NN_type>
-__global__ void calc_forcesGPU_new(vd_type vd,
-                                   NN_type NN)
+__global__ void calc_forcesGPU_new2D(vd_type vd,
+                                     NN_type NN)
 {
     // auto a = GET_PARTICLE(vd); // old unsorted code
     unsigned int a;
@@ -186,7 +186,7 @@ __global__ void calc_forcesGPU_new(vd_type vd,
                         if (r_boundary_norm[i] < _params_gpu_.r_cut)
                         {
 
-                            const real_number Mass_boundary = vol[i] * _params_gpu_.rho0;
+                            // const real_number Mass_boundary = vol[i] * _params_gpu_.rho0;
 
                             const Point<DIM, real_number> v_boundary_visc = ((vwt - vt) * (lwall[i] / lf) + vwt) * tangential + vn * normal;
                             const Point<DIM, real_number> v_boundary_cont = ((vwn - vn) * (lwall[i] / lf) + vwn) * normal + vt * tangential;
@@ -203,7 +203,8 @@ __global__ void calc_forcesGPU_new(vd_type vd,
                             const Point<DIM, real_number> v_rel_visc = va - v_boundary_visc;
                             const Point<DIM, real_number> v_rel_cont = va - v_boundary_cont;
 
-                            const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
+                            // const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
+                            const real_number Vb = vol[i];
 
                             const Point<DIM, real_number> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel_visc, DW, _params_gpu_.eta);
                             const real_number PressureTerm = PressureForce(rhoa, rho_boundary, Pa, p_boundary); //-p_boundary - Pf;
@@ -352,7 +353,7 @@ __global__ void calc_forcesGPU_new3D(vd_type vd,
                         if (r_boundary_norm[i] < _params_gpu_.r_cut)
                         {
 
-                            const real_number Mass_boundary = vol[i] * _params_gpu_.rho0;
+                            // const real_number Mass_boundary = vol[i] * _params_gpu_.rho0;
 
                             const Point<DIM, real_number> v_boundary_visc = ((vwt1 - vt1) * (lwall[i] / lf) + vwt1) * tangential1 + ((vwt2 - vt2) * (lwall[i] / lf) + vwt2) * tangential2 + vn * normal;
                             const Point<DIM, real_number> v_boundary_cont = ((vwn - vn) * (lwall[i] / lf) + vwn) * normal + vt1 * tangential1 + vt2 * tangential2;
@@ -369,7 +370,9 @@ __global__ void calc_forcesGPU_new3D(vd_type vd,
                             const Point<DIM, real_number> v_rel_visc = va - v_boundary_visc;
                             const Point<DIM, real_number> v_rel_cont = va - v_boundary_cont;
 
-                            const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
+                            // const real_number Vb = (Mass_boundary / rho_boundary); // vb is mass/rho instead of directly vol[i] because it allows to variate with density
+
+                            const real_number Vb = vol[i];
 
                             const Point<DIM, real_number> ViscosityTerm = Pi_physical(r_boundary[i], r_boundary_norm[i], v_rel_visc, DW, _params_gpu_.eta);
                             const real_number PressureTerm = PressureForce(rhoa, rho_boundary, Pa, p_boundary); //-p_boundary - Pf;
@@ -465,7 +468,7 @@ __global__ void calc_forcesGPU_old(vd_type vd,
                     const Point<DIM, real_number> vb = vd.template getProp<vd4_velocity>(b);
                     const Point<DIM, real_number> vb_noslip = vd.template getProp<vd5_velocity_t>(b); // here we store the extrapolated velocity for no slip BC
 
-                    const real_number r = sqrtf(r2);
+                    const real_number r = sqrt(r2);
 
                     const Point<DIM, real_number> v_rel = va - vb;
                     const Point<DIM, real_number> v_rel_aux = va - vb_noslip;
@@ -527,7 +530,7 @@ inline void calc_forces(particles &vd,
     {
         vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
         if constexpr (DIM == 2)
-            CUDA_LAUNCH(calc_forcesGPU_new, it, vd.toKernel(), NN.toKernel());
+            CUDA_LAUNCH(calc_forcesGPU_new2D, it, vd.toKernel(), NN.toKernel());
         else if constexpr (DIM == 3)
             CUDA_LAUNCH(calc_forcesGPU_new3D, it, vd.toKernel(), NN.toKernel());
     }

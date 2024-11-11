@@ -3,27 +3,28 @@
 
     <simulation
         scenario="Cavity"
-        bcType="old"
+        bcType="new"
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
         time="50"
         write_const="80"
-        custom_string=""
+        CFL="0.5"
+        custom_string="Re100"
     />
 
     <geometry
         lengthScale="1.0"
         rf="1.0"
-        sizeX="200" sizeY="200" sizeZ="0"
+        sizeX="50" sizeY="50" sizeZ="0"
     />
 
     <physics
         rho0="1.0"
-        nu="0.001"
-        Bfactor="6.0"
+        nu="0.01"
+        Bfactor="1.0"
         gamma="1.0"
-        umax="1.0"
+        umax="3.0"
         gravityX="0.0" gravityY="0.0" gravityZ="0.0"
         vTopX="1.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
