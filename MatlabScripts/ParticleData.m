@@ -281,6 +281,80 @@ classdef ParticleData
 
         end
 
+        function [obj, zmatrix_cell] = SPHinterpVelocityWithObstacle(obj, xi, yi, H)
+            % magnitude is the property to be interpolated
+            % function to interpolate particle properties to a grid defined by the cartesian product of xi and yi
+            % the interpolation is done using the SPH kernel considering particles inside the kernel support
+            % the result is returned in zmatrix
+
+            zmatrix_u = zeros(length(xi), length(yi));
+            zmatrix_v = zeros(length(xi), length(yi));
+            zmatrix_w = zeros(length(xi), length(yi));
+
+            pos = obj.Position(obj.FluidIndexes, 1:2);
+            vel = obj.Velocity(obj.FluidIndexes, 1:2);
+            vorticity = obj.Vorticity(obj.FluidIndexes, :);
+            density = obj.Density(obj.FluidIndexes, 1);
+            total = length(xi) * length(yi);
+
+            % need to skip the interpolation points inside obstacle.
+            obstacle_centre = obj.ForceTransport(obj.ObstacleIndexes, 1:2);
+            obstacle_centre = obstacle_centre(1, :);
+            square_half_side = 0.5;
+
+            for i = 1:length(xi)
+
+                for j = 1:length(yi)
+
+                    x = xi(i); y = yi(j);
+
+                    [~, isInside] = obj.IsInsideSquare([x, y], obstacle_centre, square_half_side);
+
+                    if (isInside)
+                        continue;
+                    end
+
+                    Wsum = 0;
+
+                    for k = 1:length(obj.FluidIndexes) % loop over fluid particles
+                        % n = obj.FluidIndexes(k); % acces the fluid particle index
+
+                        r = norm([x, y] - pos(k, :));
+
+                        if (r < 3 * H)
+                            W = obj.kernel(r, H);
+                            Wsum = Wsum + W * obj.mass / density(k, 1);
+                            zmatrix_u(i, j) = zmatrix_u(i, j) + obj.mass * vel(k, 1) * W / density(k, 1);
+                            zmatrix_v(i, j) = zmatrix_v(i, j) + obj.mass * vel(k, 2) * W / density(k, 1);
+                            zmatrix_w(i, j) = zmatrix_w(i, j) + obj.mass * vorticity(k, 1) * W / density(k, 1);
+
+                        end
+
+                    end
+
+                    zmatrix_u(i, j) = zmatrix_u(i, j) / Wsum;
+                    zmatrix_v(i, j) = zmatrix_v(i, j) / Wsum;
+                    zmatrix_w(i, j) = zmatrix_w(i, j) / Wsum;
+
+                    progress = ((i - 1) * length(yi) + j) / total * 100;
+                    fprintf('\rInterpolating: %.2f%%', progress);
+                end
+
+            end
+
+            zmatrix_cell = {zmatrix_u, zmatrix_v, zmatrix_w};
+
+        end
+
+        function [obj, isInside] = IsInsideSquare(obj, point, centre, half_side)
+
+            cx = centre(1); cy = centre(2);
+            x = point(1); y = point(2);
+            % Check if the point is within the square boundaries
+            isInside = (x >= cx - half_side) && (x <= cx + half_side) && (y >= cy - half_side) && (y <= cy + half_side);
+
+        end
+
         % function [obj, zmatrix_cell] = SPHinterpVorticity(obj, xi, yi, H)
         %     % function to interpolate particle properties to a grid defined by the cartesian product of xi and yi
         %     % the interpolation is done using the SPH kernel considering particles inside the kernel support
@@ -345,8 +419,125 @@ classdef ParticleData
 
         end
 
-        function obj = PlotStreamlines(obj, fig2, fig3, fig4, lnwdth, xrange, yrange, Npoints, streamlinedensity, levelsStreamfunction, levelsVorticity)
+        function obj = PlotStreamlinesOnly(obj, fig2, lnwdth, xrange, yrange, hfac, Npoints, levelsStreamfunction)
 
+            N = sqrt(length(obj.FluidIndexes));
+
+            Nx = Npoints(1);
+            Ny = Npoints(2);
+
+            Hfac = hfac;
+            % Hfac = N / Npoints;
+
+            % equispace interpolation points
+            xi = linspace(xrange(1), xrange(2), Nx);
+            yi = linspace(yrange(1), yrange(2), Ny);
+
+            fprintf('Interpolating...\n');
+            [obj, v_cell] = obj.SPHinterpVelocity(xi, yi, Hfac * obj.H, 2);
+
+            ui = v_cell{1};
+            vi = v_cell{2};
+            vorticity = v_cell{3};
+
+            % add boundary velues to ui and vi
+            % u(x=0) = 0    u(x=1) = 0    u(y=0) = 0    u(y=1) = 1
+            % v(x=0) = 0    v(x=1) = 0    v(y=0) = 0    v(y=1) = 0
+
+            vorticity = vorticity';
+
+            dx = xi(2) - xi(1);
+            dy = yi(2) - yi(1);
+
+            [xi, yi] = meshgrid(xi, yi);
+
+            size(vorticity)
+
+            % SOLVE STREAM FUNCTION
+            psi = zeros(Ny, Nx); % Initial guess for stream function
+            tol = 1e-10; % Convergence tolerance
+            maxIter = 20000; % Maximum number of iterations
+            err = 1; iter = 0;
+            % remove NaN values in vorticity
+            % vorticity(isnan(vorticity)) = 0;
+
+            while err > tol && iter < maxIter
+                psi_old = psi;
+
+                for i = 2:Ny - 1
+
+                    for j = 2:Nx - 1
+
+                        % Solve using Jacobi method
+                        if (~isnan(vorticity(i, j)))
+
+                            psi(i, j) = 0.25 * (psi_old(i + 1, j) + psi_old(i - 1, j) + psi_old(i, j + 1) + psi_old(i, j - 1) + dx ^ 2 * vorticity(i, j));
+
+                        end
+
+                    end
+
+                end
+
+                % Compute error as the maximum change
+                err = max(max(abs(psi - psi_old)));
+                iter = iter + 1;
+            end
+
+            fprintf('Jacobi solver in %d iterations with error %e\n', iter, err);
+
+            % % normalize the vectors for quiver plot
+            % norm = sqrt(ui .^ 2 + vi .^ 2);
+            % unorm = ui ./ norm;
+            % vnorm = vi ./ norm;
+
+            % save('streamlines.mat', 'xi', 'yi', 'ui', 'vi', 'vorticity');
+
+            % figure(fig1);
+            % l = streamslice(xi, yi, ui, vi, streamlinedensity, 'noarrows', 'cubic');
+            % set(l, 'Color', 'k', 'LineWidth', lnwdth);
+            % axis equal;
+            % axis([0 1 0 1]);
+            % xline(0, 'k'); yline(0, 'k');
+            % xline(1, 'k'); yline(1, 'k');
+            % xlabel('$x$'); ylabel('$y$');
+            % set(gca, 'FontSize', 11);
+            % set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            figure(fig2);
+            contour(xi, yi, psi, 50, 'LineWidth', lnwdth, 'LineColor', 'black');
+            axis equal;
+            axis([xrange(1) xrange(2) yrange(1) yrange(2)]);
+            xlabel('$x$'); ylabel('$y$');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            % figure(fig2);
+            % contour(xi, yi, -vorticity, levelsVorticity, 'ShowText', 'on', 'LineWidth', lnwdth, 'LineColor', 'black', 'LabelSpacing', 10000);
+            % axis equal;
+            % axis([0 1 0 1]);
+            % xlabel('$x$'); ylabel('$y$');
+            % set(gca, 'FontSize', 11);
+            % set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+            % figure(fig3);
+            % % Cavity.PlotParticles(fig3, mrksz);
+            % contourf(xi, yi, sqrt(ui .^ 2 + vi .^ 2), 100, 'LineStyle', 'none');
+            % % quiver(xi, yi, unorm, vnorm, 'Color', 'm', 'LineWidth', 1);
+            % axis equal;
+            % fig3.Colormap = turbo;
+            % cb = colorbar;
+            % set(cb, 'TickLabelInterpreter', 'latex');
+            % clim([obj.VelMin, obj.VelMax]);
+            % axis([0 1 0 1]);
+            % xlabel('$x$'); ylabel('$y$');
+            % set(gca, 'FontSize', 11);
+            % set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+
+        end
+
+        function obj = PlotStreamlines(obj, fig2, fig3, fig4, lnwdth, xrange, yrange, Npoints, streamlinedensity, levelsStreamfunction, levelsVorticity)
+            % this function was intended for the cavity and it got too complex, there is a separate plotstreamlinesonly just for streamlines
             N = sqrt(length(obj.FluidIndexes));
 
             Hfac = N / Npoints;
@@ -528,6 +719,122 @@ classdef ParticleData
             cb = colorbar;
             set(cb, 'TickLabelInterpreter', 'latex');
             clim([obj.VelMin, obj.VelMax]);
+            % title(obj.PlotName);
+
+        end
+
+        function PlotParticlesVorticity(obj, fig, mrksz, cmap, wlimits)
+            figure(fig);
+            custom_colormap = cmap;
+            wmax = wlimits(2);
+            wmin = wlimits(1);
+
+            for k = 1:obj.Npart
+
+                if (obj.Type(k) == obj.TypeFluid)
+                    magnitude = obj.Vorticity(k);
+                    color_index = round(1 + ((size(custom_colormap, 1) - 1) / (wmax - wmin)) * (magnitude - wmin));
+                    color_index = max(1, min(color_index, size(custom_colormap, 1))); % Clamp to [1, 256]
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
+                else
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k', 'Marker', 'o', 'MarkerSize', mrksz);
+
+                end
+
+                progress = k / obj.Npart * 100;
+                fprintf('\rPlotting Particles: %.2f%%', progress);
+
+            end
+
+            fig.Colormap = custom_colormap;
+
+            cb = colorbar;
+            set(cb, 'TickLabelInterpreter', 'latex');
+            clim([wmin, wmax]);
+            % title(obj.PlotName);
+
+        end
+
+        function PlotCurvatureNormals(obj, fig, mrksz, indexsetting, CurvatureLimits)
+
+            m = 256;
+
+            % Define the RGB control points for ParaView's Red-Blue colormap
+            control_points = [
+                              0.0, 0.231, 0.298, 0.752; % Dark blue
+                              0.5, 1.000, 1.000, 1.000; % White
+                              1.0, 0.706, 0.016, 0.150; % Dark red
+                              ];
+
+            % Interpolate the colormap
+            x = control_points(:, 1); % Position of control points
+            r = control_points(:, 2); % Red values
+            g = control_points(:, 3); % Green values
+            b = control_points(:, 4); % Blue values
+
+            % Interpolate to create the colormap with 'm' colors
+            cmap = [interp1(x, r, linspace(0, 1, m))', interp1(x, g, linspace(0, 1, m))', interp1(x, b, linspace(0, 1, m))'];
+
+            figure(fig);
+            custom_colormap = cmap;
+
+            if (indexsetting == 0)
+                indexes = obj.ObstacleIndexes;
+            elseif (indexsetting == 1)
+                indexes = obj.BoundaryIndexes;
+            end
+
+            position = obj.Position(indexes, 1:2);
+            curvature = obj.Volumes(indexes, 2);
+            normal = obj.Normal(indexes, 1:2);
+
+            if obj.BaseName == "ConcaveCylinder"
+                % need to filter out particles with r < 0.75
+                position = obj.Position(indexes, 1:2);
+                r = sqrt(position(:, 1) .^ 2 + position(:, 2) .^ 2);
+                indexes = indexes(r > 0.75);
+                position = obj.Position(indexes, 1:2);
+                curvature = obj.Volumes(indexes, 2);
+                normal = obj.Normal(indexes, 1:2);
+            end
+
+            dx = obj.Volumes(1, 1);
+            fprintf('name: %s, dx: %f\n', obj.BaseName, dx);
+            maxcurv = max(curvature);
+            mincurv = min(curvature);
+            fprintf('Measured maxcurv: %f, mincurv: %f\n', maxcurv, mincurv);
+
+            % if (maxcurv == mincurv)
+            %     maxcurv = maxcurv + 1;
+            %     mincurv = mincurv - 1;
+            % end
+
+            % obj.BaseName
+            % mincurv = min(curvature)
+            % maxcurv = max(curvature)
+
+            mincurv = CurvatureLimits(1);
+            maxcurv = CurvatureLimits(2);
+
+            for k = 1:length(indexes)
+
+                curv = curvature(k);
+                pos = position(k, :);
+                norm = normal(k, :);
+
+                color_index = round(1 + ((255 - 1) / (maxcurv - mincurv)) * (curv - mincurv));
+                plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
+                quiver(pos(1), pos(2), norm(1), norm(2), 0.2, 'Color', 'k', 'LineWidth', 2);
+
+            end
+
+            fig.Colormap = custom_colormap;
+            cb = colorbar;
+            set(cb, 'TickLabelInterpreter', 'latex');
+            clim([mincurv, maxcurv]);
+            set(gca, 'Visible', 'off');
+            set(gca, 'FontSize', 11);
+            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
             % title(obj.PlotName);
 
         end

@@ -56,7 +56,8 @@ if not os.path.exists(output_dir):
 for i in range(start, end + 1):
     pvtp_file = f"{filename}_{i}.pvtp"
     csv_file = f"{output_dir}/file_{i}.csv"
-    
+    # convert_vtk_to_csv_old(pvtp_file, csv_file)
+
     if "probes" in pvtp_file:
         convert_vtk_to_csv_old(pvtp_file, csv_file)
     else:

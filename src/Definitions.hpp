@@ -13,6 +13,7 @@ typedef double real_number;
 
 // Type of particles
 #define BOUNDARY 0
+#define FREE_SLIP_BOUNDARY 3
 #define OBSTACLE 1
 #define FLUID 2
 
@@ -41,13 +42,14 @@ typedef double real_number;
 #define DAM_BREAK 13
 #define TRIANGLE_TEST 14
 #define SPHERE 15
+#define CUSTOM 16
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
 #define DENSITY_DIFFERENTIAL 1
 
 // Alias of the vector_dist fields
-const int vd0_type = 0; // can be BOUNDARY, OBSTACLE, FLUID
+const int vd0_type = 0; // can be BOUNDARY, FREE_SLIP_BOUNDARY, OBSTACLE, FLUID
 // Density
 const int vd1_rho = 1;
 // pressure
@@ -209,12 +211,14 @@ public:
     // Obstacle properties
     real_number ObstacleCenter[DIM];
     real_number ObstacleVelocity[DIM];
+    real_number Vinflow[DIM];
     real_number ObstacleOmega;
 
     // Obstacle
     real_number ObstacleBase;
     real_number ObstacleHeight;
     real_number ObstacleTilt;
+    int CustomObstacle;
 
     // Taylor Couette specific parameters
     real_number Rin;

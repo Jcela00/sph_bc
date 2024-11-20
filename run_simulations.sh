@@ -3,7 +3,7 @@
 # Array of input files
 input_files=(
 
-  # Poiseuille_30.xml
+  # Poiseuille_30
   # Poiseuille_60.xml
   # Poiseuille_90.xml
   # Poiseuille_120.xml
@@ -26,15 +26,43 @@ input_files=(
   # CylinderLattice_old_50.xml
   # CylinderLattice_old_100.xml
   
-  XML/Cavity/Cavity100_50x50.xml 
-  XML/Cavity/Cavity1000_50x50.xml 
-  XML/Cavity/Cavity10000_50x50.xml 
-  XML/Cavity/Cavity100_100x100.xml 
-  XML/Cavity/Cavity1000_100x100.xml 
-  XML/Cavity/Cavity10000_100x100.xml 
-  XML/Cavity/Cavity100_200x200.xml 
-  XML/Cavity/Cavity1000_200x200.xml 
-  XML/Cavity/Cavity10000_200x200.xml
+  # XML/Cavity/Cavity100_50x50.xml 
+  # XML/Cavity/Cavity1000_50x50.xml 
+  # XML/Cavity/Cavity10000_50x50.xml 
+  # XML/Cavity/Cavity100_100x100.xml 
+  # XML/Cavity/Cavity1000_100x100.xml 
+  # XML/Cavity/Cavity10000_100x100.xml 
+  # XML/Cavity/Cavity100_200x200.xml 
+  # XML/Cavity/Cavity1000_200x200.xml 
+  # XML/Cavity/Cavity10000_200x200.xml
+
+# XML/Array/CylinderArray1_48_old.xml
+# XML/Array/CylinderArray1_48.xml
+# XML/Array/CylinderArray1_96_old.xml
+# XML/Array/CylinderArray1_96.xml
+
+# XML/Ellipse/Re100/CustomEllipse50.xml
+# XML/Ellipse/Re1000/CustomEllipse50.xml
+# XML/Ellipse/Re100/CustomEllipse100.xml
+# XML/Ellipse/Re1000/CustomEllipse100.xml
+# XML/Ellipse/Re100/CustomEllipse1000.xml
+# XML/Ellipse/Re1000/CustomEllipse1000.xml
+
+
+#  XML/Triangle/Re100/CustomTriangle50.xml 
+#  XML/Triangle/Re1000/CustomTriangle50.xml
+#  XML/Triangle/Re100/CustomTriangle100.xml
+#  XML/Triangle/Re1000/CustomTriangle100.xml
+
+#  XML/Triangle/Re1000/CustomTriangle200.xml
+#  XML/Triangle/Re100/CustomTriangle200.xml
+
+XML/MovingSquare/MovingSquare50.xml
+XML/MovingSquare/MovingSquare100.xml
+XML/MovingSquare/MovingSquare150.xml
+
+
+
 
 )
 

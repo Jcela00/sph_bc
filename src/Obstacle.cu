@@ -33,6 +33,9 @@ void AddFlatWallNewBC(particles &vd,
         vd.template getLastProp<vd1_rho>() = arg_p.rho0;
         vd.template getLastProp<vd3_drho>() = 0.0;
         vd.template getLastProp<vd9_volume>()[0] = dx;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
         vd.template getLastProp<vd10_omega>() = obstacle_omega;
     }
 }
@@ -73,6 +76,7 @@ void AddFlatWallModNewBC(particles &vd,
         vd.template getLastProp<vd3_drho>() = 0.0;
         vd.template getLastProp<vd9_volume>()[0] = dx;
         vd.template getLastProp<vd9_volume>()[1] = given_kappa;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
 
         vd.template getLastProp<vd10_omega>() = obstacle_omega;
     }
@@ -216,6 +220,9 @@ void CylinderObstacle::AddObstacle(particles &vd)
             vd.template getLastProp<vd3_drho>() = 0.0;
 
         vd.template getLastProp<vd9_volume>()[0] = dxwall;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
         vd.template getLastProp<vd10_omega>() = AngularVelocity_;
         theta += dtheta;
     }
@@ -288,6 +295,8 @@ void SphereObstacle::AddObstacle(particles &vd)
         vd.template getLastProp<vd1_rho>() = params_.rho0;
         vd.template getLastProp<vd3_drho>() = 0.0;
         vd.template getLastProp<vd9_volume>()[0] = area_element_actual;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
         vd.template getLastProp<vd10_omega>() = AngularVelocity_;
     }
 }
@@ -351,6 +360,8 @@ void EllipticObstacle::AddObstacle(particles &vd)
     vd.template getLastProp<vd1_rho>() = params_.rho0;
     vd.template getLastProp<vd3_drho>() = 0.0;
     vd.template getLastProp<vd9_volume>()[0] = dxwall;
+    vd.template getLastProp<vd9_volume>()[1] = 0.0;
+    vd.template getLastProp<vd9_volume>()[2] = 0.0;
     vd.template getLastProp<vd10_omega>() = AngularVelocity_;
 
     Point<DIM, real_number> P_prev = P;
@@ -384,6 +395,8 @@ void EllipticObstacle::AddObstacle(particles &vd)
             vd.template getLastProp<vd1_rho>() = params_.rho0;
             vd.template getLastProp<vd3_drho>() = 0.0;
             vd.template getLastProp<vd9_volume>()[0] = dxwall;
+            vd.template getLastProp<vd9_volume>()[1] = 0.0;
+            vd.template getLastProp<vd9_volume>()[2] = 0.0;
             vd.template getLastProp<vd10_omega>() = AngularVelocity_;
 
             // reset accumulated arc

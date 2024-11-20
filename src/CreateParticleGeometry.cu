@@ -35,9 +35,23 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
     else if (params.SCENARIO == TRIANGLE_EQUILATERAL)
         obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
     else if (params.SCENARIO == MOVING_OBSTACLE)
-        obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        obstacle_ptr = new RectangleObstacle(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleHeight, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
     else if (params.SCENARIO == ELLIPSE)
         obstacle_ptr = new EllipticObstacle(params.ObstacleBase, params.ObstacleHeight, params.ObstacleTilt, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+    else if (params.SCENARIO == CUSTOM)
+    {
+        if (params.CustomObstacle == CYLINDER_LATTICE)
+            obstacle_ptr = new CylinderObstacle(params.ObstacleBase, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        else if (params.CustomObstacle == SQUARE)
+            obstacle_ptr = new RectangleObstacle(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleHeight, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        else if (params.CustomObstacle == TRIANGLE)
+            obstacle_ptr = new TriangleObstacle(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleHeight, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        else if (params.CustomObstacle == TRIANGLE_EQUILATERAL)
+            obstacle_ptr = new TriangleEqui(params.ObstacleCenter, params, params.ObstacleBase, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+        else if (params.CustomObstacle == ELLIPSE)
+            obstacle_ptr = new EllipticObstacle(params.ObstacleBase, params.ObstacleHeight, params.ObstacleTilt, params.ObstacleCenter, params, params.ObstacleVelocity, params.ObstacleOmega, params.rf);
+    }
+
     real_number refine_factor = params.rf;
 
     // Now define the iterator boxes
@@ -186,8 +200,17 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             Point<DIM, real_number> LL_corner = {0.0, 0.0};
             Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
             // Top And Bottom Walls
-            AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, 0.0);
-            AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, BOUNDARY, 0.0);
+
+            if (params.SCENARIO == CUSTOM)
+            {
+                AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, FREE_SLIP_BOUNDARY, 0.0);
+                AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, FREE_SLIP_BOUNDARY, 0.0);
+            }
+            else
+            {
+                AddFlatWallNewBC(vd, 0, Nwall, LL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, 0.0);
+                AddFlatWallNewBC(vd, 0, Nwall, UL_corner, X_Offset, dx_wall, {0.0, 0.0}, params.vw_top, params, BOUNDARY, 0.0);
+            }
         }
         else if (params.bc[0] == NON_PERIODIC && params.bc[1] == NON_PERIODIC) // Box like scenario
         {
@@ -258,7 +281,18 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             vd.template getLastProp<vd10_omega>() = 0.0;
             for (int xyz = 0; xyz < DIM; xyz++)
             {
+
+                // if (params.SCENARIO == CUSTOM)
+                // {
+                //     vd.template getLastProp<vd4_velocity>()[xyz] = params.Vinflow[xyz];
+                // }
+                // else
+                // {
+                // vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+                // }
+
                 vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+
                 vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
             }
         }

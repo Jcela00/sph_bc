@@ -106,8 +106,32 @@ inline __device__ __host__ Point<3, real_number> ComputeDragLift(particles &vd, 
 //     return a;
 // }
 
+__device__ real_number SquareAcceleration(const real_number t)
+{
+    const real_number A = 2.82095118865606;
+    const real_number mu = 0.525652150817692;
+    const real_number sigma = 0.141421507636543;
+
+    return A * std::exp(-0.5 * (t - mu) * (t - mu) / (sigma * sigma));
+}
+
+__device__ real_number VelocityRamp(const real_number t)
+{
+    const real_number timetosteady = 4.0;
+    if (t <= timetosteady)
+    {
+        return (t / timetosteady) * (t / timetosteady) * (3.0 - 2.0 * (t / timetosteady));
+    }
+    else
+    {
+        return 1.0;
+    }
+
+    // return 1.0;
+}
+
 template <typename vd_type>
-__global__ void kdi_1_gpu(vd_type vd, const real_number dt)
+__global__ void kdi_1_gpu(vd_type vd, const real_number dt, const real_number t)
 {
     const real_number dt_2 = dt * 0.5;
 
@@ -129,6 +153,13 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
             // move obstacle particles with their linear velocity
             for (int xyz = 0; xyz < DIM; xyz++)
             {
+                if (_params_gpu_.SCENARIO == MOVING_OBSTACLE)
+                {
+                    bool is_x = (xyz == 0);
+                    vd.template getProp<vd6_force>(a)[xyz] = SquareAcceleration(t) * is_x;
+                    vd.template getProp<vd4_velocity>(a)[xyz] += dt * vd.template getProp<vd6_force>(a)[xyz];
+                }
+
                 vd.getPos(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
                 // centre also moves
                 vd.template getProp<vd7_force_t>(a)[xyz] += dt * vd.template getProp<vd4_velocity>(a)[xyz];
@@ -156,9 +187,9 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
             vd.template getProp<vd8_normal>(a)[1] = normal.get(1);
         }
     }
-    else if (vd.template getProp<vd0_type>(a) == FLUID)
+    else if (vd.template getProp<vd0_type>(a) == FLUID) // Otherwise it is a fluid particle
     {
-        // Otherwise it is a fluid particle
+
         for (int xyz = 0; xyz < DIM; xyz++)
         {
             vd.template getProp<vd4_velocity>(a)[xyz] = vd.template getProp<vd4_velocity>(a)[xyz] + dt_2 * vd.template getProp<vd6_force>(a)[xyz];
@@ -168,13 +199,27 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt)
 
         if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
             vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt_2 * vd.template getProp<vd3_drho>(a);
-    }
 
-    return;
+        if (_params_gpu_.SCENARIO == CUSTOM)
+        {
+            Point<DIM, real_number> pos = vd.getPos(a);
+            if (pos.get(0) < 0.1)
+            {
+                const real_number fac = VelocityRamp(t);
+                vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
+                vd.template getProp<vd2_pressure>(a) = 0.0;
+                for (int xyz = 0; xyz < DIM; xyz++)
+                {
+                    vd.template getProp<vd4_velocity>(a)[xyz] = fac * _params_gpu_.Vinflow[xyz];
+                    vd.template getProp<vd5_velocity_t>(a)[xyz] = fac * _params_gpu_.Vinflow[xyz];
+                }
+            }
+        }
+    }
 }
 
 template <typename vd_type>
-__global__ void kdi_2_gpu(vd_type vd, const real_number dt)
+__global__ void kdi_2_gpu(vd_type vd, const real_number dt, const real_number t)
 {
     const real_number dt_2 = dt * 0.5;
 
@@ -190,6 +235,22 @@ __global__ void kdi_2_gpu(vd_type vd, const real_number dt)
         }
         if (_params_gpu_.DENSITY_TYPE == DENSITY_DIFFERENTIAL)
             vd.template getProp<vd1_rho>(a) = vd.template getProp<vd1_rho>(a) + dt_2 * vd.template getProp<vd3_drho>(a);
+
+        if (_params_gpu_.SCENARIO == CUSTOM)
+        {
+            Point<DIM, real_number> pos = vd.getPos(a);
+            if (pos.get(0) < 0.1)
+            {
+                const real_number fac = VelocityRamp(t);
+                vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
+                vd.template getProp<vd2_pressure>(a) = 0.0;
+                for (int xyz = 0; xyz < DIM; xyz++)
+                {
+                    vd.template getProp<vd4_velocity>(a)[xyz] = fac * _params_gpu_.Vinflow[xyz];
+                    vd.template getProp<vd5_velocity_t>(a)[xyz] = fac * _params_gpu_.Vinflow[xyz];
+                }
+            }
+        }
     }
 }
 
@@ -204,7 +265,7 @@ void kick_drift_int(particles &vd,
 
     // particle iterator
     auto it = vd.getDomainIteratorGPU();
-    CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt);
+    CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t);
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
@@ -232,7 +293,7 @@ void kick_drift_int(particles &vd,
     // particle iterator
     it = vd.getDomainIteratorGPU();
 
-    CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt);
+    CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt, t);
 
     if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // If density differential, density has been updated in kdi_2
     {

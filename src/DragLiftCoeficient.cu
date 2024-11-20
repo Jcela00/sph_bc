@@ -11,13 +11,17 @@ void CalcDragLift(real_number t,
 
     // normalization factor, 1/normalization is equal to dx^2/Channel_area
     size_t normalization = params.Nfluid[0] * params.Nfluid[1];
+    // std::cout << "Nfluid[0]: " << params.Nfluid[0] << std::endl;
+    // std::cout << "Nfluid[1]: " << params.Nfluid[1] << std::endl;
+    // std::cout << "Nfluid[0]*dp" << params.Nfluid[0] * params.dp << std::endl;
+    // std::cout << "Nfluid[1]*dp" << params.Nfluid[1] * params.dp << std::endl;
 
-    VxDragLift[0] = VxDragLift[0] / (real_number)normalization;
+    VxDragLift[0] = VxDragLift[0] / static_cast<real_number>(normalization);
 
     // compute drag and lift
     VxDragLift[1] = VxDragLift[1] / (params.eta * VxDragLift[0]);
     VxDragLift[2] = VxDragLift[2] / (params.eta * VxDragLift[0]);
-    real_number Reynolds = VxDragLift[0] * params.ObstacleBase / params.nu;
+    real_number Reynolds = VxDragLift[0] * params.LengthScale / params.nu;
     if (v_cl.getProcessUnitID() == 0)
     {
         if (write == 0)

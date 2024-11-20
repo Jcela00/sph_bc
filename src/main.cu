@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
-	vd.write_frame("AfterCreateGeometry", 0, MainParameters.WRITER);
+	// vd.write_frame(AuxParameters.filename + "CreateGeometry", 0, MainParameters.WRITER);
 
 	for (size_t k = 0; k < vp.size(); k++)
 	{
@@ -139,21 +139,21 @@ int main(int argc, char *argv[])
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		vd.write_frame("FluidVec", 0, MainParameters.WRITER);
+		// vd.write_frame(AuxParameters.filename + "FluidVec", 0, MainParameters.WRITER);
 
 		CalcNormalVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		vd.write_frame("NormalVec", 0, MainParameters.WRITER);
+		// vd.write_frame(AuxParameters.filename + "NormalVec", 0, MainParameters.WRITER);
 
 		CalcCurvature(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
-		vd.write_frame("Curvature", 0, MainParameters.WRITER);
+		vd.write_frame(AuxParameters.filename + "_Curvature", 0, static_cast<double>(0.0), MainParameters.WRITER);
 
 		CalcVolume(vd, MainParameters.dp);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	}
 	vd.map();
-	vd.write_frame("Initialization", 0, MainParameters.WRITER);
+	// vd.write_frame(AuxParameters.filename + "Initialization", 0, MainParameters.WRITER);
 	vd.write_frame(AuxParameters.filename, 0, static_cast<double>(0.0), MainParameters.WRITER);
 
 	// move to gpu and get gpu cell list
@@ -173,7 +173,6 @@ int main(int argc, char *argv[])
 	// Evolve
 	size_t write = 0;
 	size_t last_write = static_cast<size_t>(MainParameters.write_const * MainParameters.t_end);
-	std::cout << "Last write: " << last_write << std::endl;
 	real_number t = 0.0;
 	std::ofstream DragFile(AuxParameters.filename + "_DragLift.csv");
 	timer tot_sim;
@@ -207,12 +206,18 @@ int main(int argc, char *argv[])
 		// increment time
 		t += dt;
 
+		if (write < t * MainParameters.write_const * 10)
+		{
+			// make necessary reductions for computing drag and lift
+			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
+			CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
+		}
 		// write the configuration
 		if (write < t * MainParameters.write_const)
 		{
 
-			// make necessary reductions for computing drag and lift
-			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
+			// // make necessary reductions for computing drag and lift
+			// Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
 
 			// send data from GPU to CPU for writing to file
 			vd.deviceToHostPos();
@@ -227,6 +232,7 @@ int main(int argc, char *argv[])
 			}
 			else if constexpr (DIM == 3)
 			{
+				// vorticity 3d
 			}
 
 			// probe calculation requires ghost and updated cell-list
@@ -244,7 +250,7 @@ int main(int argc, char *argv[])
 			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, static_cast<double>(t), MainParameters.WRITER);
 			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
-			CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
+			// CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
 
 			write++;
 

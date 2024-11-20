@@ -11,6 +11,8 @@ set(groot, 'defaultFigureUnits', 'centimeters');
 % set(groot, 'defaultFigurePosition', [0, 0, 8.5, 6.0]); %single column
 set(groot, 'defaultFigurePosition', [0, 0, 16.0, 10.0]); %double column
 
+mrksz = 4;
+
 % sph parameters
 rho0 = 1; dim = 2; Hconst = 1;
 
@@ -18,14 +20,14 @@ rho0 = 1; dim = 2; Hconst = 1;
 g = 0.1; nu = 0.1; L = 1;
 params = [g, nu, L];
 
-dirname = 'LatexCSVdata/PoiseuilleTimeData';
+dirname = 'PoiseuilleCouetteTime/PoiseuilleTimeData';
 
 yfine = linspace(0, 1, 1000);
 
 filenumber = [20 100 200 1000];
 timesteps = [0.2 1 2 10];
 
-figure; hold on;
+fig2 = figure; hold on;
 
 for k = 1:length(filenumber)
 
@@ -46,16 +48,28 @@ for k = 1:length(filenumber)
     plot(yfine, ua, 'k', 'HandleVisibility', 'off');
 
     if k == length(filenumber)
+        figure(fig2);
         plot(ycoord90, vel90, 'ob', 'DisplayName', 'SPH $N_y = 90$');
         plot(ycoord30, vel30, 'xk', 'DisplayName', 'SPH $N_y = 30$');
-        break;
     else
+        figure(fig2);
         plot(ycoord90, vel90, 'ob', 'HandleVisibility', 'off');
         plot(ycoord30, vel30, 'xk', 'HandleVisibility', 'off');
     end
 
+    if (k == length(filenumber))
+        fig1 = figure; hold on;
+        data30.PlotParticles(fig1, mrksz);
+        axis equal; axis tight;
+        xlabel('$x$'); ylabel('$y$');
+        set(gca, 'FontSize', 11); % Adjust axes font size
+        set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+        exportgraphics(gcf, 'LatexFigures/PoiseuilleParticles.pdf', 'ContentType', 'vector', 'Resolution', 300);
+    end
+
 end
 
+figure(fig2);
 xlabel('$y$'); ylabel('$u_x$');
 legend('Location', 'northwest', 'box', 'off');
 axis([0 1 0 0.14]);
@@ -67,7 +81,7 @@ exportgraphics(gcf, 'LatexFigures/Poiseuille.pdf', 'ContentType', 'vector', 'Res
 v0 = 0.125; nu = 0.1; L = 1;
 params = [v0, nu, L];
 
-dirname = 'LatexCSVdata/CouetteTimeData';
+dirname = 'PoiseuilleCouetteTime/CouetteTimeData';
 
 yfine = linspace(0, 1, 1000);
 
@@ -77,7 +91,7 @@ timesteps = [0.2 1 2 10];
 txtx = [0.772 0.633 0.569 0.528];
 txty = [0.03178 0.05138 0.06034 0.06608];
 
-figure; hold on;
+fig3 = figure; hold on;
 
 for k = 1:length(filenumber)
 
@@ -98,13 +112,25 @@ for k = 1:length(filenumber)
     plot(yfine, ua, 'k', 'HandleVisibility', 'off');
 
     if k == length(filenumber)
+        figure(fig3);
         plot(ycoord90, vel90, 'ob', 'DisplayName', 'SPH $N_y = 90$');
         plot(ycoord30, vel30, 'xk', 'DisplayName', 'SPH $N_y = 30$');
         text(txtx(k), txty(k), txt, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
     else
+        figure(fig3);
         plot(ycoord90, vel90, 'ob', 'HandleVisibility', 'off');
         plot(ycoord30, vel30, 'xk', 'HandleVisibility', 'off');
         text(txtx(k), txty(k), txt, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top');
+    end
+
+    if (k == length(filenumber))
+        fig4 = figure; hold on;
+        data30.PlotParticles(fig4, mrksz);
+        axis equal; axis tight;
+        xlabel('$x$'); ylabel('$y$');
+        set(gca, 'FontSize', 11); % Adjust axes font size
+        set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
+        exportgraphics(gcf, 'LatexFigures/CouetteParticles.pdf', 'ContentType', 'vector', 'Resolution', 300);
     end
 
 end
@@ -118,6 +144,7 @@ end
 
 % plot(yvals, tt, 'r');
 
+figure(fig3);
 xlabel('$y$'); ylabel('$u_x$');
 lgd = legend('Location', 'northwest', 'box', 'off');
 axis([0 1 0 0.14]);
@@ -125,8 +152,8 @@ set(gca, 'FontSize', 11); % Adjust axes font size
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure
 exportgraphics(gcf, 'LatexFigures/Couette.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
-fig1 = figure; hold on; axis equal;
-data30.PlotParticles(fig1);
+% fig1 = figure; hold on; axis equal;
+% data30.PlotParticles(fig1);
 
 % FUNCTIONS
 function [time, ycoord, vel] = extractData(ParticleDataSet)
@@ -199,4 +226,10 @@ function u = prof_a_pouiseuille(x, t, params)
         u = u - ((4 * g * L ^ 2) / (nu * pi ^ 3 * (2 * n + 1) ^ 3)) .* sin(pi * x * (2 * n + 1) / L) .* exp(- ((2 * n + 1) ^ 2 * pi ^ 2 * nu * t) / (L ^ 2));
     end
 
+end
+
+function [L1, L1spatial] = L1_error(VelocityNumeric, VelocityAnalytic)
+    L1spatial = abs(VelocityNumeric(:, 1) - VelocityAnalytic(:, 1)) + abs(VelocityNumeric(:, 2) - VelocityAnalytic(:, 2));
+    N = length(VelocityNumeric(:, 1));
+    L1 = (1 / N) * sum(L1spatial);
 end

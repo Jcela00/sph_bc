@@ -52,6 +52,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = TRIANGLE_TEST;
         else if (strcmp(scenario_str, "Sphere") == 0)
             argParameters.SCENARIO = SPHERE;
+        else if (strcmp(scenario_str, "Custom") == 0)
+            argParameters.SCENARIO = CUSTOM;
         else
         {
             std::cout << "Unknown Scenario, defaulting to Poiseuille" << std::endl;
@@ -201,9 +203,12 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
     if (obstacleElement)
     {
 
-        // optional parameters ObstacleBase, ObstacleHeight, tilt
+        // optional parameters ObstacleBase, ObstacleHeight, tilt, obstacle centre
         argParameters.ObstacleBase = 0.0;
         argParameters.ObstacleHeight = 0.0;
+        argParameters.ObstacleTilt = 0.0;
+        argParameters.CustomObstacle = 0;
+
         const char *obstacleBaseStr = obstacleElement->Attribute("ObstacleBase");
         if (obstacleBaseStr)
         {
@@ -218,6 +223,69 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         if (tiltStr)
         {
             argParameters.ObstacleTilt = std::stod(tiltStr); // Convert to float
+        }
+        const char *centerX = obstacleElement->Attribute("centerX");
+        const char *centerY = obstacleElement->Attribute("centerY");
+        const char *Vinflowx = obstacleElement->Attribute("VinflowX");
+        const char *Vinflowy = obstacleElement->Attribute("VinflowY");
+        if (centerX && centerY)
+        {
+            argParameters.ObstacleCenter[0] = std::stod(centerX); // Convert to float
+            argParameters.ObstacleCenter[1] = std::stod(centerY); // Convert to float
+        }
+        if (Vinflowx && Vinflowy)
+        {
+            argParameters.Vinflow[0] = std::stod(Vinflowx); // Convert to float
+            argParameters.Vinflow[1] = std::stod(Vinflowy); // Convert to float
+        }
+        if constexpr (DIM == 3)
+        {
+            const char *centerZ = obstacleElement->Attribute("centerZ");
+            if (centerZ)
+            {
+                argParameters.ObstacleCenter[2] = std::stod(centerZ); // Convert to float
+            }
+            const char *Vinflowz = obstacleElement->Attribute("VinflowZ");
+            if (Vinflowz)
+            {
+                argParameters.Vinflow[2] = std::stod(Vinflowz); // Convert to float
+            }
+        }
+
+        const char *customObstacleStr = obstacleElement->Attribute("custom");
+        if (customObstacleStr)
+        {
+            if (strcmp(customObstacleStr, "Cylinder") == 0)
+            {
+                argParameters.CustomObstacle = CYLINDER_LATTICE;
+                argAuxParameters.filename += "_Cylinder";
+            }
+            else if (strcmp(customObstacleStr, "Square") == 0)
+            {
+                argParameters.CustomObstacle = SQUARE;
+                argAuxParameters.filename += "_Square";
+            }
+            else if (strcmp(customObstacleStr, "Triangle") == 0)
+            {
+                argParameters.CustomObstacle = TRIANGLE;
+                argAuxParameters.filename += "_Triangle";
+            }
+            else if (strcmp(customObstacleStr, "TriangleEquilateral") == 0)
+            {
+                argParameters.CustomObstacle = TRIANGLE_EQUILATERAL;
+                argAuxParameters.filename += "_TriangleEquilateral";
+            }
+            else if (strcmp(customObstacleStr, "Ellipse") == 0)
+            {
+                argParameters.CustomObstacle = ELLIPSE;
+                argAuxParameters.filename += "_Ellipse";
+            }
+            else
+            {
+                std::cout << "Unknown custom obstacle, defaulting to Ellipse " << std::endl;
+                argParameters.CustomObstacle = ELLIPSE;
+                argAuxParameters.filename += "_Ellipse";
+            }
         }
 
         obstacleElement->QueryDoubleAttribute("velX", &tmpdouble);
@@ -400,11 +468,16 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Pbackground = argParameters.Bfactor * argParameters.B;
     argParameters.eta = argParameters.nu * argParameters.rho0;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
-    argParameters.ObstacleCenter[0] = (argParameters.length[0] + static_cast<real_number>(argParameters.bc[0]) * argParameters.dp) / 2.0;
-    argParameters.ObstacleCenter[1] = (argParameters.length[1] + static_cast<real_number>(argParameters.bc[1]) * argParameters.dp) / 2.0;
-    if constexpr (DIM == 3)
+
+    if (argParameters.SCENARIO != CUSTOM && argParameters.SCENARIO != MOVING_OBSTACLE)
     {
-        argParameters.ObstacleCenter[2] = (argParameters.length[2] + static_cast<real_number>(argParameters.bc[2]) * argParameters.dp) / 2.0;
+        argParameters.ObstacleCenter[0] = (argParameters.length[0] + static_cast<real_number>(argParameters.bc[0]) * argParameters.dp) / 2.0;
+        argParameters.ObstacleCenter[1] = (argParameters.length[1] + static_cast<real_number>(argParameters.bc[1]) * argParameters.dp) / 2.0;
+        if constexpr (DIM == 3)
+        {
+            argParameters.ObstacleCenter[2] = (argParameters.length[2] + static_cast<real_number>(argParameters.bc[2]) * argParameters.dp) / 2.0;
+        }
+        std::cout << "Obstacle center: " << argParameters.ObstacleCenter[0] << " " << argParameters.ObstacleCenter[1] << " " << argParameters.ObstacleCenter[2] << std::endl;
     }
 
     // add the number of processors to the filename

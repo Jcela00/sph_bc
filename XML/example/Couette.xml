@@ -9,6 +9,7 @@
         writerType="vtk"
         time="10"
         write_const="100"
+        CFL="1.0"
         custom_string=""
     />
 

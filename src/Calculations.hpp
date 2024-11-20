@@ -21,7 +21,7 @@ void CalcFluidVec2D(particles &vd, CellList &NN, const Parameters &params)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
 
             // check if the normal vector is uninitialized
@@ -96,7 +96,7 @@ void CalcFluidVec3D(particles &vd, CellList &NN, const Parameters &params)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
 
             // check if the normal vector is uninitialized
@@ -188,7 +188,7 @@ void CalcNormalVec2D(particles &vd, CellList &NN, const Parameters &params)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
 
             // get vector that points at fluid
@@ -218,7 +218,7 @@ void CalcNormalVec2D(particles &vd, CellList &NN, const Parameters &params)
                         continue;
                     }
 
-                    if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
+                    if (vd.getProp<vd0_type>(b) != FLUID)
                     {
                         // Get the position xb of the particle b
                         const Point<DIM, real_number> xb = vd.getPos(b);
@@ -296,7 +296,7 @@ void CalcNormalVec3D(particles &vd, CellList &NN, const Parameters &params)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
 
             // get vector that points at fluid
@@ -326,7 +326,7 @@ void CalcNormalVec3D(particles &vd, CellList &NN, const Parameters &params)
                         continue;
                     }
 
-                    if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
+                    if (vd.getProp<vd0_type>(b) != FLUID)
                     {
                         // Get the position xb of the particle b
                         const Point<DIM, real_number> xb = vd.getPos(b);
@@ -418,7 +418,7 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
 
-    const real_number max_curvature = 1.0 / (1.0 * dp);
+    const real_number max_curvature = 1.0 / (1.5 * dp);
     std::cout << "Max curvature: " << max_curvature << std::endl;
 
     // For each particle ...
@@ -428,7 +428,7 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
 
             Point<3, real_number> vol = vd.template getProp<vd9_volume>(a);
@@ -452,7 +452,7 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
                     // Key of b particle
                     const unsigned long b = Np.get();
 
-                    if (vd.getProp<vd0_type>(b) == BOUNDARY || vd.getProp<vd0_type>(b) == OBSTACLE)
+                    if (vd.getProp<vd0_type>(b) != FLUID)
                     {
                         // Get the position xb of the particle b
                         const Point<DIM, real_number> xb = vd.getPos(b);
@@ -487,9 +487,8 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
                                 Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
                                 real_number r = sqrt(r2);
                                 real_number W = Wab(r, local_H, local_Kquintic);
-                                Point<DIM, real_number> eab = -1.0 * dr;
-                                eab = eab / r;
-                                real_number local_k = dotProduct(normal_b - normal_a, eab) / r;
+                                Point<DIM, real_number> eab = dr / r;
+                                real_number local_k = dotProduct(normal_a - normal_b, eab) / r;
 
                                 if (local_k > max_curvature)
                                 {
@@ -531,7 +530,7 @@ void CalcVolume(particles &vd, real_number dp)
         vect_dist_key_dx a = part.get();
 
         // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) == BOUNDARY || vd.getProp<vd0_type>(a) == OBSTACLE)
+        if (vd.getProp<vd0_type>(a) != FLUID)
         {
             real_number dxwall = vd.getProp<vd9_volume>(a)[0];
             real_number kappa = vd.getProp<vd9_volume>(a)[1];
@@ -585,6 +584,8 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             // neighborhood particles
             auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
 
+            real_number rhoa = vd.getProp<vd1_rho>(a);
+
             // iterate the neighborhood particles
             while (Np.isNext() == true)
             {
@@ -597,6 +598,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                     // Get the position ( and vel ) of particle b
                     const Point<DIM, real_number> xb = vd.getPos(b);
 
+                    const real_number rhob = vd.getProp<vd1_rho>(b);
                     // Get the vector pointing at A from B
                     Point<DIM, real_number> dr = xa - xb;
                     // get the norm squared of this vector
@@ -608,7 +610,8 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                         const Point<DIM, real_number> vb = vd.getProp<vd4_velocity>(b);
                         // evaluate the kernel gradient
                         Point<DIM, real_number> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
-                        vorticity += -params.MassFluid * crossProduct2D(vb - va, Dwab);
+                        Point<DIM, real_number> dv = vb / rhob - va / rhoa;
+                        vorticity += -params.MassFluid * crossProduct2D(dv, Dwab);
                     }
                 }
 
@@ -616,7 +619,8 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             }
 
             // Store in vorticity property
-            vd.template getProp<vd11_vorticity>(a) = vorticity / vd.getProp<vd1_rho>(a);
+            // // vd.template getProp<vd11_vorticity>(a) = vorticity / rhoa;
+            vd.template getProp<vd11_vorticity>(a) = vorticity;
         }
 
         ++part;
