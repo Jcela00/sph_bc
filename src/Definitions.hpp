@@ -151,6 +151,9 @@ public:
     // Normalization constant for the kernels
     real_number Kquintic;
 
+    // Particle volume (determined by the kernel)
+    real_number Vp;
+
     // Reynolds number
     real_number Re;
 

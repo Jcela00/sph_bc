@@ -7,34 +7,34 @@
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
         writerType="vtk"
-        time="40"
+        time="100"
         write_const="10"
         CFL="1.0"
         custom_string="Re1000"
     />
 
     <geometry
-        lengthScale="4.0"
+        lengthScale="8.0"
         rf="1.0"
-        sizeX="1800" sizeY="800" sizeZ="0"
+        sizeX="450" sizeY="200" sizeZ="0"
     />
 
     <physics
         rho0="1.0"
         nu="0.001"
-        Bfactor="1.0"
+        Bfactor="1.5"
         gamma="1.0"
-        umax="3.0"
+        umax="3.5"
         gravityX="0.0" gravityY="0.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />
 
     <obstacle 
-        custom="Ellipse"
-        ObstacleBase ="0.5"
+        custom="TriangleEquilateral"
+        ObstacleBase ="1.0"
         ObstacleHeight="0.2"
-        centerX="2.0" centerY="2.0" centerZ="0.0"
+        centerX="6.0" centerY="4.0" centerZ="0.0"
         VinflowX ="1.0" VinflowY="0.0" VinflowZ="0.0"
         tilt ="20"
         velX="0.0" velY="0.0" velZ="0.0"

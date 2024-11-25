@@ -116,15 +116,15 @@ inline void CalcDensity(vd_type &vd, NN_type &NN, const Parameters &params)
 
     if (params.BC_TYPE == NO_SLIP)
     {
-        vd.template updateCellListGPU<vd0_type, vd1_rho>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd4_velocity>(NN);
         CUDA_LAUNCH(CalcDensityGPU_old, it, vd.toKernel(), NN.toKernel());
-        vd.template restoreOrder<vd0_type, vd1_rho>(NN);
+        vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd4_velocity>(NN);
     }
     else if (params.BC_TYPE == NEW_NO_SLIP)
     {
-        vd.template updateCellListGPU<vd0_type, vd1_rho, vd8_normal, vd9_volume>(NN);
+        vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd8_normal, vd9_volume>(NN);
         CUDA_LAUNCH(CalcDensityGPU_new, it, vd.toKernel(), NN.toKernel());
-        vd.template restoreOrder<vd0_type, vd1_rho, vd8_normal, vd9_volume>(NN);
+        vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd8_normal, vd9_volume>(NN);
     }
 }
 

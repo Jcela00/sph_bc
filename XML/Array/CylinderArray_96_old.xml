@@ -3,9 +3,9 @@
 
     <simulation
         scenario="CylinderArray"
-        bcType="new"
+        bcType="old"
         bcX="periodic" bcY="non_periodic"
-        densityType="differential"
+        densityType="summation"
         writerType="vtk"
         time="840"
         write_const="1"
@@ -16,7 +16,7 @@
     <geometry
         lengthScale="0.02"
         rf="1.0"
-        sizeX="72" sizeY="48" sizeZ="0"
+        sizeX="144" sizeY="96" sizeZ="0"
     />
 
     <physics

@@ -282,16 +282,18 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             for (int xyz = 0; xyz < DIM; xyz++)
             {
 
-                // if (params.SCENARIO == CUSTOM)
-                // {
-                //     vd.template getLastProp<vd4_velocity>()[xyz] = params.Vinflow[xyz];
-                // }
+                if (params.SCENARIO == CUSTOM)
+                {
+                    vd.template getLastProp<vd4_velocity>()[xyz] = params.Vinflow[xyz];
+                }
+                else
+                {
+                    vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+                }
                 // else
                 // {
                 // vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
                 // }
-
-                vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
 
                 vd.template getLastProp<vd7_force_t>()[xyz] = 0.0;
             }

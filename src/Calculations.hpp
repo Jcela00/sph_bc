@@ -582,7 +582,7 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             real_number vorticity = 0.0;
 
             // neighborhood particles
-            auto Np = NN.getNNIteratorBox(NN.getCell(vd.getPos(a)));
+            auto Np = NN.getNNIteratorBox(NN.getCell(xa));
 
             real_number rhoa = vd.getProp<vd1_rho>(a);
 
@@ -604,14 +604,15 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
                     // get the norm squared of this vector
                     const real_number r2 = norm2(dr);
 
-                    if (r2 < params.r_cut * params.r_cut)
+                    if (r2 < params.r_cut2)
                     {
                         // Get the velocity of particle b
                         const Point<DIM, real_number> vb = vd.getProp<vd4_velocity>(b);
                         // evaluate the kernel gradient
                         Point<DIM, real_number> Dwab = DWab(dr, sqrt(r2), params.H, params.Kquintic);
-                        Point<DIM, real_number> dv = vb / rhob - va / rhoa;
+                        Point<DIM, real_number> dv = vb - va;
                         vorticity += -params.MassFluid * crossProduct2D(dv, Dwab);
+                        // vorticity += -crossProduct2D(dv, Dwab);
                     }
                 }
 
@@ -619,8 +620,9 @@ void CalcVorticity(particles &vd, CellList &NN, const Parameters &params)
             }
 
             // Store in vorticity property
-            // // vd.template getProp<vd11_vorticity>(a) = vorticity / rhoa;
-            vd.template getProp<vd11_vorticity>(a) = vorticity;
+            vd.template getProp<vd11_vorticity>(a) = vorticity / rhoa;
+
+            // vd.template getProp<vd11_vorticity>(a) = vorticity * params.dp * params.dp;
         }
 
         ++part;

@@ -46,24 +46,6 @@ xrange = [0 1];
 yrange = [0 1];
 streamDensity = 8;
 
-% filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re100_50_50_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re100_100_100_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re100_200_200_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_50_50_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_100_100_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file', };
-
-% names = {'Re100_50x50',
-%          'Re100_100x100',
-%          'Re100_200x200',
-%          'Re1000_50x50',
-%          'Re1000_100x100',
-%          'Re1000_200x200',
-%          'Re10000_200x200'};
-
-% nfiles = [300 300 300 500 500 500 4500];
-
 filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re100_200_200_1rf_1prc/file',
              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file',
              '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file', };
@@ -74,26 +56,6 @@ names = {'Re100_200x200',
 
 nfiles = [300 500 4500];
 
-% filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file'};
-
-% names = {'Re1000_200x200'};
-% nfiles = [500];
-
-% in Ghia labels
-% level100 = [-4 -3 -2 -1 0 1 2 3 4 5 6];
-% level1000 = [-4 -3 -2 -1 0 1 2 3 4 5 6];
-% level10000 = [-4 -3 0 1 2 3];
-
-% in values
-
-% level100 = [j i h g f e d c 2]
-% level1000 = [m l k j i h g f e d c a 1 2 3 4 5 6 7 8 9];
-% level10000 = [m l k j i h g f e d c b a 5 6 7 8 9 10];
-% level100 = [-0.1 -0.09 -0.07 -0.05 -0.03 -0.01 -1e-4 -1e-5 1e-6];
-% level1000 = [-0.1175 -0.115 -0.11 -0.1 -0.09 -0.07 -0.05 -0.03 -0.01 -1e-4 -1e-5 -1e-10 1e-7 1e-6 1e-5 5e-5 1e-4 2.5e-4 5e-4 1e-3 1.5e-3];
-% level10000 = [-0.1175 -0.115 -0.11 -0.1 -0.09 -0.07 -0.05 -0.03 -0.01 -1e-4 -1e-5 -1e-10 1e-4 2.5e-4 5e-4 1e-3 1.5e-3 3e-3];
-
-level100 = [-3 -2 -1 -0.5 0 0.5 1 2 3 4 5];
 level1000 = [-3 -2 -1 -0.5 0 0.5 1 2 3 4 5];
 level10000 = [-3 -2 0 1 2];
 
@@ -116,15 +78,7 @@ for k = 1:length(filenames)
     exportgraphics(fig4, ['LatexFigures/CavityStreamfunction' num2str(Npoints) names{k} '.pdf'], 'ContentType', 'vector', 'Resolution', 300);
     exportgraphics(fig2, ['LatexFigures/CavityVorticityContour' num2str(Npoints) names{k} '.pdf'], 'ContentType', 'vector', 'Resolution', 300);
     exportgraphics(fig3, ['LatexFigures/CavityVelContour' num2str(Npoints) names{k} '.pdf'], 'ContentType', 'vector', 'Resolution', 300);
-    % close all;
-    % fig3 = figure; hold on;
-    % Cavity.PlotParticles(fig3, mrksz);
-    % axis equal;
-    % axis([0 1 0 1]);
-    % xlabel('$x$'); ylabel('$y$');
-    % set(gca, 'FontSize', 11);
-    % set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
-    % exportgraphics(gcf, ['LatexFigures/CavityParticles' names{k} '.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+
     close all;
 end
 

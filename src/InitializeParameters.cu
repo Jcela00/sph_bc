@@ -326,6 +326,69 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         argParameters.waterB = static_cast<real_number>(tmpdouble);
     }
 }
+
+void ComputeKernelVolume(Parameters &argParameters)
+{
+    // compute the kernel volume as 1/sum(Wij) for a cartesian lattice
+    if constexpr (DIM == 2)
+    {
+        std::vector<Point<2, real_number>> points;
+        // place particles in a square from (-4dp,-4dp) to (4dp,4dp)
+        for (int i = -4; i < 5; i++)
+        {
+            for (int j = -4; j < 5; j++)
+            {
+                Point<2, real_number> current_point = {i * argParameters.dp, j * argParameters.dp};
+                points.push_back(current_point);
+            }
+        }
+
+        // iterate vector and compute sum(Wij) for particle at (0,0)
+        real_number sumWij = 0.0;
+        Point<2, real_number> CentralParticle = {0.0, 0.0};
+        for (auto point : points)
+        {
+            real_number r = getVectorNorm(point - CentralParticle);
+            real_number Wij = Wab(r, argParameters.H, argParameters.Kquintic);
+            sumWij += Wij;
+        }
+
+        argParameters.Vp = 1.0 / sumWij;
+        printf("Kernel volume: %.17g\n", argParameters.Vp);
+        printf("Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
+    }
+    else if constexpr (DIM == 3)
+    {
+        std::vector<Point<3, real_number>> points;
+        // place particles in a square from (-4dp,-4dp) to (4dp,4dp)
+        for (int i = -4; i < 5; i++)
+        {
+            for (int j = -4; j < 5; j++)
+            {
+                for (int k = -4; k < 5; k++)
+                {
+                    Point<3, real_number> current_point = {i * argParameters.dp, j * argParameters.dp, k * argParameters.dp};
+                    points.push_back(Point<3, real_number>(current_point));
+                }
+            }
+        }
+
+        // iterate vector and compute sum(Wij) for particle at (0,0)
+        real_number sumWij = 0.0;
+        Point<3, real_number> CentralParticle = {0.0, 0.0, 0.0};
+        for (auto point : points)
+        {
+            real_number r = getVectorNorm(point - CentralParticle);
+            real_number Wij = Wab(r, argParameters.H, argParameters.Kquintic);
+            sumWij += Wij;
+        }
+
+        argParameters.Vp = 1.0 / sumWij;
+        printf("Kernel volume: %.17g\n", argParameters.Vp);
+        printf("Dx*Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
+    }
+}
+
 void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxParameters)
 {
     // Given the scenario and xml parameters, we set the constants of argParameters
@@ -441,8 +504,14 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.r_cut = 3.0 * argParameters.H;
     argParameters.r_cut2 = argParameters.r_cut * argParameters.r_cut;
     argParameters.Kquintic = (DIM == 3) ? 1.0 / 120.0 / M_PI / argParameters.H / argParameters.H / argParameters.H : 7.0 / 478.0 / M_PI / argParameters.H / argParameters.H;
-    argParameters.MassFluid = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
-    argParameters.MassBound = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
+
+    ComputeKernelVolume(argParameters);
+    // argParameters.MassFluid = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
+    // argParameters.MassBound = argParameters.rho0 * (DIM == 3 ? argParameters.dp * argParameters.dp * argParameters.dp : argParameters.dp * argParameters.dp);
+
+    argParameters.MassFluid = argParameters.rho0 * argParameters.Vp;
+    argParameters.MassBound = argParameters.rho0 * argParameters.Vp;
+
     argParameters.gravity = getVectorNorm(argParameters.gravity_vector);
     real_number c, cu, cnu, cg;
     cu = argParameters.coeff_sound * argParameters.umax;

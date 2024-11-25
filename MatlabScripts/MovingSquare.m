@@ -11,81 +11,100 @@ set(groot, 'defaultFigureUnits', 'centimeters');
 set(groot, 'defaultFigurePosition', [100, 100, 16.0, 4.0]); %double column
 
 %% GAUSSIAN FIT OF a(t) FOR MOVING SQUARE
-% data = csvread('../Motion_Body.dat', 1, 0);
-% t = data(:, 1);
-% a = data(:, 2);
-% v = data(:, 3);
-% x = data(:, 4);
+data = csvread('../Motion_Body.dat', 1, 0);
+t = data(:, 1);
+a = data(:, 2);
+v = data(:, 3);
+x = data(:, 4);
 
-% figure; hold on;
-% plot(t, a, 'r');
-% plot(t, v, 'b');
-% legend('$a(t) D/U^2$', '$v(t)/U$', 'Location', 'best');
-% xlabel('$t$');
-% axis([0 8 -inf inf]);
-% set(gca, 'FontSize', 11);
-% set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
-% exportgraphics(gcf, ['LatexFigures/SquareTimeLaw.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+% initial guesses for parameters
+A = max(a);
+sigma = std(a);
+mu = t(a == A);
 
-% % initial guesses
-% A = max(a);
-% sigma = var(a);
-% mu = t(a == A);
-% initialGuess = [A, mu, sigma]; % [Amplitude, Mean, Standard Deviation]
-% gaussianModel = fittype('A*exp(-(x - mu)^2 / (2*sigma^2))', 'independent', 'x', 'dependent', 'y');
-% % Fit the model to the data
-% fitres = fit(t(:), a(:), gaussianModel, 'StartPoint', initialGuess);
-% % Display the fit parameters
-% format long g;
-% disp("A = ");
-% disp(fitres.A);
-% disp("mu = ");
-% disp(fitres.mu);
-% disp("sigma = ");
-% disp(fitres.sigma);
+initialGuess = [A, mu, sigma]; % [Amplitude, Mean, Standard Deviation]
+gaussianModel = fittype('A*exp(-(x - mu)^2 / (2*sigma^2))', 'independent', 'x', 'dependent', 'y');
 
-%%%%%%%%% SIMULATION PLOTS
+options = fitoptions('Method', 'NonlinearLeastSquares', ...
+    'StartPoint', initialGuess, ...
+    'TolFun', 1e-10, ... % Function tolerance
+    'TolX', 1e-10, ... % Parameter tolerance
+    'MaxIter', 1000000); % Maximum number of iterations
 
-% Drag50 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re50.csv', 1, 1, 0.02);
-% Drag100 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re100.csv', 1, 1, 0.01);
-% Drag150 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re150.csv', 1, 1, 0.00666667);
+% Associate options with the fit type
+gaussianModel = setoptions(gaussianModel, options);
+% Fit the model to the data
+[fitres, gof, output] = fit(t, a, gaussianModel);
 
-% [DragRef50] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re050.csv');
-% [DragRef100] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re100.csv');
-% [DragRef150] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re150.csv');
+% plot the fit
+figure; hold on;
+plot(t, a, 'or');
+plot(t, fitres(t), '-k');
+xlabel('$t$');
+ylabel('$a(t) D/U^2$');
+legend('Data', 'Fit', 'Location', 'best');
+axis([0 2 -inf inf]);
+% Display the fit parameters
+format long g;
+disp("A = ");
+disp(fitres.A);
+disp("mu = ");
+disp(fitres.mu);
+disp("sigma = ");
+disp(fitres.sigma);
 
-% figure; hold on;
-% plot(Drag50{1}, Drag50{3}, 'k-', 'DisplayName', 'SPH');
-% plot(DragRef50{1}, DragRef50{2}, 'r--', 'DisplayName', 'DNS');
-% legend('Location', 'best');
-% xlabel('$t$'); ylabel('$C_D$');
-% axis([0 8 -inf inf]);
-% text(0.5, 0.9, '$Re = 50$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
-% set(gca, 'FontSize', 11);
-% set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
-% exportgraphics(gcf, ['LatexFigures/SquareDrag50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+figure; hold on;
+plot(t, a, 'r');
+plot(t, v, 'b');
+legend('$a(t) D/U^2$', '$v(t)/U$', 'Location', 'best');
+xlabel('$t$');
+axis([0 8 -inf inf]);
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, ['LatexFigures/SquareTimeLaw.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
-% figure; hold on;
-% plot(Drag100{1}, Drag100{3}, 'k-', 'DisplayName', 'SPH');
-% plot(DragRef100{1}, DragRef100{2}, 'r--', 'DisplayName', 'DNS');
-% legend('Location', 'best');
-% xlabel('$t$'); ylabel('$C_D$');
-% axis([0 8 -inf inf]);
-% text(0.5, 0.9, '$Re = 100$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
-% set(gca, 'FontSize', 11);
-% set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
-% exportgraphics(gcf, ['LatexFigures/SquareDrag100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+%%%%%%%% SIMULATION PLOTS
 
-% figure; hold on;
-% plot(Drag150{1}, Drag150{3}, 'k-', 'DisplayName', 'SPH');
-% plot(DragRef150{1}, DragRef150{2}, 'r--', 'DisplayName', 'DNS');
-% xlabel('$t$'); ylabel('$C_D$');
-% legend('Location', 'best');
-% axis([0 8 -inf inf]);
-% text(0.5, 0.9, '$Re = 150$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
-% set(gca, 'FontSize', 11);
-% set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
-% exportgraphics(gcf, ['LatexFigures/SquareDrag150.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+Drag50 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re50.csv', 1, 1, 0.02);
+Drag100 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re100.csv', 1, 1, 0.01);
+Drag150 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re150.csv', 1, 1, 0.00666667);
+
+[DragRef50] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re050.csv');
+[DragRef100] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re100.csv');
+[DragRef150] = ReadRefDrag('../CSV_Data/MovingObstacle/Drag/Force_Re150.csv');
+
+figure; hold on;
+plot(Drag50{1}, Drag50{3}, 'k-', 'DisplayName', 'SPH');
+plot(DragRef50{1}, DragRef50{2}, 'r--', 'DisplayName', 'DNS');
+legend('Location', 'best');
+xlabel('$t$'); ylabel('$C_D$');
+axis([0 8 -inf inf]);
+text(0.5, 0.9, '$Re = 50$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, ['LatexFigures/SquareDrag50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+
+figure; hold on;
+plot(Drag100{1}, Drag100{3}, 'k-', 'DisplayName', 'SPH');
+plot(DragRef100{1}, DragRef100{2}, 'r--', 'DisplayName', 'DNS');
+legend('Location', 'best');
+xlabel('$t$'); ylabel('$C_D$');
+axis([0 8 -inf inf]);
+text(0.5, 0.9, '$Re = 100$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, ['LatexFigures/SquareDrag100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+
+figure; hold on;
+plot(Drag150{1}, Drag150{3}, 'k-', 'DisplayName', 'SPH');
+plot(DragRef150{1}, DragRef150{2}, 'r--', 'DisplayName', 'DNS');
+xlabel('$t$'); ylabel('$C_D$');
+legend('Location', 'best');
+axis([0 8 -inf inf]);
+text(0.5, 0.9, '$Re = 150$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, ['LatexFigures/SquareDrag150.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 %%%%%%%%%%%%%%%%%%%% THIS IS TO CREATE THE INTERPOLATED DATA WHICH IS VERY TIME CONSUMING %%%%%%%%%%%%%%%%%%%%%
 set(groot, 'defaultFigurePosition', [100, 100, 16.0, 10.0]); %double column
@@ -128,7 +147,15 @@ MS150_80 = ParticleData('../CSV_Data/MovingObstacle/Re150/file', 80, ['Re150'], 
 
 Datasets = {MS50_50, MS100_50, MS150_50, MS50_80, MS100_80, MS150_80};
 filenames = {'MS50interp50.mat', 'MS100interp50.mat', 'MS150interp50.mat', 'MS50interp80.mat', 'MS100interp80.mat', 'MS150interp80.mat'};
-names = {'Re50_50', 'Re100_50', 'Re150_50', 'Re50_80', 'Re100_80', 'Re150_80'};
+names = {'Re50_50_grid', 'Re100_50_grid', 'Re150_50_grid',
+         'Re50_80_grid', 'Re100_80_grid', 'Re150_80_grid'};
+
+names = {'Re50_50', 'Re100_50', 'Re150_50',
+         'Re50_80', 'Re100_80', 'Re150_80'};
+
+% Datasets = {MS50_50};
+% filenames = {'MS50interp50.mat'};
+% names = {'Re50_50'};
 
 for k = 1:length(Datasets)
     PlotMovingSquareContours(Datasets{k}, filenames{k}, names{k});
@@ -140,6 +167,9 @@ function [] = PlotMovingSquareContours(Dataset, interp_filename, name)
     Ny = 300;
     xi = linspace(0, 10, Nx);
     yi = linspace(0, 5, Ny);
+
+    % dx = xi(2) - xi(1);
+    % dy = yi(2) - yi(1);
 
     % extract reynolds number and time from name
     % name is formated as ReXXX_YY where XXX is the Reynolds number and YY is the number of particles
@@ -155,7 +185,12 @@ function [] = PlotMovingSquareContours(Dataset, interp_filename, name)
 
     txt = {['$Re = ' num2str(Re) '$'], ['$t = ' num2str(time) '$']};
 
-    load(interp_filename);
+    load(['dotMatData/' interp_filename]);
+
+    % [du_dx, du_dy] = gradient(uinterp, dy, dx);
+    % [dv_dx, dv_dy] = gradient(vinterp, dy, dx);
+
+    % winterp = dv_dx - du_dy;
 
     squareCentre = Dataset.ForceTransport(Dataset.ObstacleIndexes, 1:2);
     squareCentre = squareCentre(1, :);
@@ -253,7 +288,7 @@ function plotSolidSquare(figHandle, center, D, color)
 
     figure(figHandle);
     % Plot the square
-    fill(x, y, color, 'EdgeColor', 'k'); % Solid fill with no edge
+    fill(x, y, color, 'EdgeColor', 'k'); % Solid fill with black border
 end
 
 function [DragDataset] = ReadDragLift(filename, t0, renormalize, nu)
@@ -266,41 +301,9 @@ function [DragDataset] = ReadDragLift(filename, t0, renormalize, nu)
     if (renormalize == 1)
         drag = -2 * nu * drag .* u;
         lift = -2 * nu * lift .* u;
-        % drag = LowPassFilter(drag, t, 'Drag');
-        % lift = LowPassFilter(lift, t, 'Lift');
     end
 
     DragDataset = {t, u, drag, lift};
-end
-
-function [filtered_signal] = LowPassFilter(signal, t, titlestr)
-
-    dt = t(2:end) - t(1:end - 1);
-    dt = mean(dt);
-
-    fs = 1 / dt;
-    % Perform FFT
-    Y = fft(signal);
-    N = length(signal);
-    f = (0:N - 1) * (fs / N); % Frequency vector
-
-    % Create a low-pass mask
-    cutoff = f(40);
-    mask = f < cutoff;
-
-    % Apply the mask and perform inverse FFT
-    Y_filtered = Y .* mask';
-    filtered_signal = ifft(Y_filtered, 'symmetric');
-
-    % % Plot
-    % figure;
-    % subplot(2, 1, 1);
-    % plot(t, signal);
-    % title(['Original Signal with Noise ' titlestr]);
-    % subplot(2, 1, 2);
-    % plot(t, filtered_signal);
-    % title('Filtered Signal');
-
 end
 
 function [DragDataset] = ReadRefDrag(filename)
