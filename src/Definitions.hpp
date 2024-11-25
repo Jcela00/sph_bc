@@ -43,6 +43,7 @@ typedef double real_number;
 #define TRIANGLE_TEST 14
 #define SPHERE 15
 #define CUSTOM 16
+#define DAM_BREAK_ADJ 17
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
@@ -207,6 +208,10 @@ public:
 
     // Constant used to define time integration
     real_number CFLnumber; // = 0.1;
+
+    // angles related to the normal interaction criterion
+    real_number thetamax;
+    real_number cosmax;
 
     // Controls otput file frequency, 1 means 1 file per time unit, 10 means 10 files per time unit, etc.
     real_number write_const;

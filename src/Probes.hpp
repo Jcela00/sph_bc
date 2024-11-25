@@ -6,15 +6,6 @@
 #include "Kernel.hpp"
 #include "Obstacle.hpp"
 
-// void interact_probe_boundary_new(particles &vd,
-// 								 vect_dist_key_dx probekey,
-// 								 const Point<DIM, real_number> &r_wall_to_probe,
-// 								 unsigned long &boundary_key,
-// 								 const int component,
-// 								 real_number &W_sum,
-// 								 real_number &magnitude_tmp,
-// 								 const Parameters &params);
-
 void PlaceProbes(probe_particles &probes,
 				 const int k0,
 				 const int kmax,

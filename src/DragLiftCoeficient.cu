@@ -11,10 +11,6 @@ void CalcDragLift(real_number t,
 
     // normalization factor, 1/normalization is equal to dx^2/Channel_area
     size_t normalization = params.Nfluid[0] * params.Nfluid[1];
-    // std::cout << "Nfluid[0]: " << params.Nfluid[0] << std::endl;
-    // std::cout << "Nfluid[1]: " << params.Nfluid[1] << std::endl;
-    // std::cout << "Nfluid[0]*dp" << params.Nfluid[0] * params.dp << std::endl;
-    // std::cout << "Nfluid[1]*dp" << params.Nfluid[1] * params.dp << std::endl;
 
     VxDragLift[0] = VxDragLift[0] / static_cast<real_number>(normalization);
 

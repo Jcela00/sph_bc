@@ -45,16 +45,21 @@ int main(int argc, char *argv[])
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 #endif
 
+	// Get imput xml filename
 	std::string tmp = argv[1];
 
+	// Initialize parameter objects
 	Parameters MainParameters;
 	AuxiliarParameters AuxParameters;
 
+	// Read xml file and initialize simulation parameters
 	ParseXMLFile(tmp, MainParameters, AuxParameters);
 	InitializeConstants(MainParameters, AuxParameters);
 
+	// Write parameters to file
 	MainParameters.WriteParameters("Parameters.txt");
 
+// Copy parameters object to gpu __constant__ memory to be accesible in device code
 #ifdef __CUDACC__
 	cudaError_t err = cudaMemcpyToSymbol(_params_gpu_, &MainParameters, sizeof(Parameters));
 	if (err != cudaSuccess)
@@ -66,24 +71,28 @@ int main(int argc, char *argv[])
 	_params_gpu_ = MainParameters;
 #endif
 
-	//////////////////////// CHECK CORRECT GPU PARAMS COPY /////////////////////
+	// Write GPU parameters to file to check if correctly copied
 	Parameters host_params_check;
 	cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
 	cudaDeviceSynchronize();
 	host_params_check.WriteParameters(("check_params.txt"));
-	////////////////////////////////////////////////////////////////////////////
 
-	// Create a particle vector
+	// Create the particle data structure
 	particles vd;
 
-	// set names
+	// Set names for particle properties
 	openfpm::vector<std::string> names({"type", "rho", "pressure", "drho", "velocity", "velocity_t", "force",
 										"force_t", "normal", "volume", "omega", "vorticity", "red_vel", "red_fx", "red_fy"});
 	vd.setPropNames(names);
 
+	// Create vector of pairs of probe particles data structure and integer that represents measured velocity component, 0 for x, 1 for y
+	// Vector may contain multiple probe objects that write to different files, for example for cavity scenario we place a probe at x=0.5 and another at y=0.5
 	std::vector<std::pair<probe_particles, int>> vp;
 
+	// Pointer to obstacle class
 	Obstacle *obstacle_ptr = nullptr;
+
+	// Initialize problem geometry, more complex scenarios have specialized functions to create the geometry
 	if (MainParameters.SCENARIO == STEP)
 	{
 		CreateParticleGeometryStep(vd, vp, MainParameters, AuxParameters);
@@ -95,6 +104,10 @@ int main(int argc, char *argv[])
 	else if (MainParameters.SCENARIO == DAM_BREAK)
 	{
 		CreateParticleGeometryDamBreak(vd, vp, MainParameters, AuxParameters);
+	}
+	else if (MainParameters.SCENARIO == DAM_BREAK_ADJ)
+	{
+		CreateParticleGeometryDamBreakAdj(vd, vp, MainParameters, AuxParameters);
 	}
 	else if (MainParameters.SCENARIO == CAVITY)
 	{
@@ -109,13 +122,13 @@ int main(int argc, char *argv[])
 		CreateParticleGeometry(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	vd.map();
-	// vd.write_frame(AuxParameters.filename + "CreateGeometry", 0, MainParameters.WRITER);
 
 	for (size_t k = 0; k < vp.size(); k++)
 	{
 		(vp[k].first).map();
 	}
 
+	// For load balancing in MPI case, no longer needed
 	// Now that we fill the vector with particles, decompose the domain
 	// ModelCustom md;
 	// vd.addComputationCosts(md);
@@ -130,12 +143,13 @@ int main(int argc, char *argv[])
 
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
-	// This will be the cell list used for CPU calculations
+	// Create a Cell list object for CPU calculations
 	auto NN = vd.getCellList(MainParameters.r_cut);
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	vd.updateCellList(NN);
 
-	if (MainParameters.BC_TYPE == NEW_NO_SLIP) // Set up fluid vector and normal vector of the boundary particles
+	// Set up fluid vector, normal vector, curvature and volume of the boundary particles
+	if (MainParameters.BC_TYPE == NEW_NO_SLIP)
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
@@ -153,10 +167,11 @@ int main(int argc, char *argv[])
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 	}
 	vd.map();
-	// vd.write_frame(AuxParameters.filename + "Initialization", 0, MainParameters.WRITER);
+
+	// Write to file
 	vd.write_frame(AuxParameters.filename, 0, static_cast<double>(0.0), MainParameters.WRITER);
 
-	// move to gpu and get gpu cell list
+	// Move particle data structure to gpu, and create gpu cell list
 	vd.hostToDevicePos();
 	vd.template hostToDeviceProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>();
 
@@ -164,23 +179,28 @@ int main(int argc, char *argv[])
 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity, vd12_vel_red, vd13_force_red_x, vd14_force_red_y>(RUN_ON_DEVICE);
 	auto NN_gpu = vd.getCellListGPU(MainParameters.r_cut / 2.0, CL_NON_SYMMETRIC | CL_GPU_REORDER, 2);
 
-	// if (MainParameters.BC_TYPE == NO_SLIP) // set up boundary particle velocity for the first iteration
-	// {
-	// 	ExtrapolateVelocity(vd, NN_gpu);
-	// 	vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>(RUN_ON_DEVICE);
-	// }
-
-	// Evolve
-	size_t write = 0;
-	size_t last_write = static_cast<size_t>(MainParameters.write_const * MainParameters.t_end);
+	// Time and write output counters
 	real_number t = 0.0;
+	size_t write = 0;
+
+	// Last write counter value
+	size_t last_write = static_cast<size_t>(MainParameters.write_const * MainParameters.t_end);
+
+	// Stream to output drag and lift data
 	std::ofstream DragFile(AuxParameters.filename + "_DragLift.csv");
+
+	// Time simulation
 	timer tot_sim;
 	tot_sim.start();
 
+	// Like mpi communicator
 	Vcluster<> &v_cl = create_vcluster();
+
+	// Time loop
 	while (t <= MainParameters.t_end)
 	{
+
+		// Dynamic load balancing for MPI version, no longer used in CUDA
 		//// Do rebalancing every 200 timesteps
 		// it_reb++;
 		// if (it_reb == 500)
@@ -203,23 +223,21 @@ int main(int argc, char *argv[])
 		// Integrate one time step
 		kick_drift_int(vd, NN_gpu, dt, t, MainParameters, AuxParameters);
 
-		// increment time
+		// Increment time
 		t += dt;
 
+		// Write drag and lift to a file
 		if (write < t * MainParameters.write_const * 10)
 		{
 			// make necessary reductions for computing drag and lift
 			Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
 			CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
 		}
-		// write the configuration
+
+		// Write the particle configuration to file
 		if (write < t * MainParameters.write_const)
 		{
-
-			// // make necessary reductions for computing drag and lift
-			// Point<3, real_number> VxDragLift = ComputeDragLift(vd, MainParameters);
-
-			// send data from GPU to CPU for writing to file
+			// Send data from GPU to CPU for writing to file
 			vd.deviceToHostPos();
 			vd.deviceToHostProp<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
 
@@ -235,7 +253,8 @@ int main(int argc, char *argv[])
 				// vorticity 3d
 			}
 
-			// probe calculation requires ghost and updated cell-list
+			// Write probes to file (only last time step, we are only interested in the lattice and cavity case)
+			// Probe calculation requires ghost and updated cell-list
 			if (MainParameters.PROBES_ENABLED && write == last_write)
 			{
 				for (size_t k = 0; k < vp.size(); k++) // for each probe
@@ -250,7 +269,6 @@ int main(int argc, char *argv[])
 			vd.deleteGhost();
 			vd.write_frame(AuxParameters.filename, write, static_cast<double>(t), MainParameters.WRITER);
 			vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
-			// CalcDragLift(t, DragFile, VxDragLift, MainParameters, write);
 
 			write++;
 

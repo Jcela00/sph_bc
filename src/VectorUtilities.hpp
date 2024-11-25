@@ -5,24 +5,6 @@
 #include <cmath> // sqrt
 #include "Definitions.hpp"
 
-// real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w);
-
-// std::array<Point<DIM, real_number>, DIM> dyadicProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w);
-
-// Point<DIM, real_number> matVec(const std::array<Point<DIM, real_number>, DIM> &m, const Point<DIM, real_number> &v);
-
-// real_number getVectorNorm(const Point<DIM, real_number> &v);
-
-// void normalizeVector(Point<DIM, real_number> &v);
-
-// Point<DIM, real_number> getPerpendicularUnit2D(const Point<DIM, real_number> &v);
-
-// std::array<Point<DIM, real_number>, 3> getBoundaryPositions(const Point<DIM, real_number> &r, const Point<DIM, real_number> &normal, real_number dp);
-
-// Point<DIM, real_number> crossProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w);
-
-// void ApplyRotation(Point<DIM, real_number> &x, const real_number theta, const Point<DIM, real_number> centre);
-
 inline __device__ __host__ real_number dotProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)
 {
 	real_number result = 0.0;
@@ -32,6 +14,16 @@ inline __device__ __host__ real_number dotProduct(const Point<DIM, real_number> 
 		result = v.get(0) * w.get(0) + v.get(1) * w.get(1) + v.get(2) * w.get(2);
 
 	return result;
+}
+
+inline __device__ __host__ bool isZeroVector(const Point<DIM, real_number> &vec)
+{
+	for (int i = 0; i < DIM; ++i)
+	{
+		if (vec.get(i) != 0.0)
+			return false;
+	}
+	return true;
 }
 
 inline __device__ __host__ std::array<Point<DIM, real_number>, DIM> dyadicProduct(const Point<DIM, real_number> &v, const Point<DIM, real_number> &w)

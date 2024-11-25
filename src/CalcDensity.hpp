@@ -4,6 +4,7 @@
 #include "Definitions.hpp"
 #include "VectorUtilities.hpp"
 #include "Kernel.hpp"
+#include "AssignNormals.hpp"
 
 template <typename vd_type, typename NN_type>
 __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
@@ -16,6 +17,7 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
     if (vd.template getProp<vd0_type>(a) == FLUID)
     {
         Point<DIM, real_number> xa = vd.getPos(a);
+        Point<DIM, real_number> normal_a = vd.template getProp<vd8_normal>(a);
 
         real_number rho_sum = 0.0;
 
@@ -31,26 +33,28 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
             if (r2 < _params_gpu_.r_cut2)
             {
                 const real_number r = sqrt(r2);
-
-                if (vd.template getProp<vd0_type>(b) == FLUID)
+                const Point<DIM, real_number> normal_b = vd.template getProp<vd8_normal>(b);
+                if (NormalsInteract(normal_a, normal_b, _params_gpu_.cosmax))
                 {
-                    // evaluate kernel
-                    const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);
-                    rho_sum += w * _params_gpu_.MassFluid;
-                }
-                else // if boundary particle
-                {
-                    const Point<DIM, real_number> normal = vd.template getProp<vd8_normal>(b);
-                    const Point<3, real_number> vol = vd.template getProp<vd9_volume>(b);
-
-                    // Apply offsets to dr to get 3 vectrors pointing to virtual particles
-                    const std::array<Point<DIM, real_number>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal, _params_gpu_.dp);
-
-                    // iterate the 3 virtual particles
-                    for (int i = 0; i < 3; i++)
+                    if (vd.template getProp<vd0_type>(b) == FLUID)
                     {
-                        const real_number W = Wab(getVectorNorm(R_virtual[i]), _params_gpu_.H, _params_gpu_.Kquintic);
-                        rho_sum += W * vol[i] * _params_gpu_.rho0; // this is equivalent to +=W*mass
+                        // evaluate kernel
+                        const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);
+                        rho_sum += w * _params_gpu_.MassFluid;
+                    }
+                    else // if boundary particle
+                    {
+                        const Point<3, real_number> vol = vd.template getProp<vd9_volume>(b);
+
+                        // Apply offsets to dr to get 3 vectrors pointing to virtual particles
+                        const std::array<Point<DIM, real_number>, 3> R_virtual = getBoundaryPositions(-1.0 * dr, normal_b, _params_gpu_.dp);
+
+                        // iterate the 3 virtual particles
+                        for (int i = 0; i < 3; i++)
+                        {
+                            const real_number W = Wab(getVectorNorm(R_virtual[i]), _params_gpu_.H, _params_gpu_.Kquintic);
+                            rho_sum += W * vol[i] * _params_gpu_.rho0; // this is equivalent to +=W*mass
+                        }
                     }
                 }
             }

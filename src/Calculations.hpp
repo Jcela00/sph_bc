@@ -3,6 +3,7 @@
 
 #include "Definitions.hpp"
 #include "VectorUtilities.hpp"
+#include "AssignNormals.hpp"
 
 template <typename CellList>
 void CalcFluidVec2D(particles &vd, CellList &NN, const Parameters &params)
@@ -468,35 +469,41 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
                         {
                             if (a.getKey() != b)
                             {
-                                // OLD CALCULATION
-                                // Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
-                                // real_number r = sqrt(r2);
-                                // real_number W = Wab(r, local_H, local_Kquintic);
-                                // Point<DIM, real_number> dW = DWab(dr, r, local_H, local_Kquintic);
-
-                                // real_number local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
-                                // if (local_k > max_curvature)
-                                // {
-                                //     local_k = max_curvature;
-                                // }
-
-                                // K_sum += local_k;
-                                // w_sum += W;
-
-                                // NEW CALCULATION
+                                // Get the normal of b
                                 Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
-                                real_number r = sqrt(r2);
-                                real_number W = Wab(r, local_H, local_Kquintic);
-                                Point<DIM, real_number> eab = dr / r;
-                                real_number local_k = dotProduct(normal_a - normal_b, eab) / r;
 
-                                if (local_k > max_curvature)
+                                if (NormalsInteract(normal_a, normal_b, 0.15))
                                 {
-                                    local_k = max_curvature;
-                                }
 
-                                K_sum += local_k * W;
-                                w_sum += W;
+                                    // OLD CALCULATION
+                                    // Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
+                                    // real_number r = sqrt(r2);
+                                    // real_number W = Wab(r, local_H, local_Kquintic);
+                                    // Point<DIM, real_number> dW = DWab(dr, r, local_H, local_Kquintic);
+
+                                    // real_number local_k = dotProduct(normal_b - normal_a, dW); // divergence of the normal vector
+                                    // if (local_k > max_curvature)
+                                    // {
+                                    //     local_k = max_curvature;
+                                    // }
+
+                                    // K_sum += local_k;
+                                    // w_sum += W;
+
+                                    // NEW CALCULATION
+                                    real_number r = sqrt(r2);
+                                    real_number W = Wab(r, local_H, local_Kquintic);
+                                    Point<DIM, real_number> eab = dr / r;
+                                    real_number local_k = dotProduct(normal_a - normal_b, eab) / r;
+
+                                    if (local_k > max_curvature)
+                                    {
+                                        local_k = max_curvature;
+                                    }
+
+                                    K_sum += local_k * W;
+                                    w_sum += W;
+                                }
                             }
                         }
                     }

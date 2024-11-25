@@ -8,6 +8,7 @@
 #include "CalcDensity.hpp"
 #include "ExtrapolateVelocity.hpp"
 #include "CalcForces.hpp"
+#include "AssignNormals.hpp"
 
 template <typename vd_type>
 __global__ void max_velocity_gpu(vd_type vd)
@@ -574,18 +575,22 @@ void kick_drift_int(particles &vd,
                     AuxiliarParameters &auxParams)
 {
 
-    // if (params.SCENARIO == CUSTOM)
-    // {
-    //     SensorInflow(vd, NN, params, t);
-    // }
-
-    // particle iterator
+    // Particle iterator
     auto it = vd.getDomainIteratorGPU();
+
+    // Kick drift step
     CUDA_LAUNCH(kdi_1_gpu, it, vd.toKernel(), dt, t);
 
     // map particles if they have gone outside the domain
     vd.map(RUN_ON_DEVICE);
     vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd8_normal, vd9_volume, vd10_omega>(RUN_ON_DEVICE);
+
+    // In new bc assign normals to fluid particles near to boundaries
+    if (params.BC_TYPE == NEW_NO_SLIP)
+    {
+        AssignNormals(vd, NN);
+        vd.ghost_get<vd8_normal>(KEEP_PROPERTIES | RUN_ON_DEVICE);
+    }
 
     // in density summation we need to update the density after moving the particles
     if (params.DENSITY_TYPE == DENSITY_SUMMATION)
@@ -604,11 +609,13 @@ void kick_drift_int(particles &vd,
         vd.ghost_get<vd1_rho, vd2_pressure, vd5_velocity_t>(KEEP_PROPERTIES | RUN_ON_DEVICE);
     }
 
+    // Compute forces
     calc_forces(vd, NN, params);
 
     // particle iterator
     it = vd.getDomainIteratorGPU();
 
+    // Second Kick step
     CUDA_LAUNCH(kdi_2_gpu, it, vd.toKernel(), dt, t);
 
     if (params.DENSITY_TYPE == DENSITY_DIFFERENTIAL) // If density differential, density has been updated in kdi_2

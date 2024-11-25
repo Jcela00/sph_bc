@@ -48,6 +48,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = ELLIPSE;
         else if (strcmp(scenario_str, "DamBreak") == 0)
             argParameters.SCENARIO = DAM_BREAK;
+        else if (strcmp(scenario_str, "DamBreakAdj") == 0)
+            argParameters.SCENARIO = DAM_BREAK_ADJ;
         else if (strcmp(scenario_str, "TriangleTest") == 0)
             argParameters.SCENARIO = TRIANGLE_TEST;
         else if (strcmp(scenario_str, "Sphere") == 0)
@@ -384,8 +386,8 @@ void ComputeKernelVolume(Parameters &argParameters)
         }
 
         argParameters.Vp = 1.0 / sumWij;
-        printf("Kernel volume: %.17g\n", argParameters.Vp);
-        printf("Dx*Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
+        // printf("Kernel volume: %.17g\n", argParameters.Vp);
+        // printf("Dx*Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
     }
 }
 
@@ -469,31 +471,6 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
         }
     }
 
-    // WE NO LONGER SET THE MAXIMUM VELOCITY; WE READ IT FROM THE XML FILE, BUT THIS VALUES ARE USEFUL
-    // // Set maximum velocity
-    // if (argParameters.SCENARIO == POISEUILLE)
-    //     argParameters.umax = argParameters.gravity_vector.get(0) * argParameters.LengthScale * argParameters.LengthScale / (8.0 * argParameters.nu);
-    // else if (argParameters.SCENARIO == COUETTE)
-    //     argParameters.umax = argParameters.vw_top.get(0);
-    // else if (argParameters.SCENARIO == HYDROSTATIC)
-    //     argParameters.umax = 0.1;
-    // else if (argParameters.SCENARIO == CYLINDER_ARRAY)
-    //     argParameters.umax = 2.5e-3;
-    // else if (argParameters.SCENARIO == CYLINDER_LATTICE)
-    //     argParameters.umax = 1.2e-4; // umax = 5.77 * 1e-5; // (morris, to get c=5.77*1e-4)
-    // else if (argParameters.SCENARIO == SQUARE)
-    //     argParameters.umax = 4.1 * 1e-1;
-    // else if (argParameters.SCENARIO == TRIANGLE)
-    //     argParameters.umax = 3.5 * 1e-1; // from previous simulations for nu = 0.01
-    // else if (argParameters.SCENARIO == TRIANGLE_EQUILATERAL)
-    //     argParameters.umax = 4e-1; // from previous simulations for nu = 0.01
-    // else if (argParameters.SCENARIO == CAVITY)
-    //     argParameters.umax = argParameters.vw_top.get(0);
-    // else if (argParameters.SCENARIO == MOVING_OBSTACLE)
-    //     argParameters.umax = 1.5; // from previous simulations for nu = 0.01
-    // else if (argParameters.SCENARIO == TAYLOR_COUETTE)
-    //     argParameters.umax = 4.0 * abs(argParameters.Wout * argParameters.Rout);
-
     // Enable probes in some scenarios
     if (argParameters.SCENARIO == CAVITY || argParameters.SCENARIO == CYLINDER_LATTICE)
     {
@@ -538,6 +515,10 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.eta = argParameters.nu * argParameters.rho0;
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
 
+    // cosmax
+    argParameters.thetamax = 120.0 * M_PI / 180.0;
+    argParameters.cosmax = cos(argParameters.thetamax);
+
     if (argParameters.SCENARIO != CUSTOM && argParameters.SCENARIO != MOVING_OBSTACLE)
     {
         argParameters.ObstacleCenter[0] = (argParameters.length[0] + static_cast<real_number>(argParameters.bc[0]) * argParameters.dp) / 2.0;
@@ -546,7 +527,7 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
         {
             argParameters.ObstacleCenter[2] = (argParameters.length[2] + static_cast<real_number>(argParameters.bc[2]) * argParameters.dp) / 2.0;
         }
-        std::cout << "Obstacle center: " << argParameters.ObstacleCenter[0] << " " << argParameters.ObstacleCenter[1] << " " << argParameters.ObstacleCenter[2] << std::endl;
+        // std::cout << "Obstacle center: " << argParameters.ObstacleCenter[0] << " " << argParameters.ObstacleCenter[1] << " " << argParameters.ObstacleCenter[2] << std::endl;
     }
 
     // add the number of processors to the filename

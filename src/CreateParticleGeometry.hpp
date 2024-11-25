@@ -29,6 +29,11 @@ void CreateParticleGeometryDamBreak(particles &vd,
                                     Parameters &params,
                                     AuxiliarParameters &auxParams);
 
+void CreateParticleGeometryDamBreakAdj(particles &vd,
+                                       std::vector<std::pair<probe_particles, int>> &vp_vec,
+                                       Parameters &params,
+                                       AuxiliarParameters &auxParams);
+
 void CreateParticleGeometryCavity(particles &vd,
                                   std::vector<std::pair<probe_particles, int>> &vp_vec,
                                   Obstacle *&obstacle_ptr,
