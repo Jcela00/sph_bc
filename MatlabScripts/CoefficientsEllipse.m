@@ -15,39 +15,43 @@ set(groot, 'defaultFigurePosition', [100, 100, 16.0, 10.0]); %double column
 params100 = [0.01 1 1];
 params1000 = [0.001 1 1];
 
-EllipseRe100_25 = ReadDragLift('../CSV_Data/dragEllipseNew/Re100_25.csv', 1, 1, params100);
-EllipseRe1000_25 = ReadDragLift('../CSV_Data/dragEllipseNew/Re1000_25.csv', 1, 1, params1000);
-EllipseRe100_50 = ReadDragLift('../CSV_Data/dragEllipseNew/Re100_25.csv', 1, 1, params100);
-EllipseRe1000_50 = ReadDragLift('../CSV_Data/dragEllipseNew/Re1000_25.csv', 1, 1, params1000);
+window = [14 37];
+EllipseRe100_25 = ReadDragLift('../CSV_Data/DragEllipse/Re100_25.csv', 1, 1, params100, window);
+EllipseRe100_50 = ReadDragLift('../CSV_Data/DragEllipse/Re100_50.csv', 1, 1, params100, window);
+
+EllipseRe1000_25 = ReadDragLift('../CSV_Data/DragEllipse/Re1000_25.csv', 1, 1, params1000, window);
+EllipseRe1000_50 = ReadDragLift('../CSV_Data/DragEllipse/Re1000_50.csv', 1, 1, params1000, window);
 
 %cols 1 2 3 4 | drag average | drag amplitude | drag frequency1 | drag frequency2 | lift average | lift amplitude | lift frequency1 | lift frequency2
 Re100_table = zeros(2, 8);
 Re1000_table = zeros(2, 8);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% RE 100 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Drag plot Re 100
-
-window = [20 35];
-
+% Re 100
 fig1 = figure; hold on;
 Re100_table = PlotCoefficient(EllipseRe100_25, window, fig1, Re100_table, 1, 'b', 0, 'Re100_25');
 Re100_table = PlotCoefficient(EllipseRe100_50, window, fig1, Re100_table, 2, 'r', 0, 'Re100_50');
 exportgraphics(gcf, ['LatexFigures/EllipseDrag100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+axis([0 40 0.5 1.2]);
 
 fig2 = figure; hold on;
 Re100_table = PlotCoefficient(EllipseRe100_25, window, fig2, Re100_table, 1, 'b', 1, 'Re100_25');
 Re100_table = PlotCoefficient(EllipseRe100_50, window, fig2, Re100_table, 2, 'r', 1, 'Re100_50');
 exportgraphics(gcf, ['LatexFigures/EllipseLift100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+axis([0 40 0 1]);
 
+% Re 1000
 fig3 = figure; hold on;
 Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig3, Re1000_table, 1, 'b', 0, 'Re1000_25');
-Re1000_table = PlotCoefficient(EllipseRe1000_50, window, fig3, Re1000_table, 2, 'r', 0, 'Re1000_25');
+Re1000_table = PlotCoefficient(EllipseRe1000_50, window, fig3, Re1000_table, 2, 'r', 0, 'Re1000_50');
 exportgraphics(gcf, ['LatexFigures/EllipseDrag1000.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+axis([0 40 0 1]);
 
 fig4 = figure; hold on;
 Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig4, Re1000_table, 1, 'b', 1, 'Re1000_25');
 Re1000_table = PlotCoefficient(EllipseRe1000_50, window, fig4, Re1000_table, 2, 'r', 1, 'Re1000_50');
 exportgraphics(gcf, ['LatexFigures/EllipseLift1000.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+axis([0 40 0 1]);
 
 TableRe100 = table(Re100_table(:, 1), Re100_table(:, 2), Re100_table(:, 3), Re100_table(:, 4), Re100_table(:, 5), Re100_table(:, 6), Re100_table(:, 7), Re100_table(:, 8));
 TableRe100.Properties.VariableNames = ["DragAvg", "DragAmp", "DragFreq1", "DragFreq2", "LiftAvg", "LiftAmp", "LiftFreq1", "LiftFreq2"];
@@ -57,39 +61,38 @@ TableRe1000 = table(Re1000_table(:, 1), Re1000_table(:, 2), Re1000_table(:, 3), 
 TableRe1000.Properties.VariableNames = ["DragAvg", "DragAmp", "DragFreq1", "DragFreq2", "LiftAvg", "LiftAmp", "LiftFreq1", "LiftFreq2"];
 TableRe1000.Properties.RowNames = {'N=25', 'N=50'};
 
-Re100_table_paper = [0.685 0.0 0.0 0.0 0.460 0.0 0.0 0.0;
-                     0.685 0.0 0.0 0.0 0.460 0.0 0.0 0.0];
+Re100_table_paper = [0.730 0 0 0 0.464 0 0 0];
 TableRe100Paper = table(Re100_table_paper(:, 1), Re100_table_paper(:, 2), Re100_table_paper(:, 3), Re100_table_paper(:, 4), Re100_table_paper(:, 5), Re100_table_paper(:, 6), Re100_table_paper(:, 7), Re100_table_paper(:, 8));
 TableRe100Paper.Properties.VariableNames = ["DragAvg", "DragAmp", "DragFreq1", "DragFreq2", "LiftAvg", "LiftAmp", "LiftFreq1", "LiftFreq2"];
-TableRe100Paper.Properties.RowNames = {'N=25', 'N=50'};
+TableRe100Paper.Properties.RowNames = {'Exact'};
 
-Re1000_table_paper = [0.422 0.037 0.467 * 2 0.467 * 2 0.468 0.261 0.467 0.467;
-                      0.422 0.037 0.467 * 2 0.467 * 2 0.468 0.261 0.467 0.467];
+Re1000_table_paper = [0.519 0.041 0.446 * 2 0.446 * 2 0.482 0.425 0.446 0.446];
+
 TableRe1000Paper = table(Re1000_table_paper(:, 1), Re1000_table_paper(:, 2), Re1000_table_paper(:, 3), Re1000_table_paper(:, 4), Re1000_table_paper(:, 5), Re1000_table_paper(:, 6), Re1000_table_paper(:, 7), Re1000_table_paper(:, 8));
 TableRe1000Paper.Properties.VariableNames = ["DragAvg", "DragAmp", "DragFreq1", "DragFreq2", "LiftAvg", "LiftAmp", "LiftFreq1", "LiftFreq2"];
-TableRe1000Paper.Properties.RowNames = {'N=25', 'N=50'};
-
-disp('Computed values for Re100');
-disp(TableRe100);
+TableRe1000Paper.Properties.RowNames = {'Exact'};
 
 disp('Paper values for Re100');
 disp(TableRe100Paper);
-
-disp('Computed values for Re1000');
-disp(TableRe1000);
-
 disp('Paper values for Re1000');
 disp(TableRe1000Paper);
 
-ratio100 = Re100_table ./ Re100_table_paper;
-ratio1000 = Re1000_table ./ Re1000_table_paper;
+disp('----------------------------------------------------');
+disp('Computed values for Re100');
+disp(TableRe100);
+disp('Computed values for Re1000');
+disp(TableRe1000);
+disp('----------------------------------------------------');
+
+ratio100 = Re100_table ./ [Re100_table_paper; Re100_table_paper];
+ratio1000 = Re1000_table ./ [Re1000_table_paper; Re1000_table_paper];
 
 disp('Ratio values for Re100');
 disp(ratio100);
 disp('Ratio values for Re1000');
 disp(ratio1000);
 
-function [DragDataset] = ReadDragLift(filename, t0, clonenormalize, params)
+function [DragDataset] = ReadDragLift(filename, t0, clonenormalize, params, window)
     data = csvread(filename, 1, 0);
     t = data(:, 1) / t0;
     u = data(:, 2);
@@ -101,15 +104,17 @@ function [DragDataset] = ReadDragLift(filename, t0, clonenormalize, params)
         U = params(2);
         D = params(3);
         L = 1.0;
-        drag = drag * nu / (0.5 * U * D * L);
-        lift = lift * nu / (0.5 * U * D * L);
+        drag = drag / (0.5 * U * D * L);
+        lift = lift / (0.5 * U * D * L);
     end
 
-    drag = drag .* u;
-    lift = lift .* u;
+    % u = u(t > window(1) & t < window(2));
+    % drag = drag(t > window(1) & t < window(2));
+    % lift = lift(t > window(1) & t < window(2));
+    % t = t(t > window(1) & t < window(2));
 
-    drag = LowPassFilter(drag, t);
-    lift = LowPassFilter(lift, t);
+    [drag] = LowPassFilter(drag, t);
+    [lift] = LowPassFilter(lift, t);
 
     DragDataset = {t, u, drag, lift};
 
@@ -120,11 +125,12 @@ function [mean_value, amplitude, frequencies] = AverageInTimeWindow(signal, t, w
     % compute mean value
     mean_value = mean(signal(t > window(1) & t < window(2)));
 
-    dt = t(window(1) + 1:window(2)) - t(window(1):window(2) - 1);
-    dt = mean(dt); % because time step is not exactly constant
-
     % compute amplitude
     t_cut = t(t > window(1) & t < window(2));
+
+    dt = t_cut(2:end) - t_cut(1:end - 1);
+    dt = mean(dt); % because time step is not exactly constant
+
     signal_cut = signal(t > window(1) & t < window(2));
     signal_cut = signal_cut - mean(signal_cut);
     % amplitude = (max(signal_cut) - min(signal_cut)) / 2;
@@ -213,25 +219,28 @@ function [mean_value, amplitude, frequencies] = AverageInTimeWindow(signal, t, w
 end
 
 function [filtered_signal] = LowPassFilter(signal, t)
+    % window signal
+
     dt = t(2:end) - t(1:end - 1);
     dt = mean(dt);
-    Fs = 1 / dt; % Sampling frequency
+    Fs = 1 / dt;
 
-    % Remove the DC component (mean of the signal)
-    signal_detrended = signal - mean(signal);
+    L = length(signal);
+    Y = fft(signal);
+    f = [0:L - 1] * (Fs / L);
 
-    % Compute FFT of the signal
-    L = length(signal); % Length of signal
-    Y = fft(signal_detrended); % FFT of the detrended signal
-    f = (0:L - 1) * (Fs / L); % Frequency vector (unshifted)
-
-    f_cutoff = f(50);
+    f_cutoff = f(100);
     mask = f < f_cutoff;
     mask = mask | flip(mask);
+    Yfiltered = Y .* mask';
+    filtered_signal = ifft(Yfiltered, 'symmetric');
 
-    Y_filtered = Y .* mask';
-
-    filtered_signal = ifft(Y_filtered, 'symmetric') + mean(signal);
+    % select 100 more relevant modes
+    % [~, idx] = maxk(abs(Y), 50);
+    % mask = ismember(1:L, idx);
+    % mask = mask;
+    % Yfiltered = Y .* mask';
+    % filtered_signal = ifft(Yfiltered, 'symmetric');
 
 end
 

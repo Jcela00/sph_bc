@@ -12,13 +12,13 @@ set(groot, 'defaultFigureUnits', 'centimeters');
 set(groot, 'defaultFigurePosition', [0, 0, 16.0, 10.0]); %double column
 
 virtual_color = [0.8, 0.8, 0.8];
-virtual_size = 6;
+virtual_size = 8;
 marker_size = 4;
 vecsize = 0.3;
 
 Ncircle = 22;
 Nflat = 22;
-Nsine = 32;
+Nsine = 26;
 % CIRCLE CURVE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Npoints = Ncircle;
 R = 1.0;
@@ -217,7 +217,7 @@ exportgraphics(gcf, 'LatexFigures/sine.pdf', 'ContentType', 'vector', 'Resolutio
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FLAT WITH LABELS
 % FLAT WALL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-virtual_size = 15;
+virtual_size = 10;
 pbound = [0 0];
 normals = [0 1];
 pfluid = [1 1.2];
@@ -228,10 +228,12 @@ fig4 = figure; hold on;
 plot(pbound(:, 1), pbound(:, 2), 'ko', 'MarkerSize', virtual_size, 'MarkerFaceColor', 'k');
 lfline = [pfluid; pfluid_proj];
 rab = [pbound; pfluid];
-plot(lfline(:, 1), lfline(:, 2), 'k:');
-plot(rab(:, 1), rab(:, 2), '--k');
+plot(lfline(:, 1), lfline(:, 2), 'k--');
+% plot(rab(:, 1), rab(:, 2), '--k');
+rab_vector = pfluid - pbound;
+quiver(pbound(1), pbound(2), rab_vector(1), rab_vector(2), 0, 'MaxHeadSize', 1.5, 'LineWidth', 1, 'Color', 'k');
 yline(0, 'k', 'LineWidth', 3);
-PlotCircle(fig4, pfluid, 3 * dx, 1, '--');
+PlotCircle(fig4, pfluid, 3 * dx, 1, ':');
 midpoint_rab = 0.5 * (pbound + pfluid) - [0.1 0];
 text(midpoint_rab(1), midpoint_rab(2), '    $\mathbf{r_{ab}}$', 'FontSize', 16, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle');
 midpoint_fluid_proj = 0.5 * (pfluid + pfluid_proj) + [0.1 0];
@@ -248,13 +250,13 @@ for k = 1:1
     sizeofpoint = virtual_size * ratio;
 
     linemarker2third = [pbound; third];
-    plot(linemarker2third(:, 1), linemarker2third(:, 2), 'k');
-    midpointMarkerfirst = 0.5 * (pbound + first) + [0.1 0];
-    text(midpointMarkerfirst(1), midpointMarkerfirst(2), '    $l_{w1}=\frac{1}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-    middleMarkersecond = 0.5 * (first + second) + [0.1 0];
-    text(middleMarkersecond(1), middleMarkersecond(2), '    $l_{w2}=\frac{3}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-    middleMarkerthird = 0.5 * (second + third) + [0.1 0];
-    text(middleMarkerthird(1), middleMarkerthird(2), '    $l_{w3}=\frac{5}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+    plot(linemarker2third(:, 1), linemarker2third(:, 2), '--k');
+    midpointMarkerfirst = first + [0.3 0];
+    text(midpointMarkerfirst(1), midpointMarkerfirst(2), '    $l_{1}=\frac{1}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+    middleMarkersecond = second + [0.3 0];
+    text(middleMarkersecond(1), middleMarkersecond(2), '    $l_{2}=\frac{3}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+    middleMarkerthird = third + [0.3 0];
+    text(middleMarkerthird(1), middleMarkerthird(2), '    $l_{3}=\frac{5}{2}\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
 
     if sizeofpoint(1) > 0
         plot(first(1), first(2), 'ko', 'MarkerSize', sizeofpoint(1), 'MarkerFaceColor', virtual_color);
@@ -274,8 +276,8 @@ theta = -pi / 4;
 circlepoint = pfluid + 3 * dx * [cos(0), sin(0)];
 line3h = [pfluid; circlepoint];
 midpoint = 0.5 * (pfluid + circlepoint) + [0.0 0.15];
-text(midpoint(1), midpoint(2), '    $3h$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
-plot(line3h(:, 1), line3h(:, 2), '--k');
+text(midpoint(1), midpoint(2), '    $3\Delta x$', 'FontSize', 16, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle');
+plot(line3h(:, 1), line3h(:, 2), 'k:');
 plot(pfluid(1), pfluid(2), 'ok', 'MarkerSize', virtual_size, 'MarkerFaceColor', 'w');
 % axis([-2 4 -4 * dx 4 * dx]);
 axis equal;

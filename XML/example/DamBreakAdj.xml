@@ -6,10 +6,10 @@
         bcType="new"
         bcX="non_periodic" bcY="non_periodic"
         densityType="differential"
-        writerType="vtk"
-        time="200"
+        writerType="BINARY"
+        time="10"
         write_const="100"
-        CFL="0.05"
+        CFL="0.1"
         custom_string=""
     />
 
@@ -21,10 +21,10 @@
 
     <physics
         rho0="1.0"
-        nu="0.001"
-        Bfactor="0.5"
+        nu="0.01"
+        Bfactor="0.0"
         gamma="1.0"
-        umax="2.0"
+        umax="1.0"
         gravityX="0.0" gravityY="-1.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"

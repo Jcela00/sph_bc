@@ -6,9 +6,9 @@
         bcType="new"
         bcX="periodic" bcY="non_periodic"
         densityType="differential"
-        writerType="vtk"
+        writerType="BINARY"
         time="100"
-        write_const="1"
+        write_const="10"
         CFL="1.0"
         custom_string=""
     />

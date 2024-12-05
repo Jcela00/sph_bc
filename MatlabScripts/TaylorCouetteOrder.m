@@ -17,7 +17,7 @@ Hconst = 1; dim = 2; rho0 = 1;
 steps = [300:300];
 res = [10 20 30 40 50];
 hsize = 0.5 ./ res;
-dirname = 'TCNEW';
+dirname = 'TaylorCouette';
 
 % E_1 = zeros(steps(end) - steps(1) + 1, length(res));
 E_2 = zeros(steps(end) - steps(1) + 1, length(res));
@@ -161,7 +161,7 @@ plot(log10(hsize), log10(E_old_avg), 'bo-');
 % plot(log10(res), pold(1) * log10(res) + pold(2), 'k--');
 plot(x_range, y1, '--k');
 plot(x_range, y2, 'k');
-legend('New BC', 'Old BC', 'Slope 1', 'Slope 2', 'Location', 'bestoutside', 'box', 'off');
+legend('Current BC', 'Adami et al. (2012)', '$O(h)$', '$O(h^2)$', 'Location', 'bestoutside', 'box', 'off');
 xlabel('$h$');
 ylabel('$\log_{10}(L_1)$');
 
@@ -169,6 +169,12 @@ ticloc = fliplr(log10(hsize));
 ticlabels = {'$1/100$', '$1/80$', '$1/60$', '$1/40$', '$1/20$'};
 xticks(ticloc);
 xticklabels(ticlabels);
+% axis([-inf inf -6 -1]);
+
+xdelta = x_range(2) - x_range(1);
+ydelta = -1 +5;
+axis([x_range(1) x_range(2) -5 -1]);
+pbaspect([4 * xdelta ydelta 1]);
 
 set(gca, 'FontSize', 11); % Adjust axes font size
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure

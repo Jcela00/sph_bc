@@ -6,7 +6,7 @@
         bcType="new"
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
-        writerType="vtk"
+        writerType="BINARY"
         time="50"
         write_const="80"
         CFL="1.0"

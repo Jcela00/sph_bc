@@ -12,9 +12,9 @@ end=$2
 
 # List of filename beginings
 files=(
-MovingObstacle_new_summation_Re50_400_200_1rf_1prc
-MovingObstacle_new_summation_Re100_400_200_1rf_1prc
-MovingObstacle_new_summation_Re150_400_200_1rf_1prc
+Cavity_new_summation_Re10000_100_100_1rf_1prc
+Cavity_new_summation_Re10000_100_100_1rf_1prc
+Cavity_new_summation_Re10000_100_100_1rf_1prc
 ) 
 
 # Loop through the hardcoded list of files

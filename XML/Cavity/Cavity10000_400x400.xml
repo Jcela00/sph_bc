@@ -2,31 +2,31 @@
 <configuration>
 
     <simulation
-        scenario="CylinderArray"
-        bcType="old"
+        scenario="Cavity"
+        bcType="new"
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
-        writerType="vtk"
-        time="840"
+        writerType="BINARY"
+        time="600"
         write_const="1"
-        CFL="1.0"
-        custom_string=""
+        CFL="1"
+        custom_string="Re10000"
     />
 
     <geometry
-        lengthScale="0.02"
+        lengthScale="1.0"
         rf="1.0"
-        sizeX="72" sizeY="48" sizeZ="0"
+        sizeX="400" sizeY="400" sizeZ="0"
     />
 
     <physics
-        rho0="1000.0"
-        nu="1e-4"
+        rho0="1.0"
+        nu="0.0001"
         Bfactor="1.0"
         gamma="1.0"
-        umax="3.6e-4"
-        gravityX="2.5e-4" gravityY="0.0" gravityZ="0.0"
-        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        umax="1.0"
+        gravityX="0.0" gravityY="0.0" gravityZ="0.0"
+        vTopX="1.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />
 

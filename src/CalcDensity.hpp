@@ -34,9 +34,10 @@ __global__ void CalcDensityGPU_new(vd_type vd, NN_type NN)
             {
                 const real_number r = sqrt(r2);
                 const Point<DIM, real_number> normal_b = vd.template getProp<vd8_normal>(b);
-                if (NormalsInteract(normal_a, normal_b, _params_gpu_.cosmax))
+                const unsigned int typeb = vd.template getProp<vd0_type>(b);
+                if (NormalsInteract(normal_a, normal_b, typeb, -dr, _params_gpu_.cosmax))
                 {
-                    if (vd.template getProp<vd0_type>(b) == FLUID)
+                    if (typeb == FLUID)
                     {
                         // evaluate kernel
                         const real_number w = Wab(r, _params_gpu_.H, _params_gpu_.Kquintic);

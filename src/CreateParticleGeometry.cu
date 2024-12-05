@@ -282,14 +282,14 @@ void CreateParticleGeometry(particles &vd, std::vector<std::pair<probe_particles
             for (int xyz = 0; xyz < DIM; xyz++)
             {
 
-                if (params.SCENARIO == CUSTOM)
-                {
-                    vd.template getLastProp<vd4_velocity>()[xyz] = params.Vinflow[xyz];
-                }
-                else
-                {
-                    vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
-                }
+                // if (params.SCENARIO == CUSTOM)
+                // {
+                //     vd.template getLastProp<vd4_velocity>()[xyz] = params.Vinflow[xyz];
+                // }
+                // else
+                // {
+                vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
+                // }
                 // else
                 // {
                 // vd.template getLastProp<vd4_velocity>()[xyz] = 0.0;
@@ -1366,12 +1366,14 @@ void CreateParticleGeometryDamBreakAdj(particles &vd, std::vector<std::pair<prob
     }
 
     // Define the boxes
-    real_number auxiliary_tank_width = 21.0 * dp;
-    real_number auxiliary_tank_height = 10.0 * dp;
+    real_number auxiliary_tank_width = 22.0 * dp;
+    real_number auxiliary_tank_height = 6.0 * dp;
+
+    sz[0] += 44;
 
     Box<DIM, real_number> domain({-offset_domain_left[0],
                                   -offset_domain_left[1] - auxiliary_tank_height},
-                                 {params.length[0] + auxiliary_tank_width + offset_domain_right[0],
+                                 {params.length[0] + 2.0 * auxiliary_tank_width + offset_domain_right[0],
                                   params.length[1] + offset_domain_right[1]});
 
     Box<DIM, real_number> fluid_hole({0.0,
@@ -1387,10 +1389,10 @@ void CreateParticleGeometryDamBreakAdj(particles &vd, std::vector<std::pair<prob
                                     {wlx,
                                      wly});
 
-    Box<DIM, real_number> second_fluid_box = {{params.length[0] + dp,
+    Box<DIM, real_number> second_fluid_box = {{params.length[0] + dp + auxiliary_tank_width,
                                                -auxiliary_tank_height},
-                                              {params.length[0] + auxiliary_tank_width + offset_periodic_fluid[0],
-                                               params.length[1] + offset_periodic_fluid[1] - 20.0 * dp}};
+                                              {params.length[0] + 2.0 * auxiliary_tank_width + offset_periodic_fluid[0],
+                                               params.length[1] + offset_periodic_fluid[1] - 2.0 * auxiliary_tank_height}};
 
     Box<DIM, real_number> recipient({-offset_recipient[0],
                                      -offset_recipient[1]},
@@ -1429,37 +1431,37 @@ void CreateParticleGeometryDamBreakAdj(particles &vd, std::vector<std::pair<prob
         Point<DIM, real_number> LR_corner = {params.length[0], 0.0};
         Point<DIM, real_number> UL_corner = {0.0, params.length[1]};
 
-        Point<DIM, real_number> ColumnLL = {params.length[0] + dp, -auxiliary_tank_height};
-        Point<DIM, real_number> ColumnLR = {params.length[0] + auxiliary_tank_width, -auxiliary_tank_height};
-        Point<DIM, real_number> ColumnUL = {params.length[0] + dp, params.length[1]};
+        Point<DIM, real_number> ColumnLL = {params.length[0] + dp + auxiliary_tank_width, -auxiliary_tank_height};
+        Point<DIM, real_number> ColumnLR = {params.length[0] + 2.0 * auxiliary_tank_width, -auxiliary_tank_height};
+        Point<DIM, real_number> ColumnUL = {params.length[0] + dp + auxiliary_tank_width, params.length[1] - auxiliary_tank_height};
 
         int Nwall_x_small = ceil(auxiliary_tank_width / dx_wall_x);
-        int Nwall_y_small = ceil((params.length[1] + auxiliary_tank_height) / dx_wall_y);
-
+        int Nwall_y_small = ceil((params.length[1]) / dx_wall_y);
+        real_number fac = 0.5;
         // Top And Bottom Walls
-        AddFlatWallModNewBC(vd, 0, 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {10.0 * 1.0, 10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {10.0 * -1.0, 10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_x, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {0.0, 10.0 * 1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 0, 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {fac * 1.0, fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {fac * -1.0, fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x, LL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_bottom, params, BOUNDARY, {0.0, fac * 1.0}, 0.0, 0.0);
 
-        AddFlatWallModNewBC(vd, 0, 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {10.0 * 1.0, 10.0 * -1.0}, 0.0);
-        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {-10.0 * 1.0, 10.0 * -1.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_x, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {0.0, 10.0 * -1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 0, 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {fac * 1.0, fac * -1.0}, 0.0), 0.0;
+        AddFlatWallModNewBC(vd, Nwall_x, Nwall_x + 1, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {-fac * 1.0, fac * -1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x, UL_corner, X_Offset, dx_wall_x, {0.0, 0.0}, params.vw_top, params, BOUNDARY, {0.0, fac * -1.0}, 0.0, 0.0);
 
         // Left And Right Walls
-        AddFlatWallModNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * 1.0, 0.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * -1.0, 0.0}, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_y, LL_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * 1.0, 0.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_y, LR_corner, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * -1.0, 0.0}, 0.0, 0.0);
 
         // Auxiliary Tank
-        AddFlatWallModNewBC(vd, 0, 1, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * 1.0, 10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_x_small - 1, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {0.0, 10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, Nwall_x_small - 1, Nwall_x_small, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * -1.0, 10.0 * 1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 0, 1, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * 1.0, fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x_small - 1, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {0.0, fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, Nwall_x_small - 1, Nwall_x_small, ColumnLL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * -1.0, fac * 1.0}, 0.0, 0.0);
 
-        AddFlatWallModNewBC(vd, 0, 1, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * 1.0, -10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_x_small - 1, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {0.0, -10.0 * 1.0}, 0.0);
-        AddFlatWallModNewBC(vd, Nwall_x_small - 1, Nwall_x_small, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * -1.0, -10.0 * 1.0}, 0.0);
+        AddFlatWallModNewBC(vd, 0, 1, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * 1.0, -fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_x_small - 1, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {0.0, -fac * 1.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, Nwall_x_small - 1, Nwall_x_small, ColumnUL, X_Offset, dx_wall_x, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * -1.0, -fac * 1.0}, 0.0, 0.0);
 
-        AddFlatWallModNewBC(vd, 1, Nwall_y_small, ColumnLL, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * 1.0, 0.0}, 0.0);
-        AddFlatWallModNewBC(vd, 1, Nwall_y_small, ColumnLR, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {10.0 * -1.0, 0.0}, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_y_small, ColumnLL, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * 1.0, 0.0}, 0.0, 0.0);
+        AddFlatWallModNewBC(vd, 1, Nwall_y_small, ColumnLR, Y_Offset, dx_wall_y, {0.0, 0.0}, {0.0, 0.0}, params, BOUNDARY, {fac * -1.0, 0.0}, 0.0, 0.0);
     }
 
     // return an iterator to the fluid particles to add to vd
@@ -1535,6 +1537,39 @@ void CreateParticleGeometryDamBreakAdj(particles &vd, std::vector<std::pair<prob
 
         // next fluid particle
         ++fluid_it2;
+    }
+
+    // Create a Cell list object for CPU calculations
+    auto NN = vd.getCellList(params.r_cut);
+    vd.updateCellList(NN);
+
+    CalcFluidVec(vd, NN, params);
+    vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+
+    CalcNormalVec(vd, NN, params);
+    vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+
+    CalcCurvature(vd, NN, params);
+    vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+
+    CalcVolume(vd, params.dp);
+    vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();
+
+    // vd.write_frame("frametest", 0, 0.0, VTK_WRITER);
+    // now move aux tank beside the dam break
+    auto it = vd.getDomainIterator();
+    while (it.isNext())
+    {
+        auto akey = it.get();
+
+        Point<DIM, real_number> position = vd.getPos(akey);
+        real_number xthreshold = params.length[0] + 0.5 * auxiliary_tank_width;
+        if (position.get(0) > xthreshold)
+        {
+            vd.getPos(akey)[0] -= (auxiliary_tank_width + 0.99 * dp);
+        }
+
+        ++it;
     }
 
     // Now place solid walls using iterators (only for OLD BC)

@@ -122,9 +122,9 @@ __global__ void calc_forcesGPU_new2D(vd_type vd,
             {
                 Point<DIM, real_number> normal_b = vd.template getProp<vd8_normal>(b);
 
-                if (NormalsInteract(normal_a, normal_b, _params_gpu_.cosmax))
+                auto typeb = vd.template getProp<vd0_type>(b);
+                if (NormalsInteract(normal_a, normal_b, typeb, -dr, _params_gpu_.cosmax))
                 {
-                    auto typeb = vd.template getProp<vd0_type>(b);
                     if (typeb == BOUNDARY || typeb == OBSTACLE)
                     {
                         // Points from fluid to wall

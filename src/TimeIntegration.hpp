@@ -502,8 +502,8 @@ __global__ void kdi_1_gpu(vd_type vd, const real_number dt, const real_number t)
             Point<DIM, real_number> pos = vd.getPos(a);
             if (pos.get(0) < 5.0 * _params_gpu_.H)
             {
-                const real_number fac = 1.0;
-                vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
+                const real_number fac = VelocityRamp(t);
+                // vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
                 for (int xyz = 0; xyz < DIM; xyz++)
                 {
                     vd.template getProp<vd4_velocity>(a)[xyz] = fac * _params_gpu_.Vinflow[xyz];
@@ -542,9 +542,9 @@ __global__ void kdi_2_gpu(vd_type vd, const real_number dt, const real_number t)
 
             if (pos.get(0) < 5.0 * _params_gpu_.H)
             {
-                // // const real_number fac = VelocityRamp(t);
-                const real_number fac = 1.0;
-                vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
+                // const real_number fac = 1.0;
+                const real_number fac = VelocityRamp(t);
+                // vd.template getProp<vd1_rho>(a) = _params_gpu_.rho0;
 
                 for (int xyz = 0; xyz < DIM; xyz++)
                 {

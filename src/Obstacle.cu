@@ -529,7 +529,8 @@ void TriangleObstacle::AddObstacle(particles &vd)
     const int N_bottom = ceil(BaseLength_ / dx_self);
     const real_number dxwall_bottom = BaseLength_ / N_bottom;
     const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
-    AddFlatWallNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
+    AddFlatWallModNewBC(vd, 0, 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {-1.0, 0.0}, 0.0, AngularVelocity_);
+    AddFlatWallNewBC(vd, 1, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
 
     // Right wall
     const int N_right = ceil(HeigthLength_ / dx_self);
@@ -582,45 +583,24 @@ bool TriangleTestObstacle::isInsidePlusTol(Point<DIM, real_number> P)
 void TriangleTestObstacle::AddObstacle(particles &vd)
 {
 
-    // OPTION ONE
-    // const real_number dx_self = params_.dp / refine_factor;
-    // // Lower wall
-    // const int N_bottom = ceil(BaseLength_ / dx_self);
-    // const real_number dxwall_bottom = BaseLength_ / N_bottom;
-    // const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
-    // AddFlatWallModNewBC(vd, 0, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.0, -10.0}, AngularVelocity_);
-
-    // // Right wall
-    // const int N_right = ceil(HeigthLength_ / dx_self);
-    // const real_number dxwall_right = HeigthLength_ / N_right;
-    // const Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
-    // AddFlatWallModNewBC(vd, 1, N_right + 1, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, {10.0, 0.0}, AngularVelocity_);
-
-    // //  Hypothenuse wall
-    // // We want particles spaced roughly by dp
-    // const real_number HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
-    // const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
-    // const real_number dxwall_diag = HypothenuseLength / Ndiag; // actual spacing between particles ( close to dp but not exactly)
-    // const real_number sin_theta = HeigthLength_ / HypothenuseLength;
-    // const real_number cos_theta = BaseLength_ / HypothenuseLength;
-    // const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
-    // AddFlatWallModNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
-
     // OPTION TWO
     const real_number dx_self = params_.dp / refine_factor;
     // Lower wall
     const int N_bottom = ceil(BaseLength_ / dx_self);
     const real_number dxwall_bottom = BaseLength_ / N_bottom;
     const Point<DIM, real_number> Xoffset = {dxwall_bottom, 0.0};
-    AddFlatWallModNewBC(vd, 1, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.0, -10.0}, AngularVelocity_);
+    // Lower walls except corners
+    AddFlatWallModNewBC(vd, 1, N_bottom, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.0, -10.0}, 0.0, AngularVelocity_);
+    // Lower right corner
+    AddFlatWallModNewBC(vd, N_bottom, N_bottom + 1, LowerLeft_, Xoffset, dxwall_bottom, Centre_, LinearVelocity_, params_, OBSTACLE, {0.5, -0.5}, 0.0, AngularVelocity_);
 
-    // Right wall
+    // Right wall except corners
     const int N_right = ceil(HeigthLength_ / dx_self);
     const real_number dxwall_right = HeigthLength_ / N_right;
     const Point<DIM, real_number> Yoffset = {0.0, dxwall_right};
-    AddFlatWallModNewBC(vd, 1, N_right, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, {10.0, 0.0}, AngularVelocity_);
+    AddFlatWallModNewBC(vd, 1, N_right, LowerRight_, Yoffset, dxwall_right, Centre_, LinearVelocity_, params_, OBSTACLE, {10.0, 0.0}, 0.0, AngularVelocity_);
 
-    //  Hypothenuse wall
+    // Hypothenuse wall
     // We want particles spaced roughly by dp
     const real_number HypothenuseLength = sqrt(BaseLength_ * BaseLength_ + HeigthLength_ * HeigthLength_);
     const int Ndiag = ceil(HypothenuseLength / dx_self);       // integer number of particles that can fit in the diagonal
@@ -629,7 +609,12 @@ void TriangleTestObstacle::AddObstacle(particles &vd)
     const real_number cos_theta = BaseLength_ / HypothenuseLength;
     const Point<DIM, real_number> Diagoffset{dxwall_diag * cos_theta, dxwall_diag * sin_theta};
     const Point<DIM, real_number> DiagNormal{-10.0 * sin_theta, 10.0 * cos_theta};
-    AddFlatWallModNewBC(vd, 0, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, DiagNormal, AngularVelocity_);
+    AddFlatWallModNewBC(vd, 1, Ndiag, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, DiagNormal, 0.0, AngularVelocity_);
+
+    // const Point<DIM, real_number> NormalURCorner = {cos_theta, sin_theta};
+
+    AddFlatWallModNewBC(vd, 0, 1, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, {0.5, 0.5}, 0.0, AngularVelocity_);
+    AddFlatWallModNewBC(vd, Ndiag, Ndiag + 1, UpperRight_, -1.0 * Diagoffset, dxwall_diag, Centre_, LinearVelocity_, params_, OBSTACLE, {-0.5, 0.0}, 0.0, AngularVelocity_);
 }
 
 // Triangle equi class

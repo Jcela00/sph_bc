@@ -7,17 +7,7 @@
 
 #include "CreateParticleGeometry.hpp"
 #include "DragLiftCoeficient.hpp"
-#include "InitializeParameters.hpp"
-#include "VectorUtilities.hpp"
-#include "Obstacle.hpp"
-#include "Kernel.hpp"
-#include "Probes.hpp"
-#include "Physics.hpp"
-#include "Calculations.hpp"
 #include "TimeIntegration.hpp"
-#include "CalcForces.hpp"
-#include "ExtrapolateVelocity.hpp"
-#include "Definitions.hpp"
 
 #ifdef __CUDACC__
 #else
@@ -149,7 +139,7 @@ int main(int argc, char *argv[])
 	vd.updateCellList(NN);
 
 	// Set up fluid vector, normal vector, curvature and volume of the boundary particles
-	if (MainParameters.BC_TYPE == NEW_NO_SLIP)
+	if (MainParameters.BC_TYPE == NEW_NO_SLIP && MainParameters.SCENARIO != DAM_BREAK_ADJ)
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();

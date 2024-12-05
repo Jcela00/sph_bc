@@ -6,9 +6,9 @@
         bcType="new"
         bcX="periodic" bcY="non_periodic"
         densityType="summation"
-        writerType="vtk"
-        time="150"
-        write_const="10"
+        writerType="BINARY"
+        time="600"
+        write_const="1"
         CFL="1"
         custom_string="Re10000"
     />

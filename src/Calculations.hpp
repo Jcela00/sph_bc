@@ -5,6 +5,8 @@
 #include "VectorUtilities.hpp"
 #include "AssignNormals.hpp"
 
+void CalcVolume(particles &vd, real_number dp);
+
 template <typename CellList>
 void CalcFluidVec2D(particles &vd, CellList &NN, const Parameters &params)
 {
@@ -419,6 +421,7 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
     // max curvature is determined form the derivation of the volume formula, for curvature higher than this the volume of the third particle
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
 
+    // const real_number max_curvature = 1.0 / (1.5 * dp);
     const real_number max_curvature = 1.0 / (1.5 * dp);
     std::cout << "Max curvature: " << max_curvature << std::endl;
 
@@ -465,14 +468,14 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
                         const real_number r2 = norm2(dr);
 
                         // If the particles interact ...
-                        if (r2 < 9.0 * local_H * local_H)
+                        if (r2 < params.r_cut2)
                         {
                             if (a.getKey() != b)
                             {
                                 // Get the normal of b
                                 Point<DIM, real_number> normal_b = vd.getProp<vd8_normal>(b);
 
-                                if (NormalsInteract(normal_a, normal_b, 0.15))
+                                if (NormalsInteractCurv(normal_a, normal_b))
                                 {
 
                                     // OLD CALCULATION
@@ -518,44 +521,6 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
             else // curvature was manually initialized but we want to set it to 0
             {
                 vd.template getProp<vd9_volume>(a)[1] = 0.0;
-            }
-        }
-        ++part;
-    }
-}
-
-void CalcVolume(particles &vd, real_number dp)
-{
-    // This function computes the volume of the virtual particles for the new no-slip BC
-
-    auto part = vd.getDomainIterator();
-
-    // For each particle ...
-    while (part.isNext())
-    {
-        // Key of the particle a
-        vect_dist_key_dx a = part.get();
-
-        // if particle BOUNDARY
-        if (vd.getProp<vd0_type>(a) != FLUID)
-        {
-            real_number dxwall = vd.getProp<vd9_volume>(a)[0];
-            real_number kappa = vd.getProp<vd9_volume>(a)[1];
-
-            for (int i = 0; i < 3; i++)
-            {
-
-                // if constexpr (DIM == 2)
-                //     vd.template getProp<vd9_volume>(a)[i] = dp * dp;
-                // else if constexpr (DIM == 3)
-                //     vd.template getProp<vd9_volume>(a)[i] = dp * dp * dp;
-
-                // n=i+1
-                real_number n = static_cast<real_number>(i + 1);
-                if constexpr (DIM == 2)
-                    vd.template getProp<vd9_volume>(a)[i] = std::max(0.0, 0.5 * (2.0 * dp + dp * dp * kappa - 2.0 * n * dp * dp * kappa) * dxwall);
-                else if constexpr (DIM == 3)
-                    vd.template getProp<vd9_volume>(a)[i] = std::max(0.0, (1.0 / 3.0) * (3.0 * dp + kappa * dp * dp * (3.0 - 6.0 * n) + kappa * kappa * dp * dp * dp * (3 * n * n - 3 * n + 1)) * dxwall);
             }
         }
         ++part;

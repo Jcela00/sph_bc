@@ -32,7 +32,7 @@ E_Old = zeros(steps(end) - steps(1) + 1, length(res));
 umax_new = zeros(steps(end) - steps(1) + 1, length(res));
 umax_old = zeros(steps(end) - steps(1) + 1, length(res));
 
-dirname = 'poiseuilleNew';
+dirname = 'Poiseuille';
 
 %%%%%%%%%%%% FOR LOADING NEW DATA %%%%%%%%%%%%%
 for k = 1:length(steps)
@@ -149,7 +149,7 @@ plot(log10(hstep), log10(E_Old_avg), 'bo-');
 plot(x_range, y1, '--k');
 plot(x_range, y2, 'k');
 
-legend('New BC', 'Old BC', 'Slope 1', 'Slope 2', 'Location', 'bestoutside', 'box', 'off');
+% legend('New BC', 'Old BC', 'Slope 1', 'Slope 2', 'Location', 'bestoutside', 'box', 'off');
 xlabel('$h$');
 ylabel('$\log_{10}(L_1)$');
 % pos = get(gca, 'Position');
@@ -162,6 +162,12 @@ ticlabels = {'$1/240$', '$1/180$', '$1/120$', '$1/90$', '$1/60$', '$1/30$'};
 
 xticks(ticloc);
 xticklabels(ticlabels);
+
+xdelta = x_range(2) - x_range(1);
+ydelta = -3 +6;
+axis([x_range(1) x_range(2) -6 -3]);
+
+pbaspect([4 * xdelta ydelta 1]); % Aspect ratio
 
 set(gca, 'FontSize', 11); % Adjust axes font size
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11); % Apply to all text in the figure

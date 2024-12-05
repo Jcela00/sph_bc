@@ -3,12 +3,14 @@ set(groot, 'defaultAxesTickLabelInterpreter', 'latex');
 set(groot, 'defaultLegendInterpreter', 'latex');
 set(groot, 'defaultTextInterpreter', 'latex');
 set(groot, 'defaultAxesFontSize', 11);
-set(groot, 'defaultLineLineWidth', 1.5);
+set(groot, 'defaultLineLineWidth', 1);
 set(groot, 'defaultLineMarkerSize', 6);
 % This is for exportgraphics
 set(groot, 'defaultFigureUnits', 'centimeters');
 % set(groot, 'defaultFigurePosition', [0, 0, 8.5, 6.0]); %single column
-set(groot, 'defaultFigurePosition', [100, 100, 16.0, 4.0]); %double column
+% set(groot, 'defaultFigurePosition', [100, 100, 16.0, 4.0]); %double column
+
+set(groot, 'defaultFigurePosition', [100, 100, 16.0, 10.0]); %double column
 
 %% GAUSSIAN FIT OF a(t) FOR MOVING SQUARE
 data = csvread('../Motion_Body.dat', 1, 0);
@@ -36,14 +38,22 @@ gaussianModel = setoptions(gaussianModel, options);
 % Fit the model to the data
 [fitres, gof, output] = fit(t, a, gaussianModel);
 
-% plot the fit
-figure; hold on;
-plot(t, a, 'or');
-plot(t, fitres(t), '-k');
-xlabel('$t$');
-ylabel('$a(t) D/U^2$');
-legend('Data', 'Fit', 'Location', 'best');
-axis([0 2 -inf inf]);
+ymodel = fitres(t);
+A = fitres.A;
+sigma = fitres.sigma;
+mu = fitres.mu;
+
+Aown = 2 * sqrt(2);
+sigmaown = 0.25 / sqrt(pi);
+muown = mu;
+yown = A * exp(- (t - mu) .^ 2 / (2 * sigma ^ 2));
+
+error_own = norm(a - yown) / norm(a);
+error_fit = norm(a - ymodel) / norm(a);
+
+fprintf('Error own: %f\n', error_own);
+fprintf('Error fit: %f\n', error_fit);
+
 % Display the fit parameters
 format long g;
 disp("A = ");
@@ -58,12 +68,29 @@ plot(t, a, 'r');
 plot(t, v, 'b');
 legend('$a(t) D/U^2$', '$v(t)/U$', 'Location', 'best');
 xlabel('$t$');
-axis([0 8 -inf inf]);
+axis([0 3 -inf inf]);
 set(gca, 'FontSize', 11);
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
 exportgraphics(gcf, ['LatexFigures/SquareTimeLaw.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
+% plot problem geometry
+figure; hold on;
+BigRectanglePos = [0 0];
+BigRectangleSize = [10 5];
+
+SquarePos = [1 2];
+SquareSize = [1 1];
+rectangle('Position', [BigRectanglePos BigRectangleSize], 'EdgeColor', 'r', 'LineWidth', 1);
+rectangle('Position', [SquarePos SquareSize], 'EdgeColor', 'k', 'LineWidth', 1);
+plot(1.5, 2.5, 'ok', 'MarkerSize', 6, 'MarkerFaceColor', 'k');
+axis equal; axis([-0.2 10.2 -0.2 5.2]);
+xlabel('$x$'); ylabel('$y$');
+set(gca, 'FontSize', 11);
+set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+exportgraphics(gcf, ['LatexFigures/SquareGeometry.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+
 %%%%%%%% SIMULATION PLOTS
+set(groot, 'defaultFigurePosition', [100, 100, 16.0, 4.0]); %double column
 
 Drag50 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re50.csv', 1, 1, 0.02);
 Drag100 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re100.csv', 1, 1, 0.01);
@@ -76,10 +103,10 @@ Drag150 = ReadDragLift('../CSV_Data/MovingObstacle/Drag/Re150.csv', 1, 1, 0.0066
 figure; hold on;
 plot(Drag50{1}, Drag50{3}, 'k-', 'DisplayName', 'SPH');
 plot(DragRef50{1}, DragRef50{2}, 'r--', 'DisplayName', 'DNS');
-legend('Location', 'best');
+legend('Location', 'best', 'box', 'off');
 xlabel('$t$'); ylabel('$C_D$');
 axis([0 8 -inf inf]);
-text(0.5, 0.9, '$Re = 50$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+text(0.5, 0.6, '$Re = 50$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
 set(gca, 'FontSize', 11);
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
 exportgraphics(gcf, ['LatexFigures/SquareDrag50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
@@ -87,10 +114,10 @@ exportgraphics(gcf, ['LatexFigures/SquareDrag50.pdf'], 'ContentType', 'vector', 
 figure; hold on;
 plot(Drag100{1}, Drag100{3}, 'k-', 'DisplayName', 'SPH');
 plot(DragRef100{1}, DragRef100{2}, 'r--', 'DisplayName', 'DNS');
-legend('Location', 'best');
+% legend('Location', 'best','box', 'off');
 xlabel('$t$'); ylabel('$C_D$');
 axis([0 8 -inf inf]);
-text(0.5, 0.9, '$Re = 100$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+text(0.5, 0.6, '$Re = 100$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
 set(gca, 'FontSize', 11);
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
 exportgraphics(gcf, ['LatexFigures/SquareDrag100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
@@ -99,9 +126,9 @@ figure; hold on;
 plot(Drag150{1}, Drag150{3}, 'k-', 'DisplayName', 'SPH');
 plot(DragRef150{1}, DragRef150{2}, 'r--', 'DisplayName', 'DNS');
 xlabel('$t$'); ylabel('$C_D$');
-legend('Location', 'best');
+% legend('Location', 'best');
 axis([0 8 -inf inf]);
-text(0.5, 0.9, '$Re = 150$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
+text(0.5, 0.6, '$Re = 150$', 'Units', 'normalized', 'FontSize', 11, 'HorizontalAlignment', 'center');
 set(gca, 'FontSize', 11);
 set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
 exportgraphics(gcf, ['LatexFigures/SquareDrag150.pdf'], 'ContentType', 'vector', 'Resolution', 300);

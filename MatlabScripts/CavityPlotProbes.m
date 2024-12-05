@@ -7,13 +7,13 @@ set(groot, 'defaultAxesFontSize', 11);
 set(groot, 'defaultLineLineWidth', 1.5);
 set(groot, 'defaultLineMarkerSize', 8);
 set(groot, 'defaultFigureUnits', 'centimeters');
-set(groot, 'defaultFigurePosition', [0, 0, 16.0, 16.0]); %double column
+set(groot, 'defaultFigurePosition', [0, 0, 14.0, 14.0]); %double column
 
 % probe 0 -> ux(y)
 % probe 1 -> uy(x)
 Re = [100 1000 10000];
 res = [50 100 200];
-nfiles = [300 500 5000];
+nfiles = [300 500 600];
 linestyles = {':', '--', '-'};
 locations = {'South', 'South', 'South'};
 
@@ -28,13 +28,13 @@ for n = 1:length(Re)
     vyref = csvread(['../CSV_Data/Cavity/Ghia/vy_' num2str(current_Re) '.csv'], 1, 0);
 
     ax1 = axes(t);
-    plot(ax1, vyref(:, 1), vyref(:, 2), 'sr', 'DisplayName', 'Ghia, $u_y$, 257x257'); hold on;
+    plot(ax1, vyref(:, 1), vyref(:, 2), 'sr', 'DisplayName', 'Ghia et al. $u_y$'); hold on;
     xlabel('$x$'); ylabel('$u_y(x)$');
     ax1.Box = 'off';
     set(ax1, 'FontSize', 11);
 
     ax2 = axes(t);
-    plot(ax2, vxref(:, 2), vxref(:, 1), 'ob', 'DisplayName', 'Ghia, $u_x$, 257x257'); hold on;
+    plot(ax2, vxref(:, 2), vxref(:, 1), 'ob', 'DisplayName', 'Ghia et al. $u_x$'); hold on;
     xlabel('$u_x(y)$'); ylabel('$y$');
     ax2.Box = 'off';
     ax2.XAxisLocation = 'top';
@@ -44,14 +44,17 @@ for n = 1:length(Re)
 
     if (current_Re == 10000)
 
-        current_res = 200;
+        for m = 2:length(res)
 
-        [ux_new, y_new] = ReadProbeData(['../CSV_Data/Cavity/probes_0_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 2);
-        [uy_new, x_new] = ReadProbeData(['../CSV_Data/Cavity/probes_1_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 1);
+            current_res = res(m);
 
-        plot(ax1, x_new, uy_new, 'k', 'LineStyle', linestyles{m}, 'DisplayName', ['SPH ' num2str(current_res)]);
+            [ux_new, y_new] = ReadProbeData(['../CSV_Data/Cavity/probes_0_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 2);
+            [uy_new, x_new] = ReadProbeData(['../CSV_Data/Cavity/probes_1_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 1);
 
-        plot(ax2, ux_new, y_new, 'k', 'LineStyle', linestyles{m}, 'HandleVisibility', 'off');
+            plot(ax1, x_new, uy_new, 'k', 'LineStyle', linestyles{m}, 'DisplayName', ['SPH $' num2str(current_res) '\times' num2str(current_res) '$']);
+
+            plot(ax2, ux_new, y_new, 'k', 'LineStyle', linestyles{m}, 'HandleVisibility', 'off');
+        end
 
     else
 
@@ -62,7 +65,7 @@ for n = 1:length(Re)
             [ux_new, y_new] = ReadProbeData(['../CSV_Data/Cavity/probes_0_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 2);
             [uy_new, x_new] = ReadProbeData(['../CSV_Data/Cavity/probes_1_Cavity_new_summation_Re' num2str(current_Re) '_' num2str(current_res) '_' num2str(current_res) '_1rf_1prc/file_' num2str(nfiles(n)) '.csv'], 1);
 
-            plot(ax1, x_new, uy_new, 'k', 'LineStyle', linestyles{m}, 'DisplayName', ['SPH ' num2str(current_res)]);
+            plot(ax1, x_new, uy_new, 'k', 'LineStyle', linestyles{m}, 'DisplayName', ['SPH $' num2str(current_res) '\times' num2str(current_res) '$']);
 
             plot(ax2, ux_new, y_new, 'k', 'LineStyle', linestyles{m}, 'HandleVisibility', 'off');
 

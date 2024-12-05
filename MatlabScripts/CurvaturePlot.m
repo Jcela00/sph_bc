@@ -17,21 +17,36 @@ ConcaveSquare = ParticleData(['../CSV_Data/CurvaturePlot/ConcaveSquare/file'], 0
 ConvexSquare = ParticleData(['../CSV_Data/CurvaturePlot/ConvexSquare/file'], 0, ["ConvexSquare"], rho0, dim, Hconst);
 Ellipse = ParticleData(['../CSV_Data/CurvaturePlot/FlatEllipse/file'], 0, ["Ellipse"], rho0, dim, Hconst);
 Triangle = ParticleData(['../CSV_Data/CurvaturePlot/Triangle/file'], 0, ["Triangle"], rho0, dim, Hconst);
+Cavity = ParticleData(['../CSV_Data/CurvaturePlot/Cavity/file'], 0, ["Cavity"], rho0, dim, Hconst);
+Cavity.ObstacleIndexes = Cavity.BoundaryIndexes;
 
-datasets = {ConcaveCylinder, ConvexCylinder, ConcaveSquare, ConvexSquare, Ellipse, Triangle};
-names = ["ConcaveCylinder", "ConvexCylinder", "ConcaveSquare", "ConvexSquare", "Ellipse", "Triangle"];
-indexsettings = {0, 0, 1, 0, 0, 0};
+datasets = {ConcaveCylinder, ConvexCylinder, ConcaveSquare, ConvexSquare, Ellipse, Triangle, Cavity};
+names = ["ConcaveCylinder", "ConvexCylinder", "ConcaveSquare", "ConvexSquare", "Ellipse", "Triangle", "Cavity"];
+indexsettings = {0, 0, 1, 0, 0, 0, 0};
+vectorsizes = {0.2 0.2 0.2 0.2 0.2 0.2, 0.05};
 
 curvLimitCircle = [-1 1];
 curvLimitSquare = [-9 9];
 curvLimitEllipse = [0 6];
 curvLimitTriangle = [0 10];
 
-curvatureLimits = {curvLimitCircle, curvLimitCircle, curvLimitSquare, curvLimitSquare, curvLimitEllipse, curvLimitTriangle};
+curvatureLimits = {curvLimitCircle, curvLimitCircle, curvLimitSquare, curvLimitSquare, curvLimitEllipse, curvLimitTriangle, curvLimitSquare};
+
+datasets = {Cavity};
+names = ["Cavity"];
+indexsettings = {0};
+vectorsizes = {0.04};
+
+curvLimitCircle = [-1 1];
+curvLimitSquare = [-9 9];
+curvLimitEllipse = [0 6];
+curvLimitTriangle = [0 10];
+
+curvatureLimits = {curvLimitSquare};
 
 for k = 1:length(datasets)
     fig = figure; hold on;
-    datasets{k}.PlotCurvatureNormals(fig, mrksz, indexsettings{k}, curvatureLimits{k});
+    datasets{k}.PlotCurvatureNormals(fig, mrksz, indexsettings{k}, curvatureLimits{k}, vectorsizes{k});
     axis equal;
     exportgraphics(fig, ['LatexFigures/Curvature' names{k} '.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 

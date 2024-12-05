@@ -15,46 +15,48 @@ rho0 = 1;
 dim = 2;
 Hconst = 1;
 
-% filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re100_200_200_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file',
-%              '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file'};
+filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re100_200_200_1rf_1prc/file',
+             '../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file',
+             '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file',
+             '../CSV_Data/Cavity/Cavity_new_summation_Re10000_400_400_1rf_1prc/file'};
 
-% names = {'Re100_200x200',
-%          'Re1000_200x200'
-%          'Re10000_200x200'};
+names = {'Re100_200x200',
+         'Re1000_200x200'
+         'Re10000_200x200',
+         'Re10000_400x400'};
 
-% nfiles = [300 500 5000];
+nfiles = [300 500 600 99];
 
-% figure; hold on;
+figure; hold on;
 
-% for k = 1:length(filenames)
+for k = 1:length(filenames)
 
-%     [E stepvec] = CheckKineticEnergy(filenames{k}, 1, nfiles(k), rho0, dim, Hconst);
-%     plot(stepvec, E, 'DisplayName', names{k});
-% end
+    [E stepvec] = CheckKineticEnergy(filenames{k}, 1, nfiles(k), rho0, dim, Hconst);
+    plot(stepvec, E, 'DisplayName', names{k});
+end
 
-% save('CavityEnergy.mat', 'E');
-% legend('Location', 'best');
-% xlabel('$t$'); ylabel('$E$');
-% exportgraphics(gcf, ['LatexFigures/CavityEnergy.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+save('CavityEnergy.mat', 'E');
+legend('Location', 'best');
+xlabel('$t$'); ylabel('$E$');
+exportgraphics(gcf, ['LatexFigures/CavityEnergy.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 lnwdth = 0.5;
 mrksz = 2;
 
-Npoints = 50;
+Npoints = 200;
 xrange = [0 1];
 yrange = [0 1];
 streamDensity = 8;
 
 filenames = {'../CSV_Data/Cavity/Cavity_new_summation_Re100_200_200_1rf_1prc/file',
              '../CSV_Data/Cavity/Cavity_new_summation_Re1000_200_200_1rf_1prc/file',
-             '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file', };
+             '../CSV_Data/Cavity/Cavity_new_summation_Re10000_200_200_1rf_1prc/file'};
 
 names = {'Re100_200x200',
          'Re1000_200x200',
          'Re10000_200x200'};
 
-nfiles = [300 500 4500];
+nfiles = [300 500 600];
 
 level1000 = [-3 -2 -1 -0.5 0 0.5 1 2 3 4 5];
 level10000 = [-3 -2 0 1 2];
@@ -89,10 +91,6 @@ function [E, stepvec] = CheckKineticEnergy(filename, nfiles_start, nfiles_end, r
     stepvec = [];
 
     for k = nfiles_start:step:nfiles_end
-
-        if (k > 500)
-            step = 100;
-        end
 
         stepvec = [stepvec k];
         Cavity = ParticleData(filename, k, ['lolo'], rho0, dim, Hconst);

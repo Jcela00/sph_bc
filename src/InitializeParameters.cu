@@ -116,6 +116,8 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.WRITER = VTK_WRITER;
         else if (strcmp(writer_str, "CSV") == 0)
             argParameters.WRITER = CSV_WRITER;
+        else if (strcmp(writer_str, "BINARY") == 0)
+            argParameters.WRITER = FORMAT_BINARY;
 
         // read time parameters
         simulationElement->QueryDoubleAttribute("time", &tmpdouble);
@@ -356,8 +358,8 @@ void ComputeKernelVolume(Parameters &argParameters)
         }
 
         argParameters.Vp = 1.0 / sumWij;
-        printf("Kernel volume: %.17g\n", argParameters.Vp);
-        printf("Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
+        // printf("Kernel volume: %.17g\n", argParameters.Vp);
+        // printf("Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
     }
     else if constexpr (DIM == 3)
     {
@@ -516,7 +518,7 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
 
     // cosmax
-    argParameters.thetamax = 120.0 * M_PI / 180.0;
+    argParameters.thetamax = 100.0 * M_PI / 180.0;
     argParameters.cosmax = cos(argParameters.thetamax);
 
     if (argParameters.SCENARIO != CUSTOM && argParameters.SCENARIO != MOVING_OBSTACLE)

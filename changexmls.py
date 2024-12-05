@@ -21,13 +21,15 @@ def update_value_on_file(file_path, category, field, new_value):
         f.write(xml_content)
 
 def update_value_on_folder(folder_path, category, field, new_value):
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".xml"):
-            file_path = os.path.join(folder_path, filename)
-            update_value_on_file(file_path, category, field, new_value)
-            print(f"Updated {filename}")
+    # Walk through all files and subfolders
+    for root_dir, _, files in os.walk(folder_path):
+        for filename in files:
+            if filename.endswith(".xml"):
+                file_path = os.path.join(root_dir, filename)
+                update_value_on_file(file_path, category, field, new_value)
+                print(f"Updated {file_path}")
 
 # Example usage:
-folder_path = "XML/Ellipse/Re100"  # Replace with the actual folder path
-new_val = "4.0"
-update_value_on_folder(folder_path, 'obstacle', 'centerY', new_val)
+folder_path = "XML/"  # Replace with the actual folder path
+new_val = "BINARY"
+update_value_on_folder(folder_path, 'simulation', 'writerType', new_val)

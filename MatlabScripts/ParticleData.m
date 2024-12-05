@@ -352,6 +352,33 @@ classdef ParticleData
             x = point(1); y = point(2);
             % Check if the point is within the square boundaries
             isInside = (x >= cx - half_side) && (x <= cx + half_side) && (y >= cy - half_side) && (y <= cy + half_side);
+        end
+
+        function [obj, isInside] = IsInsideTriangle(obj, point, centre, sideLength)
+
+            % Extract point and center coordinates
+            px = point(1);
+            py = point(2);
+            centre_x = centre(1);
+            centre_y = centre(2);
+
+            left_vertex = [centre_x - sqrt(3) * sideLength / 3, centre_y];
+            top_vertex = [centre_x + sqrt(3) * sideLength / 6, centre_y + sideLength / 2];
+            bottom_vertex = [centre_x + sqrt(3) * sideLength / 6, centre_y - sideLength / 2];
+
+            % Extract vertex coordinates
+            x1 = left_vertex(1); y1 = left_vertex(2);
+            x2 = top_vertex(1); y2 = top_vertex(2);
+            x3 = bottom_vertex(1); y3 = bottom_vertex(2);
+
+            % Compute barycentric coordinates
+            denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+            a = ((y2 - y3) * (px - x3) + (x3 - x2) * (py - y3)) / denominator;
+            b = ((y3 - y1) * (px - x3) + (x1 - x3) * (py - y3)) / denominator;
+            c = 1 - a - b;
+
+            % Check if the point is inside the triangle
+            isInside = (a >= 0) && (b >= 0) && (c >= 0);
 
         end
 
@@ -540,7 +567,7 @@ classdef ParticleData
             % this function was intended for the cavity and it got too complex, there is a separate plotstreamlinesonly just for streamlines
             N = sqrt(length(obj.FluidIndexes));
 
-            Hfac = N / Npoints;
+            Hfac = N / Npoints
 
             % equispace interpolation points
             xi = linspace(xrange(1), xrange(2), Npoints);
@@ -616,16 +643,16 @@ classdef ParticleData
 
             % save('streamlines.mat', 'xi', 'yi', 'ui', 'vi', 'vorticity');
 
-            figure(fig1);
-            l = streamslice(xi, yi, ui, vi, streamlinedensity, 'noarrows', 'cubic');
-            set(l, 'Color', 'k', 'LineWidth', lnwdth);
-            axis equal;
-            axis([0 1 0 1]);
-            xline(0, 'k'); yline(0, 'k');
-            xline(1, 'k'); yline(1, 'k');
-            xlabel('$x$'); ylabel('$y$');
-            set(gca, 'FontSize', 11);
-            set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
+            % figure(fig1);
+            % l = streamslice(xi, yi, ui, vi, streamlinedensity, 'noarrows', 'cubic');
+            % set(l, 'Color', 'k', 'LineWidth', lnwdth);
+            % axis equal;
+            % axis([0 1 0 1]);
+            % xline(0, 'k'); yline(0, 'k');
+            % xline(1, 'k'); yline(1, 'k');
+            % xlabel('$x$'); ylabel('$y$');
+            % set(gca, 'FontSize', 11);
+            % set(findall(gcf, '-property', 'FontSize'), 'FontSize', 11);
 
             figure(fig4);
             contour(xi, yi, psi, levelsStreamfunction, 'LineWidth', lnwdth, 'LineColor', 'black');
@@ -755,7 +782,178 @@ classdef ParticleData
 
         end
 
-        function PlotCurvatureNormals(obj, fig, mrksz, indexsetting, CurvatureLimits)
+        function PlotParticlesRange(obj, fig, mrksz, xrange, yrange)
+            figure(fig);
+
+            % m = 256;
+            % control_points = [0.0, 0.231, 0.298, 0.752;
+            %                   0.5, 1.000, 1.000, 1.000;
+            %                   1.0, 0.706, 0.016, 0.150; ];
+
+            % x = control_points(:, 1);
+            % r = control_points(:, 2);
+            % g = control_points(:, 3);
+            % b = control_points(:, 4);
+            % cmap = [interp1(x, r, linspace(0, 1, m))', interp1(x, g, linspace(0, 1, m))', interp1(x, b, linspace(0, 1, m))'];
+
+            cmap = obj.BlueGreenYellowRed(256);
+            custom_colormap = cmap;
+
+            indexInside = obj.IsInRange(xrange, yrange);
+
+            obj.Npart = length(indexInside);
+            obj.Type = obj.Type(indexInside);
+            obj.Position = obj.Position(indexInside, :);
+            obj.Velocity = obj.Velocity(indexInside, :);
+            obj.VelMax = max(sqrt(obj.Velocity(:, 1) .^ 2 + obj.Velocity(:, 2) .^ 2));
+            obj.VelMin = 0;
+
+            for k = 1:obj.Npart
+
+                if (obj.Type(k) == obj.TypeFluid)
+                    vel_magnitude = norm(obj.Velocity(k, :));
+                    color_index = round(1 + ((255 - 1) / (obj.VelMax - obj.VelMin)) * (vel_magnitude - obj.VelMin));
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
+                else
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k', 'Marker', 'o', 'MarkerSize', mrksz);
+
+                end
+
+            end
+
+            fig.Colormap = custom_colormap;
+
+            cb = colorbar;
+            set(cb, 'TickLabelInterpreter', 'latex');
+            clim([obj.VelMin, obj.VelMax]);
+            % title(obj.PlotName);
+
+        end
+
+        function PlotParticlesVorticityRange(obj, fig, mrksz, wrange, xrange, yrange)
+            figure(fig);
+
+            cmap = obj.paraview_red_blue_colormap(256);
+            custom_colormap = cmap;
+            wmin = wrange(1);
+            wmax = wrange(2);
+
+            indexInside = obj.IsInRange(xrange, yrange);
+
+            obj.Npart = length(indexInside);
+            obj.Type = obj.Type(indexInside);
+            obj.Position = obj.Position(indexInside, :);
+            obj.Vorticity = obj.Vorticity(indexInside, :);
+
+            for k = 1:obj.Npart
+
+                if (obj.Type(k) == obj.TypeFluid)
+                    magnitude = obj.Vorticity(k);
+                    color_index = round(1 + ((size(custom_colormap, 1) - 1) / (wmax - wmin)) * (magnitude - wmin));
+                    color_index = max(1, min(color_index, size(custom_colormap, 1))); % Clamp to [1, 256]
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', custom_colormap(color_index, :), 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
+                else
+                    plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k', 'Marker', 'o', 'MarkerSize', mrksz);
+
+                end
+
+                progress = k / obj.Npart * 100;
+                fprintf('\rPlotting Particles: %.2f%%', progress);
+
+            end
+
+            fig.Colormap = custom_colormap;
+
+            cb = colorbar('southoutside');
+            set(cb, 'TickLabelInterpreter', 'latex');
+            clim([wmin, wmax]);
+            % title(obj.PlotName);
+
+        end
+
+        function cmap = paraview_red_blue_colormap(obj, n)
+
+            white_range = [-0.4, 0.4]; % Default white range
+
+            % Define the RGB values for the minimum, central, and maximum colors
+            rgb_min = [59, 76, 192] / 255; % Minimum blue
+            rgb_mid = [222, 220, 218] / 255; % Central ghost white
+            rgb_max = [180, 4, 38] / 255; % Maximum red
+
+            % Define normalized positions for the color interpolation
+            x = linspace(-1, 1, n); % Normalized colormap range [-1, 1]
+            white_min = white_range(1); % Start of white range
+            white_max = white_range(2); % End of white range
+
+            % Initialize the colormap
+            cmap = zeros(n, 3);
+
+            % Create the colormap by interpolating RGB values
+            for i = 1:3
+                % Blue to white
+                idx_blue = x <= white_min;
+                cmap(idx_blue, i) = interp1([-1, white_min], [rgb_min(i), rgb_mid(i)], x(idx_blue));
+
+                % White region
+                idx_white = (x > white_min) & (x < white_max);
+                cmap(idx_white, i) = rgb_mid(i);
+
+                % White to red
+                idx_red = x >= white_max;
+                cmap(idx_red, i) = interp1([white_max, 1], [rgb_mid(i), rgb_max(i)], x(idx_red));
+            end
+
+        end
+
+        function cmap = BlueGreenYellowRed(obj, nColors)
+            white = [1, 1, 1]; % White
+            light_blue = [0.6, 0.8, 1]; % Light Blue
+            green = [0, 0.8, 0]; % Green
+            yellow = [1, 1, 0]; % Yellow
+            red = [1, 0, 0]; % Red
+
+            cmap = [linspace(white(1), light_blue(1), ceil(nColors / 4))', linspace(white(2), light_blue(2), ceil(nColors / 4))', linspace(white(3), light_blue(3), ceil(nColors / 4))';
+                    linspace(light_blue(1), green(1), ceil(nColors / 4))', linspace(light_blue(2), green(2), ceil(nColors / 4))', linspace(light_blue(3), green(3), ceil(nColors / 4))';
+                    linspace(green(1), yellow(1), ceil(nColors / 4))', linspace(green(2), yellow(2), ceil(nColors / 4))', linspace(green(3), yellow(3), ceil(nColors / 4))';
+                    linspace(yellow(1), red(1), ceil(nColors / 4))', linspace(yellow(2), red(2), ceil(nColors / 4))', linspace(yellow(3), red(3), ceil(nColors / 4))'];
+        end
+
+        function cmap = BlueYellowRedCmap(obj, nColors)
+            % Define adjusted colors
+            blue = [0, 0, 1]; % Darker blue
+            light_blue = [0, 0.8, 1]; % Shiny cyan blue
+            white = [1, 1, 1]; % White
+            yellow = [1, 0.8, 0]; % Shiny orange
+            red = [1, 0, 0];
+
+            % Split evenly between negative and positive sides
+            nPart = ceil(nColors / 4);
+
+            % Interpolate colors
+            % nPart = floor(nColors / 4);
+            blue_part = [linspace(blue(1), light_blue(1), nPart)', linspace(blue(2), light_blue(2), nPart)', linspace(blue(3), light_blue(3), nPart)';
+                         linspace(light_blue(1), white(1), nPart)', linspace(light_blue(2), white(2), nPart)', linspace(light_blue(3), white(3), nPart)'];
+            red_part = [linspace(white(1), yellow(1), nPart)', linspace(white(2), yellow(2), nPart)', linspace(white(3), yellow(3), nPart)';
+                        linspace(yellow(1), red(1), nPart)', linspace(yellow(2), red(2), nPart)', linspace(yellow(3), red(3), nPart)'];
+
+            cmap = [blue_part; red_part];
+
+        end
+
+        function [indexInside] = IsInRange(obj, xrange, yrange)
+            indexInside = [];
+
+            for k = 1:obj.Npart
+
+                if (obj.Position(k, 1) >= xrange(1) && obj.Position(k, 1) <= xrange(2) && obj.Position(k, 2) >= yrange(1) && obj.Position(k, 2) <= yrange(2))
+                    indexInside = [indexInside; k];
+                end
+
+            end
+
+        end
+
+        function PlotCurvatureNormals(obj, fig, mrksz, indexsetting, CurvatureLimits, vectorsize)
 
             m = 256;
 
@@ -824,7 +1022,7 @@ classdef ParticleData
 
                 color_index = round(1 + ((255 - 1) / (maxcurv - mincurv)) * (curv - mincurv));
                 plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
-                quiver(pos(1), pos(2), norm(1), norm(2), 0.2, 'Color', 'k', 'LineWidth', 2);
+                quiver(pos(1), pos(2), norm(1), norm(2), vectorsize, 'Color', 'k', 'LineWidth', 2);
 
             end
 

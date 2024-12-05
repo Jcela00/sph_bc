@@ -1,10 +1,9 @@
 #ifndef CREATEPARTICLEGEOMETRY_HPP
 #define CREATEPARTICLEGEOMETRY_HPP
 
-#include "Definitions.hpp"
+#include "Calculations.hpp"
 #include "Obstacle.hpp"
 #include "Probes.hpp"
-#include "VectorUtilities.hpp"
 #include "InitializeParameters.hpp"
 
 void CreateParticleGeometry(particles &vd,
