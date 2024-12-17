@@ -422,7 +422,10 @@ void CalcCurvature(particles &vd, CellList &NN, const Parameters &params)
     // is no longer between the two circles. Actually for 1/(2.5*dp) it becomes 0 and later negative
 
     // const real_number max_curvature = 1.0 / (1.5 * dp);
-    const real_number max_curvature = 1.0 / (1.5 * dp);
+    // const real_number max_curvature = 1.0 / (1.5 * dp); // normal
+    const real_number max_curvature = 1.0 / (5.0 * dp); // low
+    // const real_number max_curvature = 1.0 / (0.1 * dp); // high
+
     std::cout << "Max curvature: " << max_curvature << std::endl;
 
     // For each particle ...

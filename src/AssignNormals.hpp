@@ -168,16 +168,16 @@ inline void AssignNormals(vd_type &vd, NN_type &NN)
 
 inline __device__ __host__ bool NormalsInteract(Point<DIM, real_number> na, Point<DIM, real_number> nb, unsigned int typeb, Point<DIM, real_number> rba, real_number cos_angle)
 {
-    if (typeb == FLUID)
-    {
-        rba = rba / getVectorNorm(rba);
-        return isZeroVector(na) || isZeroVector(nb) || (dotProduct(na, nb) > cos_angle) || (dotProduct(na, rba) > cos_angle) || (dotProduct(nb, -rba) > cos_angle);
-        // return true;
-    }
-    else
-        return isZeroVector(na) || isZeroVector(nb) || (dotProduct(na, nb) > cos_angle);
+    // if (typeb == FLUID)
+    // {
+    //     // rba = rba / getVectorNorm(rba);
+    //     // return isZeroVector(na) || isZeroVector(nb) || (dotProduct(na, nb) > cos_angle) || (dotProduct(na, rba) > cos_angle) || (dotProduct(nb, -rba) > cos_angle);
+    //     return true;
+    // }
+    // else
+    //     return isZeroVector(na) || isZeroVector(nb) || (dotProduct(na, nb) > cos_angle);
 
-    // return true;
+    return true;
 }
 inline __device__ __host__ bool NormalsInteractCurv(Point<DIM, real_number> na, Point<DIM, real_number> nb)
 {

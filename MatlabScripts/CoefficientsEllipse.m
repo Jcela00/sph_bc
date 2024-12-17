@@ -28,30 +28,39 @@ Re1000_table = zeros(2, 8);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% RE 100 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Re 100
+% fig1 = figure; hold on;
+% Re100_table = PlotCoefficient(EllipseRe100_25, window, fig1, Re100_table, 1, 'b', 0, 'Re100_25');
+% close all;
 fig1 = figure; hold on;
-Re100_table = PlotCoefficient(EllipseRe100_25, window, fig1, Re100_table, 1, 'b', 0, 'Re100_25');
 Re100_table = PlotCoefficient(EllipseRe100_50, window, fig1, Re100_table, 2, 'r', 0, 'Re100_50');
+axis([0 30 0.0 1.2]);
 exportgraphics(gcf, ['LatexFigures/EllipseDrag100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
-axis([0 40 0.5 1.2]);
 
+% fig2 = figure; hold on;
+% Re100_table = PlotCoefficient(EllipseRe100_25, window, fig2, Re100_table, 1, 'b', 1, 'Re100_25');
+% close all;
 fig2 = figure; hold on;
-Re100_table = PlotCoefficient(EllipseRe100_25, window, fig2, Re100_table, 1, 'b', 1, 'Re100_25');
 Re100_table = PlotCoefficient(EllipseRe100_50, window, fig2, Re100_table, 2, 'r', 1, 'Re100_50');
+axis([0 30 0 1]);
 exportgraphics(gcf, ['LatexFigures/EllipseLift100.pdf'], 'ContentType', 'vector', 'Resolution', 300);
-axis([0 40 0 1]);
 
-% Re 1000
+% % Re 1000
+% fig3 = figure; hold on;
+% Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig3, Re1000_table, 1, 'b', 0, 'Re1000_25');
+% close all;
+
 fig3 = figure; hold on;
-Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig3, Re1000_table, 1, 'b', 0, 'Re1000_25');
 Re1000_table = PlotCoefficient(EllipseRe1000_50, window, fig3, Re1000_table, 2, 'r', 0, 'Re1000_50');
+axis([0 30 0 1]);
 exportgraphics(gcf, ['LatexFigures/EllipseDrag1000.pdf'], 'ContentType', 'vector', 'Resolution', 300);
-axis([0 40 0 1]);
 
+% fig4 = figure; hold on;
+% Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig4, Re1000_table, 1, 'b', 1, 'Re1000_25');
+% close all;
 fig4 = figure; hold on;
-Re1000_table = PlotCoefficient(EllipseRe1000_25, window, fig4, Re1000_table, 1, 'b', 1, 'Re1000_25');
 Re1000_table = PlotCoefficient(EllipseRe1000_50, window, fig4, Re1000_table, 2, 'r', 1, 'Re1000_50');
+axis([0 30 -0.2 1.2]);
 exportgraphics(gcf, ['LatexFigures/EllipseLift1000.pdf'], 'ContentType', 'vector', 'Resolution', 300);
-axis([0 40 0 1]);
 
 TableRe100 = table(Re100_table(:, 1), Re100_table(:, 2), Re100_table(:, 3), Re100_table(:, 4), Re100_table(:, 5), Re100_table(:, 6), Re100_table(:, 7), Re100_table(:, 8));
 TableRe100.Properties.VariableNames = ["DragAvg", "DragAmp", "DragFreq1", "DragFreq2", "LiftAvg", "LiftAmp", "LiftFreq1", "LiftFreq2"];
@@ -256,12 +265,12 @@ function [return_table] = PlotCoefficient(dataset, window, fighandle, coefficien
 
     if DragOrLift == 0
         index = 3;
-        ylbl = '$C_D$';
+        ylbl = '$C_d$';
         ttl = 'Drag Coefficient Re = ';
         cols = [1 4];
     elseif DragOrLift == 1
         index = 4;
-        ylbl = '$C_L$';
+        ylbl = '$C_l$';
         ttl = 'Lift Coefficient Re = ';
         cols = [5 8];
     end
@@ -272,15 +281,15 @@ function [return_table] = PlotCoefficient(dataset, window, fighandle, coefficien
     [avg, amp, freqs] = AverageInTimeWindow(dataset{index}, dataset{1}, window);
 
     figure(fighandle);
-    yline(avg, '--', 'Color', clr, 'DisplayName', ['Avg: ' num2str(avg) ' Amplitude: ' num2str(amp)]);
-    yline(avg + amp, '--r', 'HandleVisibility', 'off');
-    yline(avg - amp, '--r', 'HandleVisibility', 'off');
-    xline(window(1), '--k', 'HandleVisibility', 'off');
-    xline(window(2), '--k', 'HandleVisibility', 'off');
+    % yline(avg, '--', 'Color', clr, 'DisplayName', ['Avg: ' num2str(avg) ' Amplitude: ' num2str(amp)]);
+    % yline(avg + amp, '--r', 'HandleVisibility', 'off');
+    % yline(avg - amp, '--r', 'HandleVisibility', 'off');
+    % xline(window(1), '--k', 'HandleVisibility', 'off');
+    % xline(window(2), '--k', 'HandleVisibility', 'off');
     xlabel('Time [s]');
     ylabel(ylbl);
-    title([ttl num2str(Re)])
-    legend('Location', 'best', 'box', 'off');
+    % title([ttl num2str(Re)])
+    % legend('Location', 'best', 'box', 'off');
     set(gca, 'FontSize', 11);
 
     coefficient_table(tablerow, cols(1):cols(2)) = [avg amp freqs];

@@ -17,6 +17,8 @@ typedef double real_number;
 #define OBSTACLE 1
 #define FLUID 2
 
+#define FREEZE_DAM 0
+
 // Type of probe particles
 #define FIXED_PROBE 0
 #define VARIABLE_PROBE 1
@@ -34,22 +36,23 @@ typedef double real_number;
 #define SQUARE 5
 #define TRIANGLE 6
 #define TRIANGLE_EQUILATERAL 7
-#define CAVITY 8
-#define STEP 9
-#define TAYLOR_COUETTE 10
-#define MOVING_OBSTACLE 11
+#define TRIANGLE_TEST 8
+#define CAVITY 9
+#define STEP 10
+#define TAYLOR_COUETTE 11
 #define ELLIPSE 12
 #define DAM_BREAK 13
-#define TRIANGLE_TEST 14
+#define DAM_BREAK_ADJ 14
 #define SPHERE 15
 #define CUSTOM 16
-#define DAM_BREAK_ADJ 17
+#define FLOWER 17
+#define POISEUILLE_TANK 18
 
 // Type of density calculation
 #define DENSITY_SUMMATION 0
 #define DENSITY_DIFFERENTIAL 1
 
-// Alias of the vector_dist fields
+// Alias of the indices to access vector_dist fields
 const int vd0_type = 0; // can be BOUNDARY, FREE_SLIP_BOUNDARY, OBSTACLE, FLUID
 // Density
 const int vd1_rho = 1;
@@ -238,7 +241,18 @@ public:
     real_number waterH;
     real_number waterB;
 
-    void WriteParameters(const std::string filename)
+    // Flower specific parameters
+    real_number flowerA;
+    real_number flowerB;
+    real_number flowerK;
+    real_number flowerM;
+    real_number flowerNlobes;
+    int flowerAlternate;
+    real_number flowerPropRadius;
+    real_number flowerPropRadius2;
+
+    void
+    WriteParameters(const std::string filename)
     {
         // write all the parameters to a .txt file for debugging and making sure the parameters are read correctly
         std::ofstream file;

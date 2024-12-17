@@ -30,6 +30,23 @@ void AddFlatWallModNewBC(particles &vd,
 						 const real_number given_kappa = 0.0,
 						 const real_number obstacle_omega = 0.0);
 
+void AddFlatWallModNewBC3D(particles &vd,
+						   const int k0,
+						   const int kmax,
+						   const int j0,
+						   const int jmax,
+						   const Point<DIM, real_number> Corner,
+						   const Point<DIM, real_number> UnitOffsetK,
+						   const Point<DIM, real_number> UnitOffsetJ,
+						   const real_number dx,
+						   const Point<DIM, real_number> obstacle_centre,
+						   const Point<DIM, real_number> obstacle_velocity,
+						   const Parameters &arg_p,
+						   const size_t particle_type,
+						   const Point<DIM, real_number> given_normal,
+						   const real_number given_kappa,
+						   const real_number obstacle_omega);
+
 bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 bool isBelowLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp);
 
@@ -223,5 +240,74 @@ public:
 	bool isInsidePlusTol(Point<DIM, real_number> P);
 	void AddObstacle(particles &vd);
 };
+
+class CurveObstacle : public Obstacle
+{
+private:
+	real_number a_, b_, k_, m_;
+
+public:
+	CurveObstacle(real_number a,
+				  real_number b,
+				  real_number k,
+				  real_number m,
+				  Point<DIM, real_number> centre,
+				  const Parameters &p,
+				  Point<DIM, real_number> vel = {0.0, 0.0},
+				  real_number omega = 0.0,
+				  real_number rf = 1.0);
+	~CurveObstacle() override = default;
+	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
+	void AddObstacle(particles &vd);
+	real_number parametricRadius(real_number theta);
+	real_number parametricRadiusDerivative(real_number theta);
+};
+
+class EpiCycloid : public Obstacle
+{
+private:
+	real_number R_, r_, k_;
+
+public:
+	EpiCycloid(real_number R,
+			   real_number k,
+			   Point<DIM, real_number> centre,
+			   const Parameters &p,
+			   Point<DIM, real_number> vel = {0.0, 0.0},
+			   real_number omega = 0.0,
+			   real_number rf = 1.0);
+	~EpiCycloid() override = default;
+	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
+	void AddObstacle(particles &vd);
+	void AddLobes(particles &vd, const int Npoints, const real_number darc, const int nsteps);
+	Point<DIM, real_number> ParametricCoords(real_number theta);
+	Point<DIM, real_number> ParametricCoordsDerivative(real_number theta);
+};
+
+class HipoCycloid : public Obstacle
+{
+private:
+	real_number R_, r_, k_;
+
+public:
+	HipoCycloid(real_number R,
+				real_number k,
+				Point<DIM, real_number> centre,
+				const Parameters &p,
+				Point<DIM, real_number> vel = {0.0, 0.0},
+				real_number omega = 0.0,
+				real_number rf = 1.0);
+	~HipoCycloid() override = default;
+	bool isInside(Point<DIM, real_number> P) override;
+	bool isInsidePlusTol(Point<DIM, real_number> P);
+	void AddObstacle(particles &vd);
+	void AddLobes(particles &vd, const int Npoints, const real_number darc, const int nsteps);
+	Point<DIM, real_number> ParametricCoords(real_number theta);
+	Point<DIM, real_number> ParametricCoordsDerivative(real_number theta);
+};
+
+bool IsInsideAll(const std::vector<Obstacle *> &obstacles, const Point<DIM, real_number> &point);
 
 #endif // OBSTACLE_HPP

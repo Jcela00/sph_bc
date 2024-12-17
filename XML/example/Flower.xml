@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+
+    <simulation
+        scenario="Flower"
+        bcType="new"
+        bcX="non_periodic" bcY="non_periodic"
+        densityType="summation"
+        writerType="BINARY"
+        time="1000"
+        write_const="10"
+        CFL="1.0"
+        custom_string=""
+    />
+
+    <geometry
+        lengthScale="12.0"
+        rf="1.0"
+        sizeX="120" sizeY="120" sizeZ="0"
+    />
+
+    <physics
+        rho0="1.0"
+        nu="1.0"
+        Bfactor="1.0"
+        gamma="1.0"
+        umax="5.0"
+        gravityX="0.0" gravityY="0.0" gravityZ="0.0"
+        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        vBotX="0.0" vBotY="0.0" vBotZ="0.0"
+    />
+
+    <obstacle 
+        ObstacleBase ="0.4"
+        velX="0.0" velY="0.0" velZ="0.0"
+        omega="3.0"
+    />
+
+    <flower
+        a = "1.0"
+        b = "0.4"
+        k = "5.0"
+        m = "7.0"
+        nlobes = "3.0"
+        alternate = "0"
+        propRadius = "3.0"
+        propRadius2 = "2.0"
+    />
+
+</configuration>

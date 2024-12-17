@@ -82,6 +82,55 @@ void AddFlatWallModNewBC(particles &vd,
     }
 }
 
+void AddFlatWallModNewBC3D(particles &vd,
+                           const int k0,
+                           const int kmax,
+                           const int j0,
+                           const int jmax,
+                           const Point<DIM, real_number> Corner,
+                           const Point<DIM, real_number> UnitOffsetK,
+                           const Point<DIM, real_number> UnitOffsetJ,
+                           const real_number dx,
+                           const Point<DIM, real_number> obstacle_centre,
+                           const Point<DIM, real_number> obstacle_velocity,
+                           const Parameters &arg_p,
+                           const size_t particle_type,
+                           const Point<DIM, real_number> given_normal,
+                           const real_number given_kappa,
+                           const real_number obstacle_omega)
+{
+
+    for (int k = k0; k < kmax; k++)
+    {
+        for (int j = j0; j < jmax; j++)
+        {
+
+            Point<DIM, real_number> WallPos = Corner + k * UnitOffsetK + j * UnitOffsetJ;
+
+            vd.add();
+            vd.template getLastProp<vd0_type>() = particle_type;
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.getLastPos()[xyz] = WallPos.get(xyz); //+ ((real_number)rand() / RAND_MAX - 0.5) * dp;
+                vd.template getLastProp<vd4_velocity>()[xyz] = obstacle_velocity.get(xyz);
+                vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = obstacle_centre.get(xyz);
+                vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd8_normal>()[xyz] = given_normal.get(xyz);
+            }
+
+            vd.template getLastProp<vd2_pressure>() = 0.0;
+            vd.template getLastProp<vd1_rho>() = arg_p.rho0;
+            vd.template getLastProp<vd3_drho>() = 0.0;
+            vd.template getLastProp<vd9_volume>()[0] = dx;
+            vd.template getLastProp<vd9_volume>()[1] = given_kappa;
+            vd.template getLastProp<vd9_volume>()[2] = 0.0;
+
+            vd.template getLastProp<vd10_omega>() = obstacle_omega;
+        }
+    }
+}
+
 bool isAvobeLine(Point<DIM, real_number> P, Point<DIM, real_number> Q, Point<DIM, real_number> EvalPoint, real_number dp)
 {
     // P,Q two points forming a line, EvalPoint the point to check if it is above the line or not
@@ -669,4 +718,590 @@ void TriangleEqui::AddObstacle(particles &vd)
     AddFlatWallNewBC(vd, 1, N_wall + 1, UpperRight_, -1.0 * Diagoffset, dxwall, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
     // Hypothenuse lower wall
     AddFlatWallNewBC(vd, 1, N_wall, LowerRight_, DiagoffsetNW, dxwall, Centre_, LinearVelocity_, params_, OBSTACLE, AngularVelocity_);
+}
+
+// CurveObstacle class
+CurveObstacle::CurveObstacle(real_number a,
+                             real_number b,
+                             real_number k,
+                             real_number m,
+                             Point<DIM, real_number> centre,
+                             const Parameters &p,
+                             Point<DIM, real_number> vel,
+                             real_number omega,
+                             real_number rf) : Obstacle(centre, p, vel, omega, rf), a_(a), b_(b), k_(k), m_(m) {}
+
+void CurveObstacle::AddObstacle(particles &vd)
+{
+    // first compute total perimeter of the curve
+
+    real_number nsteps = 1e7;
+    real_number dtheta = 2.0 * M_PI / nsteps;
+    real_number arc_length = 0.0;
+    real_number theta = 0.0;
+
+    real_number R = parametricRadius(theta);
+    real_number dR = parametricRadiusDerivative(theta);
+
+    real_number f0 = sqrt(R * R + dR * dR);
+    real_number fprev = f0;
+    theta += dtheta;
+
+    for (int i = 0; i < nsteps; i++)
+    {
+        real_number R = parametricRadius(theta);
+        real_number dR = parametricRadiusDerivative(theta);
+        real_number f = sqrt(R * R + dR * dR);
+        real_number ds = 0.5 * (f + fprev) * dtheta;
+        fprev = f;
+        arc_length += ds;
+        theta += dtheta;
+    }
+
+    printf("perimeter of the curve is %f\n", arc_length);
+
+    // now we want to discretize the curve with particles
+    const real_number dx_self = params_.dp / refine_factor;
+    const int Npoints = ceil(arc_length / dx_self);
+
+    const real_number darc = arc_length / (real_number)Npoints;
+    arc_length = 0.0;
+
+    R = parametricRadius(0.0);
+    // add first particle at theta = 0
+    vd.add();
+
+    vd.template getLastProp<vd0_type>() = OBSTACLE;
+    vd.getLastPos()[0] = Centre_.get(0) + R * cos(0.0);
+    vd.getLastPos()[1] = Centre_.get(1) + R * sin(0.0);
+
+    for (int xyz = 0; xyz < DIM; xyz++)
+    {
+        vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+        vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+        vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+        vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+        vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+    }
+
+    vd.template getLastProp<vd2_pressure>() = 0.0;
+    vd.template getLastProp<vd1_rho>() = params_.rho0;
+    vd.template getLastProp<vd3_drho>() = 0.0;
+    vd.template getLastProp<vd9_volume>()[0] = darc;
+    vd.template getLastProp<vd9_volume>()[1] = 0.0;
+    vd.template getLastProp<vd9_volume>()[2] = 0.0;
+    vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+    // add the rest of the particles
+    theta = dtheta;
+    fprev = f0;
+    real_number accumulated_arc = 0.0;
+
+    for (int i = 0; i < nsteps; i++)
+    {
+        real_number R = parametricRadius(theta);
+        real_number dR = parametricRadiusDerivative(theta);
+        real_number f = sqrt(R * R + dR * dR);
+        real_number ds = 0.5 * (f + fprev) * dtheta;
+        fprev = f;
+        accumulated_arc += ds;
+        theta += dtheta;
+
+        if (accumulated_arc > darc)
+        {
+            vd.add();
+            vd.template getLastProp<vd0_type>() = OBSTACLE;
+            vd.getLastPos()[0] = Centre_.get(0) + R * cos(theta);
+            vd.getLastPos()[1] = Centre_.get(1) + R * sin(theta);
+
+            for (int xyz = 0; xyz < DIM; xyz++)
+            {
+                vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+                vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                vd.template getLastProp<vd8_normal>()[xyz] = 0.0;
+                vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+            }
+
+            vd.template getLastProp<vd2_pressure>() = 0.0;
+            vd.template getLastProp<vd1_rho>() = params_.rho0;
+            vd.template getLastProp<vd3_drho>() = 0.0;
+            vd.template getLastProp<vd9_volume>()[0] = darc;
+            vd.template getLastProp<vd9_volume>()[1] = 0.0;
+            vd.template getLastProp<vd9_volume>()[2] = 0.0;
+            vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+            accumulated_arc = 0.0;
+        }
+    }
+}
+
+bool CurveObstacle::isInside(Point<DIM, real_number> P)
+{
+    // get point minus the centre
+    Point<DIM, real_number> Paux = P - Centre_;
+
+    real_number Rpoint = sqrt(Paux.get(0) * Paux.get(0) + Paux.get(1) * Paux.get(1));
+    real_number TPoint = atan2(Paux.get(1), Paux.get(0));
+
+    real_number Rcurve = parametricRadius(TPoint);
+
+    return (Rpoint <= Rcurve);
+}
+
+bool CurveObstacle::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
+
+real_number CurveObstacle::parametricRadius(real_number theta)
+{
+    return a_ * (1 + b_ * std::pow(cos(k_ * theta), m_));
+}
+
+real_number CurveObstacle::parametricRadiusDerivative(real_number theta)
+{
+    return -a_ * b_ * m_ * k_ * std::pow(cos(k_ * theta), m_ - 1) * sin(k_ * theta);
+}
+
+// EpiCycloid Class
+EpiCycloid::EpiCycloid(real_number R,
+                       real_number k,
+                       Point<DIM, real_number> centre,
+                       const Parameters &p,
+                       Point<DIM, real_number> vel,
+                       real_number omega,
+                       real_number rf) : Obstacle(centre, p, vel, omega, rf), R_(R), k_(k)
+{
+    r_ = R_ / k_;
+}
+
+void EpiCycloid::AddObstacle(particles &vd)
+{
+    // first compute total perimeter of the curve
+
+    real_number nsteps = 1e7;
+    real_number dtheta = 2.0 * M_PI / nsteps;
+    real_number arc_length = 0.0;
+    real_number theta = 0.0;
+
+    Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+
+    real_number f0 = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+    real_number fprev = f0;
+    theta += dtheta;
+
+    for (int i = 0; i < nsteps; i++)
+    {
+        Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+        real_number f = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+        real_number ds = 0.5 * (f + fprev) * dtheta;
+        fprev = f;
+        arc_length += ds;
+        theta += dtheta;
+    }
+    printf("perimeter of the Epicycloid is %f\n", arc_length);
+
+    // now we want to discretize the curve with particles
+    const real_number dx_self = params_.dp / refine_factor;
+    const int Npoints = k_ * ceil(arc_length / k_ / dx_self);
+
+    const real_number darc = arc_length / (real_number)Npoints;
+
+    AddLobes(vd, Npoints, darc, nsteps);
+}
+
+void EpiCycloid::AddLobes(particles &vd, const int Npoints, const real_number darc, const int nsteps)
+{
+    real_number dtheta = (2 * M_PI / k_) / nsteps;
+
+    // place lobes one by one
+
+    for (int kk = 0; kk < k_; kk++)
+    {
+        // add the first particle manually
+        real_number theta0 = kk * 2 * M_PI / k_;
+        Point<DIM, real_number> P0 = ParametricCoords(theta0);
+        Point<DIM, real_number> dP0 = ParametricCoordsDerivative(theta0);
+        real_number f0 = sqrt(dP0.get(0) * dP0.get(0) + dP0.get(1) * dP0.get(1));
+
+        vd.add();
+
+        vd.template getLastProp<vd0_type>() = OBSTACLE;
+        vd.getLastPos()[0] = Centre_.get(0) + P0.get(0);
+        vd.getLastPos()[1] = Centre_.get(1) + P0.get(1);
+
+        // normal in - radial direction
+        real_number nx = R_ * cos(theta0);
+        real_number ny = R_ * sin(theta0);
+        vd.template getLastProp<vd8_normal>()[0] = -1000.0 * nx; // -0.5 * 1-;
+        vd.template getLastProp<vd8_normal>()[1] = -1000.0 * ny; // 0.5 * dx;-y
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+        }
+
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params_.rho0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = darc;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+        vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+        // add the rest of the particles
+        real_number theta = theta0 + dtheta;
+        real_number fprev = f0;
+        real_number accumulated_arc = 0.0;
+
+        for (int i = 0; i < nsteps; i++)
+        {
+            // take a step in theta
+            Point<DIM, real_number> P = ParametricCoords(theta);
+            Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+
+            // integrate arc length
+            real_number f = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+            real_number ds = 0.5 * (f + fprev) * dtheta;
+
+            fprev = f;
+            accumulated_arc += ds;
+            theta += dtheta;
+
+            if (accumulated_arc > darc)
+            {
+                vd.add();
+                vd.template getLastProp<vd0_type>() = OBSTACLE;
+                vd.getLastPos()[0] = Centre_.get(0) + P.get(0);
+                vd.getLastPos()[1] = Centre_.get(1) + P.get(1);
+
+                // real_number dx = -r_ * (k_ + 1) * sin(theta) + r_ * (k_ + 1) * sin((k_ + 1) * theta);
+                // real_number dy = r_ * (k_ + 1) * cos(theta) - r_ * (k_ + 1) * cos((k_ + 1) * theta);
+
+                vd.template getLastProp<vd8_normal>()[0] = 0.0; // P.get(0) - Centre_.get(0);
+                vd.template getLastProp<vd8_normal>()[1] = 0.0; // P.get(1) - Centre_.get(1);
+
+                for (int xyz = 0; xyz < DIM; xyz++)
+                {
+                    vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                    vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+                    vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+                }
+
+                vd.template getLastProp<vd2_pressure>() = 0.0;
+                vd.template getLastProp<vd1_rho>() = params_.rho0;
+                vd.template getLastProp<vd3_drho>() = 0.0;
+                vd.template getLastProp<vd9_volume>()[0] = darc;
+                vd.template getLastProp<vd9_volume>()[1] = 0.0;
+                vd.template getLastProp<vd9_volume>()[2] = 0.0;
+                vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+                accumulated_arc = 0.0;
+            }
+        }
+    }
+}
+
+bool EpiCycloid::isInside(Point<DIM, real_number> P)
+{
+
+    Point<DIM, real_number> Paux = P - Centre_;
+    real_number Rpoint = sqrt(Paux.get(0) * Paux.get(0) + Paux.get(1) * Paux.get(1));
+
+    real_number Rmax = (5.0 / 3.0) * R_;
+    real_number Rmin = R_;
+    if (Rpoint > Rmax)
+    {
+        return false;
+    }
+    else if (Rpoint < Rmin)
+    {
+        return true;
+    }
+    else // more expensive check, winding number
+    {
+        real_number ngrid = 1e3;
+        real_number dtheta = 2.0 * M_PI / ngrid;
+
+        real_number accumulated_angle = 0.0;
+
+        for (int i = 0; i < ngrid; i++)
+        {
+            real_number theta = i * dtheta;
+            Point<DIM, real_number> Pcurve = ParametricCoords(theta);
+            Point<DIM, real_number> Pcurve_next = ParametricCoords(theta + dtheta);
+
+            // angle = atan2(ycurvenext-ypoint,xcurvenext-xpoint) - atan2(ycurve-ypoint,xcurve-xpoint)
+            real_number angle = atan2(Pcurve_next.get(1) - Paux.get(1), Pcurve_next.get(0) - Paux.get(0)) - atan2(Pcurve.get(1) - Paux.get(1), Pcurve.get(0) - Paux.get(0));
+            // normalize to -pi,pi
+            if (angle > M_PI)
+            {
+                angle -= 2.0 * M_PI;
+            }
+            else if (angle < -M_PI)
+            {
+                angle += 2.0 * M_PI;
+            }
+            accumulated_angle += angle;
+        }
+        real_number tol = 0.1 * 2.0 * M_PI;
+
+        if (abs(accumulated_angle) > tol)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
+bool EpiCycloid::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
+
+Point<DIM, real_number> EpiCycloid::ParametricCoords(real_number theta)
+{
+    real_number x = r_ * (k_ + 1) * cos(theta) - r_ * cos((k_ + 1) * theta);
+    real_number y = r_ * (k_ + 1) * sin(theta) - r_ * sin((k_ + 1) * theta);
+    return Point<DIM, real_number>{x, y};
+}
+
+Point<DIM, real_number> EpiCycloid::ParametricCoordsDerivative(real_number theta)
+{
+    real_number dx = -r_ * (k_ + 1) * sin(theta) + r_ * (k_ + 1) * sin((k_ + 1) * theta);
+    real_number dy = r_ * (k_ + 1) * cos(theta) - r_ * (k_ + 1) * cos((k_ + 1) * theta);
+    return Point<DIM, real_number>{dx, dy};
+}
+
+// HipoCycloid Class
+HipoCycloid::HipoCycloid(real_number R,
+                         real_number k,
+                         Point<DIM, real_number> centre,
+                         const Parameters &p,
+                         Point<DIM, real_number> vel,
+                         real_number omega,
+                         real_number rf) : Obstacle(centre, p, vel, omega, rf), R_(R), k_(k)
+{
+    r_ = R_ / k_;
+}
+
+void HipoCycloid::AddObstacle(particles &vd)
+{
+    // first compute total perimeter of the curve
+
+    real_number nsteps = 1e7;
+    real_number dtheta = 2.0 * M_PI / nsteps;
+    real_number arc_length = 0.0;
+    real_number theta = 0.0;
+
+    Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+
+    real_number f0 = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+    real_number fprev = f0;
+    theta += dtheta;
+
+    for (int i = 0; i < nsteps; i++)
+    {
+        Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+        real_number f = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+        real_number ds = 0.5 * (f + fprev) * dtheta;
+        fprev = f;
+        arc_length += ds;
+        theta += dtheta;
+    }
+    printf("perimeter of the HipoCycloid is %f\n", arc_length);
+
+    // now we want to discretize the curve with particles
+    const real_number dx_self = params_.dp / refine_factor;
+    const int Npoints = k_ * ceil(arc_length / k_ / dx_self);
+
+    const real_number darc = arc_length / (real_number)Npoints;
+
+    AddLobes(vd, Npoints, darc, nsteps);
+}
+
+void HipoCycloid::AddLobes(particles &vd, const int Npoints, const real_number darc, const int nsteps)
+{
+    real_number dtheta = (2 * M_PI / k_) / nsteps;
+
+    // place lobes one by one
+
+    for (int kk = 0; kk < k_; kk++)
+    {
+        // add the first particle manually
+        real_number theta0 = kk * 2 * M_PI / k_;
+        Point<DIM, real_number> P0 = ParametricCoords(theta0);
+        Point<DIM, real_number> dP0 = ParametricCoordsDerivative(theta0);
+        real_number f0 = sqrt(dP0.get(0) * dP0.get(0) + dP0.get(1) * dP0.get(1));
+
+        vd.add();
+
+        vd.template getLastProp<vd0_type>() = OBSTACLE;
+        vd.getLastPos()[0] = Centre_.get(0) + P0.get(0);
+        vd.getLastPos()[1] = Centre_.get(1) + P0.get(1);
+
+        // normal in - radial direction
+        real_number nx = R_ * cos(theta0);
+        real_number ny = R_ * sin(theta0);
+        vd.template getLastProp<vd8_normal>()[0] = 1000.0 * nx; // -0.5 * 1-;
+        vd.template getLastProp<vd8_normal>()[1] = 1000.0 * ny; // 0.5 * dx;-y
+        for (int xyz = 0; xyz < DIM; xyz++)
+        {
+            vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+            vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+            vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+            vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+        }
+
+        vd.template getLastProp<vd2_pressure>() = 0.0;
+        vd.template getLastProp<vd1_rho>() = params_.rho0;
+        vd.template getLastProp<vd3_drho>() = 0.0;
+        vd.template getLastProp<vd9_volume>()[0] = darc;
+        vd.template getLastProp<vd9_volume>()[1] = 0.0;
+        vd.template getLastProp<vd9_volume>()[2] = 0.0;
+        vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+        // add the rest of the particles
+        real_number theta = theta0 + dtheta;
+        real_number fprev = f0;
+        real_number accumulated_arc = 0.0;
+
+        for (int i = 0; i < nsteps; i++)
+        {
+            // take a step in theta
+            Point<DIM, real_number> P = ParametricCoords(theta);
+            Point<DIM, real_number> dP = ParametricCoordsDerivative(theta);
+
+            // integrate arc length
+            real_number f = sqrt(dP.get(0) * dP.get(0) + dP.get(1) * dP.get(1));
+            real_number ds = 0.5 * (f + fprev) * dtheta;
+
+            fprev = f;
+            accumulated_arc += ds;
+            theta += dtheta;
+
+            if (accumulated_arc > darc)
+            {
+                vd.add();
+                vd.template getLastProp<vd0_type>() = OBSTACLE;
+                vd.getLastPos()[0] = Centre_.get(0) + P.get(0);
+                vd.getLastPos()[1] = Centre_.get(1) + P.get(1);
+
+                // real_number dx = -r_ * (k_ + 1) * sin(theta) + r_ * (k_ + 1) * sin((k_ + 1) * theta);
+                // real_number dy = r_ * (k_ + 1) * cos(theta) - r_ * (k_ + 1) * cos((k_ + 1) * theta);
+                // real_number nx = R_ * cos(theta0 + M_PI / k_);
+                // real_number ny = R_ * sin(theta0 + M_PI / k_);
+                real_number nx = R_ * cos(theta);
+                real_number ny = R_ * sin(theta);
+                vd.template getLastProp<vd8_normal>()[0] = 0.5 * nx; // P.get(0) - Centre_.get(0);
+                vd.template getLastProp<vd8_normal>()[1] = 0.5 * ny; // P.get(1) - Centre_.get(1);
+
+                for (int xyz = 0; xyz < DIM; xyz++)
+                {
+                    vd.template getLastProp<vd6_force>()[xyz] = 0.0;
+                    vd.template getLastProp<vd7_force_t>()[xyz] = Centre_.get(xyz);
+                    vd.template getLastProp<vd5_velocity_t>()[xyz] = 0.0;
+                    vd.template getLastProp<vd4_velocity>()[xyz] = LinearVelocity_.get(xyz);
+                }
+
+                vd.template getLastProp<vd2_pressure>() = 0.0;
+                vd.template getLastProp<vd1_rho>() = params_.rho0;
+                vd.template getLastProp<vd3_drho>() = 0.0;
+                vd.template getLastProp<vd9_volume>()[0] = darc;
+                vd.template getLastProp<vd9_volume>()[1] = 0.0;
+                vd.template getLastProp<vd9_volume>()[2] = 0.0;
+                vd.template getLastProp<vd10_omega>() = AngularVelocity_;
+
+                accumulated_arc = 0.0;
+            }
+        }
+    }
+}
+
+bool HipoCycloid::isInside(Point<DIM, real_number> P)
+{
+
+    Point<DIM, real_number> Paux = P - Centre_;
+    real_number Rpoint = sqrt(Paux.get(0) * Paux.get(0) + Paux.get(1) * Paux.get(1));
+
+    real_number Rmax = R_;
+    if (Rpoint > Rmax)
+    {
+        return false;
+    }
+    else // more expensive check, winding number
+    {
+        real_number ngrid = 1000;
+        real_number dtheta = 2.0 * M_PI / ngrid;
+
+        real_number accumulated_angle = 0.0;
+
+        for (int i = 0; i < ngrid; i++)
+        {
+            real_number theta = i * dtheta;
+            Point<DIM, real_number> Pcurve = ParametricCoords(theta);
+            Point<DIM, real_number> Pcurve_next = ParametricCoords(theta + dtheta);
+
+            // angle = atan2(ycurvenext-ypoint,xcurvenext-xpoint) - atan2(ycurve-ypoint,xcurve-xpoint)
+            real_number angle = atan2(Pcurve_next.get(1) - Paux.get(1), Pcurve_next.get(0) - Paux.get(0)) - atan2(Pcurve.get(1) - Paux.get(1), Pcurve.get(0) - Paux.get(0));
+            // normalize to -pi,pi
+            if (angle > M_PI)
+            {
+                angle -= 2.0 * M_PI;
+            }
+            else if (angle < -M_PI)
+            {
+                angle += 2.0 * M_PI;
+            }
+            accumulated_angle += angle;
+        }
+        real_number tol = 0.1 * 2.0 * M_PI;
+
+        if (abs(accumulated_angle) > tol)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
+bool HipoCycloid::isInsidePlusTol(Point<DIM, real_number> P)
+{
+    return false;
+}
+
+Point<DIM, real_number> HipoCycloid::ParametricCoords(real_number theta)
+{
+    real_number x = r_ * (k_ - 1) * cos(theta) + r_ * cos((k_ - 1) * theta);
+    real_number y = r_ * (k_ - 1) * sin(theta) - r_ * sin((k_ - 1) * theta);
+    return Point<DIM, real_number>{x, y};
+}
+
+Point<DIM, real_number> HipoCycloid::ParametricCoordsDerivative(real_number theta)
+{
+    real_number dx = -r_ * (k_ - 1) * sin(theta) - r_ * (k_ - 1) * sin((k_ - 1) * theta);
+    real_number dy = r_ * (k_ - 1) * cos(theta) - r_ * (k_ - 1) * cos((k_ - 1) * theta);
+    return Point<DIM, real_number>{dx, dy};
+}
+
+bool IsInsideAll(const std::vector<Obstacle *> &obstacles, const Point<DIM, real_number> &point)
+{
+    for (const auto &obstacle : obstacles)
+    {
+        if (obstacle->isInside(point))
+        {
+            return true;
+        }
+    }
+    return false; // If not inside any obstacle
 }

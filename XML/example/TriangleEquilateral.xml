@@ -7,10 +7,10 @@
         bcX="periodic" bcY="non_periodic"
         densityType="differential"
         writerType="BINARY"
-        time="100"
-        write_const="10"
+        time="40"
+        write_const="1"
         CFL="1.0"
-        custom_string=""
+        custom_string="lowKmax"
     />
 
     <geometry

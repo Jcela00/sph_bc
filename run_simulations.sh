@@ -2,7 +2,12 @@
 
 # Array of input files
 input_files=(
-XML/Triangle/Re1000/CustomTriangle50.xml
+XML/Flower/Flower_old_60.xml
+XML/Flower/Flower_new_60.xml
+XML/Flower/Flower_old_120.xml
+XML/Flower/Flower_new_120.xml
+XML/Flower/Flower_old_240.xml
+XML/Flower/Flower_new_240.xml
 )
 
 # Path to the simulation executable

@@ -2,6 +2,7 @@
 MatlabScripts/fig/
 MatlabScripts/figures/
 MatlabScripts/results/
+MatlabScripts/dotMatData/
 VTPDATA
 *.vtp
 *.pvtp

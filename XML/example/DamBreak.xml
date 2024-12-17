@@ -9,7 +9,7 @@
         writerType="BINARY"
         time="200"
         write_const="10"
-        CFL="0.5"
+        CFL="0.1"
         custom_string=""
     />
 
@@ -21,9 +21,9 @@
 
     <physics
         rho0="1.0"
-        nu="0.01"
-        Bfactor="1.0"
-        gamma="7.0"
+        nu="0.005"
+        Bfactor="0.1"
+        gamma="1.0"
         umax="1.0"
         gravityX="0.0" gravityY="-1.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"

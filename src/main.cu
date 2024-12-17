@@ -87,6 +87,10 @@ int main(int argc, char *argv[])
 	{
 		CreateParticleGeometryStep(vd, vp, MainParameters, AuxParameters);
 	}
+	else if (MainParameters.SCENARIO == POISEUILLE_TANK)
+	{
+		CreateParticleGeometryPoiseuilleTank(vd, MainParameters, AuxParameters);
+	}
 	else if (MainParameters.SCENARIO == TAYLOR_COUETTE)
 	{
 		CreateParticleGeometryTaylorCouette(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
@@ -106,6 +110,10 @@ int main(int argc, char *argv[])
 	else if (MainParameters.SCENARIO == SPHERE)
 	{
 		CreateParticleGeometrySphere(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
+	}
+	else if (MainParameters.SCENARIO == FLOWER)
+	{
+		CreateParticleGeometryFlower(vd, vp, obstacle_ptr, MainParameters, AuxParameters);
 	}
 	else
 	{
@@ -139,7 +147,7 @@ int main(int argc, char *argv[])
 	vd.updateCellList(NN);
 
 	// Set up fluid vector, normal vector, curvature and volume of the boundary particles
-	if (MainParameters.BC_TYPE == NEW_NO_SLIP && MainParameters.SCENARIO != DAM_BREAK_ADJ)
+	if (MainParameters.BC_TYPE == NEW_NO_SLIP && MainParameters.SCENARIO != DAM_BREAK_ADJ && MainParameters.SCENARIO != POISEUILLE_TANK)
 	{
 		CalcFluidVec(vd, NN, MainParameters);
 		vd.ghost_get<vd0_type, vd1_rho, vd2_pressure, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd11_vorticity>();

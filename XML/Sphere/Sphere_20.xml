@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+
+    <simulation
+        scenario="Sphere"
+        bcType="new"
+        bcX="periodic" bcY="periodic" bcZ="periodic"
+        densityType="summation"
+        writerType="BINARY"
+        time="3000"
+        write_const="1"
+        CFL="1.0"
+        custom_string=""
+    />
+
+    <geometry
+        lengthScale="10.0"
+        rf="2.0"
+        sizeX="40" sizeY="20" sizeZ="20"
+    />
+
+    <physics
+        rho0="1.0"
+        nu="1.0"
+        Bfactor="1.0"
+        gamma="1.0"
+        umax="0.11"
+        gravityX="0.0005" gravityY="0.0" gravityZ="0.0"
+        vTopX="0.0" vTopY="0.0" vTopZ="0.0"
+        vBotX="0.0" vBotY="0.0" vBotZ="0.0"
+    />
+
+    <obstacle 
+        ObstacleBase ="0.5"
+        velX="0.0" velY="0.0" velZ="0.0"
+        VinflowX ="0.0" VinflowY="0.0" VinflowZ="0.0"
+        omega="0.0"
+    />
+
+</configuration>

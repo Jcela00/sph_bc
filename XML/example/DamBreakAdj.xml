@@ -16,23 +16,23 @@
     <geometry
         lengthScale="3.0"
         rf="1.0"
-        sizeX="150" sizeY="150" sizeZ="0"
+        sizeX="75" sizeY="150" sizeZ="0"
     />
 
     <physics
         rho0="1.0"
-        nu="0.01"
-        Bfactor="0.0"
+        nu="0.1"
+        Bfactor="0.05"
         gamma="1.0"
-        umax="1.0"
-        gravityX="0.0" gravityY="-1.0" gravityZ="0.0"
+        umax="10.0"
+        gravityX="0.0" gravityY="-10.0" gravityZ="0.0"
         vTopX="0.0" vTopY="0.0" vTopZ="0.0"
         vBotX="0.0" vBotY="0.0" vBotZ="0.0"
     />
 
     <dambreak 
-        WaterHeigth="1.0"
-        WaterBase="2.0"
+        WaterHeigth="2.7"
+        WaterBase="0.5"
     />
 
 </configuration>

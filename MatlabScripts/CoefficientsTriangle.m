@@ -26,20 +26,20 @@ Re100_table = zeros(2, 8);
 Re1000_table = zeros(2, 8);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% RE 100 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-window = [55.9 95.47];
-fig1 = figure; hold on;
-Re100_table = PlotCoefficient(TriangleRe100_25, window, fig1, Re100_table, 1, 'b', 0, 'Re100_25');
-exportgraphics(gcf, ['LatexFigures/TriangleDrag100_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+% window = [55.9 95.47];
+% fig1 = figure; hold on;
+% Re100_table = PlotCoefficient(TriangleRe100_25, window, fig1, Re100_table, 1, 'b', 0, 'Re100_25');
+% % exportgraphics(gcf, ['LatexFigures/TriangleDrag100_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 window = [58.5 90.88];
 fig2 = figure; hold on;
 Re100_table = PlotCoefficient(TriangleRe100_50, window, fig2, Re100_table, 2, 'r', 0, 'Re100_50');
 exportgraphics(gcf, ['LatexFigures/TriangleDrag100_50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
-window = [56.2 93.4];
-fig3 = figure; hold on;
-Re100_table = PlotCoefficient(TriangleRe100_25, window, fig3, Re100_table, 1, 'b', 1, 'Re100_25');
-exportgraphics(gcf, ['LatexFigures/TriangleLift100_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+% window = [56.2 93.4];
+% fig3 = figure; hold on;
+% Re100_table = PlotCoefficient(TriangleRe100_25, window, fig3, Re100_table, 1, 'b', 1, 'Re100_25');
+% % exportgraphics(gcf, ['LatexFigures/TriangleLift100_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 window = [58.95 91.3];
 fig4 = figure; hold on;
@@ -47,20 +47,20 @@ Re100_table = PlotCoefficient(TriangleRe100_50, window, fig4, Re100_table, 2, 'r
 exportgraphics(gcf, ['LatexFigures/TriangleLift100_50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% RE 1000 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-window = [55.9 95.47];
-fig5 = figure; hold on;
-Re1000_table = PlotCoefficient(TriangleRe1000_25, window, fig5, Re1000_table, 1, 'b', 0, 'Re1000_25');
-exportgraphics(gcf, ['LatexFigures/TriangleDrag1000_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+% window = [55.9 95.47];
+% fig5 = figure; hold on;
+% Re1000_table = PlotCoefficient(TriangleRe1000_25, window, fig5, Re1000_table, 1, 'b', 0, 'Re1000_25');
+% % exportgraphics(gcf, ['LatexFigures/TriangleDrag1000_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 window = [58.5 90.88];
 fig6 = figure; hold on;
 Re1000_table = PlotCoefficient(TriangleRe1000_50, window, fig6, Re1000_table, 2, 'r', 0, 'Re1000_50');
 exportgraphics(gcf, ['LatexFigures/TriangleDrag1000_50.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
-window = [50.2 91.8];
-fig7 = figure; hold on;
-Re1000_table = PlotCoefficient(TriangleRe1000_25, window, fig7, Re1000_table, 1, 'b', 1, 'Re1000_25');
-exportgraphics(gcf, ['LatexFigures/TriangleLift1000_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
+% window = [50.2 91.8];
+% fig7 = figure; hold on;
+% Re1000_table = PlotCoefficient(TriangleRe1000_25, window, fig7, Re1000_table, 1, 'b', 1, 'Re1000_25');
+% % exportgraphics(gcf, ['LatexFigures/TriangleLift1000_25.pdf'], 'ContentType', 'vector', 'Resolution', 300);
 
 window = [49.8 91.8];
 fig8 = figure; hold on;
@@ -277,12 +277,12 @@ function [return_table] = PlotCoefficient(dataset, window, fighandle, coefficien
 
     if DragOrLift == 0
         index = 3;
-        ylbl = '$C_D$';
+        ylbl = '$C_d$';
         ttl = 'Drag Coefficient Re = ';
         cols = [1 4];
     elseif DragOrLift == 1
         index = 4;
-        ylbl = '$C_L$';
+        ylbl = '$C_l$';
         ttl = 'Lift Coefficient Re = ';
         cols = [5 8];
     end
@@ -296,12 +296,12 @@ function [return_table] = PlotCoefficient(dataset, window, fighandle, coefficien
     % yline(avg, '--', 'Color', clr, 'DisplayName', ['Avg: ' num2str(avg) ' Amplitude: ' num2str(amp)]);
     % yline(avg + amp, '--r', 'HandleVisibility', 'off');
     % yline(avg - amp, '--r', 'HandleVisibility', 'off');
-    xline(window(1), '--k', 'HandleVisibility', 'off');
-    xline(window(2), '--k', 'HandleVisibility', 'off');
+    % xline(window(1), '--k', 'HandleVisibility', 'off');
+    % xline(window(2), '--k', 'HandleVisibility', 'off');
     xlabel('Time [s]');
     ylabel(ylbl);
-    title([ttl num2str(Re)])
-    legend('Location', 'best', 'box', 'off');
+    % title([ttl num2str(Re)])
+    % legend('Location', 'best', 'box', 'off');
     set(gca, 'FontSize', 11);
 
     coefficient_table(tablerow, cols(1):cols(2)) = [avg amp freqs];

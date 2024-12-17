@@ -12,6 +12,8 @@ void CreateParticleGeometry(particles &vd,
                             Parameters &params,
                             AuxiliarParameters &auxParams);
 
+void CreateParticleGeometryPoiseuilleTank(particles &vd, Parameters &params, AuxiliarParameters &auxParams);
+
 void CreateParticleGeometryTaylorCouette(particles &vd,
                                          std::vector<std::pair<probe_particles, int>> &vp_vec,
                                          Obstacle *&obstacle_ptr,
@@ -40,6 +42,12 @@ void CreateParticleGeometryCavity(particles &vd,
                                   AuxiliarParameters &auxParams);
 
 void CreateParticleGeometrySphere(particles &vd,
+                                  std::vector<std::pair<probe_particles, int>> &vp_vec,
+                                  Obstacle *&obstacle_ptr,
+                                  Parameters &params,
+                                  AuxiliarParameters &auxParams);
+
+void CreateParticleGeometryFlower(particles &vd,
                                   std::vector<std::pair<probe_particles, int>> &vp_vec,
                                   Obstacle *&obstacle_ptr,
                                   Parameters &params,

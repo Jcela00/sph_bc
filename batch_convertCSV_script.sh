@@ -12,9 +12,9 @@ end=$2
 
 # List of filename beginings
 files=(
-Cavity_new_summation_Re10000_100_100_1rf_1prc
-Cavity_new_summation_Re10000_100_100_1rf_1prc
-Cavity_new_summation_Re10000_100_100_1rf_1prc
+# TriangleEquilateral_new_differential_highKmax_60_40_1rf_1prc
+TriangleEquilateral_new_differential_lowKmax_60_40_1rf_1prc
+# TriangleEquilateral_new_differential_60_40_1rf_1prc
 ) 
 
 # Loop through the hardcoded list of files

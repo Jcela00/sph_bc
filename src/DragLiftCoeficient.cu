@@ -10,7 +10,12 @@ void CalcDragLift(real_number t,
     Vcluster<> &v_cl = create_vcluster();
 
     // normalization factor, 1/normalization is equal to dx^2/Channel_area
-    size_t normalization = params.Nfluid[0] * params.Nfluid[1];
+    size_t normalization = 0;
+
+    if constexpr (DIM == 2)
+        normalization = params.Nfluid[0] * params.Nfluid[1];
+    else if constexpr (DIM == 3)
+        normalization = params.Nfluid[0] * params.Nfluid[1] * params.Nfluid[2];
 
     VxDragLift[0] = VxDragLift[0] / static_cast<real_number>(normalization);
 

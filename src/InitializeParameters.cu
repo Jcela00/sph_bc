@@ -42,8 +42,6 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = STEP;
         else if (strcmp(scenario_str, "TaylorCouette") == 0)
             argParameters.SCENARIO = TAYLOR_COUETTE;
-        else if (strcmp(scenario_str, "MovingObstacle") == 0)
-            argParameters.SCENARIO = MOVING_OBSTACLE;
         else if (strcmp(scenario_str, "Ellipse") == 0)
             argParameters.SCENARIO = ELLIPSE;
         else if (strcmp(scenario_str, "DamBreak") == 0)
@@ -56,6 +54,10 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
             argParameters.SCENARIO = SPHERE;
         else if (strcmp(scenario_str, "Custom") == 0)
             argParameters.SCENARIO = CUSTOM;
+        else if (strcmp(scenario_str, "Flower") == 0)
+            argParameters.SCENARIO = FLOWER;
+        else if (strcmp(scenario_str, "PoiseuilleTank") == 0)
+            argParameters.SCENARIO = POISEUILLE_TANK;
         else
         {
             std::cout << "Unknown Scenario, defaulting to Poiseuille" << std::endl;
@@ -329,6 +331,27 @@ void ParseXMLFile(const std::string &filename, Parameters &argParameters, Auxili
         DamBreakElement->QueryDoubleAttribute("WaterBase", &tmpdouble);
         argParameters.waterB = static_cast<real_number>(tmpdouble);
     }
+    // Parse <DamBreak> element
+    tinyxml2::XMLElement *FlowerElement = doc.FirstChildElement("configuration")->FirstChildElement("flower");
+    if (FlowerElement)
+    {
+        FlowerElement->QueryDoubleAttribute("a", &tmpdouble);
+        argParameters.flowerA = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("b", &tmpdouble);
+        argParameters.flowerB = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("k", &tmpdouble);
+        argParameters.flowerK = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("m", &tmpdouble);
+        argParameters.flowerM = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("nlobes", &tmpdouble);
+        argParameters.flowerNlobes = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("alternate", &tmpdouble);
+        argParameters.flowerAlternate = static_cast<int>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("propRadius", &tmpdouble);
+        argParameters.flowerPropRadius = static_cast<real_number>(tmpdouble);
+        FlowerElement->QueryDoubleAttribute("propRadius2", &tmpdouble);
+        argParameters.flowerPropRadius2 = static_cast<real_number>(tmpdouble);
+    }
 }
 
 void ComputeKernelVolume(Parameters &argParameters)
@@ -388,8 +411,8 @@ void ComputeKernelVolume(Parameters &argParameters)
         }
 
         argParameters.Vp = 1.0 / sumWij;
-        // printf("Kernel volume: %.17g\n", argParameters.Vp);
-        // printf("Dx*Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp);
+        printf("Kernel volume: %.17g\n", argParameters.Vp);
+        printf("Dx*Dx*Dx: %.17g\n", argParameters.dp * argParameters.dp * argParameters.dp);
     }
 }
 
@@ -518,10 +541,10 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     argParameters.Re = argParameters.umax * argParameters.LengthScale / argParameters.nu;
 
     // cosmax
-    argParameters.thetamax = 100.0 * M_PI / 180.0;
+    argParameters.thetamax = 89.0 * M_PI / 180.0;
     argParameters.cosmax = cos(argParameters.thetamax);
 
-    if (argParameters.SCENARIO != CUSTOM && argParameters.SCENARIO != MOVING_OBSTACLE)
+    if (argParameters.SCENARIO != CUSTOM && argParameters.SCENARIO)
     {
         argParameters.ObstacleCenter[0] = (argParameters.length[0] + static_cast<real_number>(argParameters.bc[0]) * argParameters.dp) / 2.0;
         argParameters.ObstacleCenter[1] = (argParameters.length[1] + static_cast<real_number>(argParameters.bc[1]) * argParameters.dp) / 2.0;

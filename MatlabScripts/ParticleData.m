@@ -1021,7 +1021,7 @@ classdef ParticleData
                 norm = normal(k, :);
 
                 color_index = round(1 + ((255 - 1) / (maxcurv - mincurv)) * (curv - mincurv));
-                plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz);
+                plot(obj.Position(k, 1), obj.Position(k, 2), 'MarkerEdgeColor', 'k', 'MarkerFaceColor', custom_colormap(color_index, :), 'Marker', 'o', 'MarkerSize', mrksz, 'LineWidth', 0.5);
                 quiver(pos(1), pos(2), norm(1), norm(2), vectorsize, 'Color', 'k', 'LineWidth', 2);
 
             end
