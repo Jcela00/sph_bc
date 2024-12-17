@@ -1,5 +1,5 @@
 # SPH New Boundary Condition Simulation Code
-![](Header.gif)
+![](Header.png)
 
 This project is a simulation code for Smoothed Particle Hydrodynamics (SPH) used to study the new boundary condition developed in the master thesis work "A single layer ghost particle boundary method for Smoothed Particle Hydrodynamics". The code is written in C++ and uses the OpenFMP library.
 
