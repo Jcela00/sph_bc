@@ -38,7 +38,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
 	$(CC) $(OPT) $(CXX_STD) -c -o $@ $< $(INCLUDE_PATH)
 
 # Build the executable
-sph_dlb: $(OBJS)
+sph: $(OBJS)
 	$(CUDA_CC_LINK) -o $@ $^ $(CFLAGS) $(LIBS_PATH) $(LIBS_SELECT)
 
 # Ensure the build directory exists
@@ -46,18 +46,18 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # Default target
-all: sph_dlb sph_dlb_test
+all: sph sph_test
 
-# Target to run the sph_dlb executable
-run: sph_dlb 
-	mpirun -np 1 ./sph_dlb XMLs/example/PERFORMANCE_TEST.xml
+# Target to run the sph executable
+run: sph 
+	./sph XML/example/Cavity.xml
 
 # Phony targets
 .PHONY: clean all run
 
 # Clean up build artifacts
 clean:
-	rm -f $(BUILD_DIR)/*.o *~ core sph_dlb sph_dlb_test 
+	rm -f $(BUILD_DIR)/*.o *~ core sph sph_test 
 
 # Clean up output files
 cleanout:

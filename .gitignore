@@ -1,8 +1,5 @@
 .vscode/
-MatlabScripts/fig/
-MatlabScripts/figures/
-MatlabScripts/results/
-MatlabScripts/dotMatData/
+MatlabScripts/
 VTPDATA
 *.vtp
 *.pvtp
