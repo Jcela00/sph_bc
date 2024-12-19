@@ -519,7 +519,7 @@ void InitializeConstants(Parameters &argParameters, AuxiliarParameters &argAuxPa
     cu = argParameters.coeff_sound * argParameters.umax;
     cnu = argParameters.coeff_sound * sqrt(argParameters.nu * argParameters.umax / argParameters.LengthScale);
     cg = argParameters.coeff_sound * sqrt(argParameters.gravity * argParameters.LengthScale);
-    c = max(max(cu, cnu), cg);
+    c = std::max(std::max(cu, cnu), cg);
     argParameters.cbar = c;
     if (c == cu)
     {

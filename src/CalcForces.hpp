@@ -645,9 +645,13 @@ inline void calc_forces(particles &vd,
     {
         vd.template updateCellListGPU<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);
         if constexpr (DIM == 2)
+        {
             CUDA_LAUNCH(calc_forcesGPU_new2D, it, vd.toKernel(), NN.toKernel());
+        }
         else if constexpr (DIM == 3)
+        {
             CUDA_LAUNCH(calc_forcesGPU_new3D, it, vd.toKernel(), NN.toKernel());
+        }
     }
 
     vd.template restoreOrder<vd0_type, vd1_rho, vd2_pressure, vd3_drho, vd4_velocity, vd5_velocity_t, vd6_force, vd7_force_t, vd8_normal, vd9_volume, vd10_omega, vd13_force_red_x, vd14_force_red_y>(NN);

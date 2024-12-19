@@ -57,15 +57,16 @@ int main(int argc, char *argv[])
 		std::cerr << "Error copying to constant memory: " << cudaGetErrorString(err) << std::endl;
 	}
 	cudaDeviceSynchronize();
-#else
-	_params_gpu_ = MainParameters;
-#endif
 
 	// Write GPU parameters to file to check if correctly copied
 	Parameters host_params_check;
 	cudaMemcpyFromSymbol(&host_params_check, _params_gpu_, sizeof(Parameters));
 	cudaDeviceSynchronize();
 	host_params_check.WriteParameters(("check_params.txt"));
+
+#else
+	_params_gpu_ = MainParameters;
+#endif
 
 	// Create the particle data structure
 	particles vd;
