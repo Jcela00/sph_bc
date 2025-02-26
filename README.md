@@ -1,7 +1,7 @@
 # SPH New Boundary Condition Simulation Code
 ![](Header.png)
 
-This project is a simulation code for Smoothed Particle Hydrodynamics (SPH) used to study the new boundary condition developed in the master thesis work "A single layer ghost particle boundary method for Smoothed Particle Hydrodynamics". The code is written in C++ and uses the OpenFMP library.
+This project is a simulation code for Smoothed Particle Hydrodynamics (SPH) used to study the new boundary condition developed in the [master thesis](./MasterThesis.pdf) work "A single layer ghost particle boundary method for Smoothed Particle Hydrodynamics". The code is written in C++ and uses the OpenFMP library.
 
 ## Installation
 First follow the instructions from the [OpenFPM library](https://openfpm.mpi-cbg.de/building/) to install it. If you wish to enable the CUDA support, you will need to set GPU_CUDA_SUPPORT=1 during the OpenFPM installation. 
